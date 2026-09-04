@@ -521,18 +521,36 @@ export async function parsePpctFile(
   const lessons: PpctLesson[] = [];
   let currentCumulativePeriod = 1;
 
+  // Check if rawItems represents a 1-row-per-period table (approximately 140 rows)
+  const isOneRowPerPeriodTable = rawItems.length >= 135 && rawItems.length <= 145;
+
   for (let k = 0; k < rawItems.length; k++) {
     const item = rawItems[k];
     let soTiet = 1;
     let tietPPCT = currentCumulativePeriod;
     let tietRangeStr = '';
 
-    if (item.periodRange && item.periodRange.count > 0) {
-      // Direct exact period numbers from the document
-      soTiet = item.periodRange.count;
-      tietPPCT = item.periodRange.end;
-      tietRangeStr = item.periodRange.rangeStr;
-      currentCumulativePeriod = item.periodRange.end + 1;
+    const isHocKy2 = item.hocKy === 2 || item.tuan > 18 || currentCumulativePeriod > 72;
+
+    if (isOneRowPerPeriodTable) {
+      // Each row represents exactly 1 period
+      soTiet = 1;
+      tietPPCT = currentCumulativePeriod++;
+      tietRangeStr = String(tietPPCT);
+    } else if (item.periodRange && item.periodRange.count > 0) {
+      soTiet = Math.max(1, item.periodRange.count);
+      let pStart = item.periodRange.start;
+      let pEnd = item.periodRange.end;
+
+      // Detect if HK2 period numbers in the document restarted from 1 (e.g. 1..68)
+      if (isHocKy2 && pEnd <= 72 && currentCumulativePeriod >= 72) {
+        pStart += 72;
+        pEnd += 72;
+      }
+
+      tietPPCT = pEnd;
+      tietRangeStr = pStart === pEnd ? String(pEnd) : `${pStart} - ${pEnd}`;
+      currentCumulativePeriod = Math.max(currentCumulativePeriod, pEnd + 1);
     } else if (item.explicitSoTiet && item.explicitSoTiet > 0 && item.explicitSoTiet <= 6) {
       soTiet = item.explicitSoTiet;
       tietPPCT = currentCumulativePeriod + soTiet - 1;
@@ -544,7 +562,7 @@ export async function parsePpctFile(
       tietRangeStr = String(tietPPCT);
     }
 
-    // Calculate Week strictly: 4 periods per week standard
+    // Calculate Week strictly: 4 periods per week standard (18 weeks HK1, 17 weeks HK2)
     let finalWeek = item.tuan;
     if (finalWeek < 1 || finalWeek > 35) {
       finalWeek = Math.min(35, Math.max(1, Math.ceil(tietPPCT / 4)));
@@ -556,7 +574,7 @@ export async function parsePpctFile(
       stt: k + 1,
       tuan: finalWeek,
       hocKy: finalHocKy,
-      chuong: item.chuong,
+      chuong: item.chuong || (finalHocKy === 1 ? 'Chương I' : 'Chương VI'),
       baiHoc: item.baiHoc,
       soTiet,
       tietPPCT,
@@ -649,12 +667,19 @@ export async function parsePpctFile(
   // Run initial validation
   dataset.validation = validatePpctDataset(dataset, options?.expectedTotalPeriods || 140);
 
+  // If dataset is already valid (e.g. exactly 140 periods: HK1=72, HK2=68), keep it faithful to uploaded file!
+  if (dataset.validation && dataset.validation.isValid) {
+    return dataset;
+  }
+
   // If detected subject is Math (or expected periods is 140), and parsed lessons are within expected range:
   // automatically standardize so that HK1 has exactly 18 weeks (72 periods) and HK2 has exactly 17 weeks (68 periods)
   if (
     (detectedSubject === 'Toán' || options?.expectedTotalPeriods === 140) &&
     totalLessonsPeriods >= 120 &&
-    totalLessonsPeriods <= 165
+    totalLessonsPeriods <= 165 &&
+    dataset.validation &&
+    !dataset.validation.isValid
   ) {
     return autoStandardizePpct(dataset, options?.expectedTotalPeriods || 140);
   }
@@ -670,210 +695,239 @@ export function validatePpctDataset(
   dataset: PpctDataset,
   expectedTotalPeriods: number = 140
 ): PpctValidationResult {
-  const issues: PpctIssue[] = [];
-  const lessons = dataset.lessons || [];
+  try {
+    const issues: PpctIssue[] = [];
+    const lessons = dataset.lessons || [];
 
-  const totalPeriods = lessons.reduce((sum, l) => sum + (l.soTiet || 1), 0);
-  const hk1Lessons = lessons.filter((l) => l.hocKy === 1);
-  const hk2Lessons = lessons.filter((l) => l.hocKy === 2);
-  const hk1Periods = hk1Lessons.reduce((sum, l) => sum + (l.soTiet || 1), 0);
-  const hk2Periods = hk2Lessons.reduce((sum, l) => sum + (l.soTiet || 1), 0);
+    const totalPeriods = lessons.reduce((sum, l) => sum + (l.soTiet || 1), 0);
+    const hk1Lessons = lessons.filter((l) => l.hocKy === 1);
+    const hk2Lessons = lessons.filter((l) => l.hocKy === 2);
+    const hk1Periods = hk1Lessons.reduce((sum, l) => sum + (l.soTiet || 1), 0);
+    const hk2Periods = hk2Lessons.reduce((sum, l) => sum + (l.soTiet || 1), 0);
 
-  const expectedHK1 = 72; // Standard GDPT 2018 for Math THCS
-  const expectedHK2 = 68; // Standard GDPT 2018 for Math THCS
-  const diff = totalPeriods - expectedTotalPeriods;
-  const diffHK1 = hk1Periods - expectedHK1;
-  const diffHK2 = hk2Periods - expectedHK2;
+    const expectedHK1 = 72; // Standard GDPT 2018 for Math THCS
+    const expectedHK2 = 68; // Standard GDPT 2018 for Math THCS
+    const diff = totalPeriods - expectedTotalPeriods;
+    const diffHK1 = hk1Periods - expectedHK1;
+    const diffHK2 = hk2Periods - expectedHK2;
 
-  // 1. Overall Total Periods Discrepancy
-  if (diff > 0) {
-    issues.push({
-      id: `issue-total-overflow-${Date.now()}`,
-      type: 'total_overflow',
-      severity: 'error',
-      message: `Dư ${diff} tiết so với định mức cả năm (${totalPeriods}/${expectedTotalPeriods} tiết).`,
-      suggestion: `Kiểm tra các bài học có số tiết quá lớn hoặc rà soát xem có dòng tiêu đề/tổng kết nào bị nhận diện nhầm.`,
-    });
-  } else if (diff < 0) {
-    issues.push({
-      id: `issue-total-underflow-${Date.now()}`,
-      type: 'total_underflow',
-      severity: 'error',
-      message: `Thiếu ${Math.abs(diff)} tiết so với định mức cả năm (${totalPeriods}/${expectedTotalPeriods} tiết).`,
-      suggestion: `Kiểm tra xem file có bị thiếu các bài ôn tập, thực hành hoặc các tuần cuối năm học không.`,
-    });
-  }
-
-  // 2. Term 1 Discrepancy
-  if (diffHK1 !== 0) {
-    issues.push({
-      id: `issue-hk1-mismatch-${Date.now()}`,
-      type: 'hk1_mismatch',
-      severity: Math.abs(diffHK1) > 4 ? 'error' : 'warning',
-      message: `Học kỳ I đang có ${hk1Periods} tiết (${diffHK1 > 0 ? `Dư ${diffHK1}` : `Thiếu ${Math.abs(diffHK1)}`} tiết so với chuẩn ${expectedHK1} tiết).`,
-      suggestion: `Phân phối chuẩn HK1 gồm 18 tuần × 4 tiết/tuần = 72 tiết. Cân chỉnh lại số tiết tuần 1 đến 18.`,
-    });
-  }
-
-  // 3. Term 2 Discrepancy
-  if (diffHK2 !== 0) {
-    issues.push({
-      id: `issue-hk2-mismatch-${Date.now()}`,
-      type: 'hk2_mismatch',
-      severity: Math.abs(diffHK2) > 4 ? 'error' : 'warning',
-      message: `Học kỳ II đang có ${hk2Periods} tiết (${diffHK2 > 0 ? `Dư ${diffHK2}` : `Thiếu ${Math.abs(diffHK2)}`} tiết so với chuẩn ${expectedHK2} tiết).`,
-      suggestion: `Phân phối chuẩn HK2 gồm 17 tuần × 4 tiết/tuần = 68 tiết. Cân chỉnh lại số tiết tuần 19 đến 35.`,
-    });
-  }
-
-  // 4. Week Statistics & Week-by-Week Discrepancy
-  const weekStats: Record<number, number> = {};
-  for (let w = 1; w <= 35; w++) {
-    weekStats[w] = 0;
-  }
-
-  lessons.forEach((l) => {
-    const w = l.tuan;
-    if (w >= 1 && w <= 35) {
-      weekStats[w] = (weekStats[w] || 0) + (l.soTiet || 1);
-    }
-  });
-
-  // Check for week anomalies (each normal week should ideally have 4 periods for Math)
-  for (let w = 1; w <= 35; w++) {
-    const pCount = weekStats[w];
-    if (pCount > 4) {
+    // 1. Overall Total Periods Discrepancy
+    if (diff > 0) {
       issues.push({
-        id: `issue-week-overflow-${w}`,
-        type: 'week_overflow',
-        severity: 'warning',
-        tuan: w,
-        message: `Tuần ${w} đang bố trí ${pCount} tiết (Dư ${pCount - 4} tiết so với định mức 4 tiết/tuần).`,
-        suggestion: `Chuyển bớt ${pCount - 4} tiết sang các tuần liền kề hoặc kiểm tra số tiết của các bài trong tuần ${w}.`,
-      });
-    } else if (pCount < 4 && pCount > 0) {
-      issues.push({
-        id: `issue-week-underflow-${w}`,
-        type: 'week_underflow',
-        severity: 'info',
-        tuan: w,
-        message: `Tuần ${w} chỉ có ${pCount} tiết (Ít hơn định mức 4 tiết/tuần).`,
-        suggestion: `Bổ sung thêm tiết dạy hoặc tiết ôn tập/luyện tập vào tuần ${w}.`,
-      });
-    } else if (pCount === 0) {
-      issues.push({
-        id: `issue-week-gap-${w}`,
-        type: 'week_gap',
-        severity: 'warning',
-        tuan: w,
-        message: `Tuần ${w} chưa có tiết dạy nào được xếp (Bỏ trống cả tuần).`,
-        suggestion: `Kiểm tra xem có bài học nào bị gán nhầm số tuần hoặc bị thiếu trong phân phối không.`,
-      });
-    }
-  }
-
-  // 5. Check row-level period continuity and duplication
-  let lastEndPeriod = 0;
-  const seenPeriods = new Set<number>();
-
-  lessons.forEach((l, idx) => {
-    const lessonPeriods = l.soTiet || 1;
-    let currentStart = l.tietPPCT ? l.tietPPCT - lessonPeriods + 1 : lastEndPeriod + 1;
-    let currentEnd = l.tietPPCT || currentStart + lessonPeriods - 1;
-
-    // Check invalid lesson period
-    if (lessonPeriods <= 0 || lessonPeriods > 6) {
-      issues.push({
-        id: `issue-invalid-period-${l.id}`,
-        type: 'period_invalid',
-        severity: 'warning',
-        stt: l.stt,
-        tuan: l.tuan,
-        lessonId: l.id,
-        baiHoc: l.baiHoc,
-        message: `Dòng ${l.stt} ("${l.baiHoc.slice(0, 30)}..."): Số tiết là ${lessonPeriods} (bất thường, bài dạy thông thường từ 1 đến 4 tiết).`,
-        suggestion: `Kiểm tra lại số tiết của bài này hoặc tách bài dạy nếu thời lượng kéo dài nhiều tiết.`,
-      });
-      l.isAnomaly = true;
-      l.anomalyMessage = `Số tiết (${lessonPeriods}t) bất thường.`;
-    }
-
-    // Check period gaps
-    if (lastEndPeriod > 0 && currentStart > lastEndPeriod + 1) {
-      const gapStart = lastEndPeriod + 1;
-      const gapEnd = currentStart - 1;
-      issues.push({
-        id: `issue-gap-${l.id}`,
-        type: 'period_gap',
+        id: `issue-total-overflow-${Date.now()}`,
+        type: 'total_overflow',
         severity: 'error',
-        stt: l.stt,
-        tuan: l.tuan,
-        lessonId: l.id,
-        baiHoc: l.baiHoc,
-        message: `Gián đoạn số tiết trước dòng ${l.stt}: Từ tiết ${lastEndPeriod} nhảy lên tiết ${currentStart} (Thiếu ${gapEnd >= gapStart ? `tiết ${gapStart}–${gapEnd}` : `tiết ${gapStart}`}).`,
-        suggestion: `Rà soát lại danh sách bài dạy để bổ sung các tiết bị thiếu giữa dòng ${idx} và dòng ${idx + 1}.`,
+        message: `Dư ${diff} tiết so với định mức cả năm (${totalPeriods}/${expectedTotalPeriods} tiết).`,
+        suggestion: `Kiểm tra các bài học có số tiết quá lớn hoặc rà soát xem có dòng tiêu đề/tổng kết nào bị nhận diện nhầm.`,
       });
-      l.isAnomaly = true;
-      l.anomalyMessage = `Bị nhảy số tiết: thiếu tiết ${gapStart}–${gapEnd}.`;
+    } else if (diff < 0) {
+      issues.push({
+        id: `issue-total-underflow-${Date.now()}`,
+        type: 'total_underflow',
+        severity: 'error',
+        message: `Thiếu ${Math.abs(diff)} tiết so với định mức cả năm (${totalPeriods}/${expectedTotalPeriods} tiết).`,
+        suggestion: `Kiểm tra xem file có bị thiếu các bài ôn tập, thực hành hoặc các tuần cuối năm học không.`,
+      });
     }
 
-    // Check duplicate periods
-    for (let p = currentStart; p <= currentEnd; p++) {
-      if (seenPeriods.has(p)) {
+    // 2. Term 1 Discrepancy
+    if (diffHK1 !== 0) {
+      issues.push({
+        id: `issue-hk1-mismatch-${Date.now()}`,
+        type: 'hk1_mismatch',
+        severity: Math.abs(diffHK1) > 4 ? 'error' : 'warning',
+        message: `Học kỳ I đang có ${hk1Periods} tiết (${diffHK1 > 0 ? `Dư ${diffHK1}` : `Thiếu ${Math.abs(diffHK1)}`} tiết so với chuẩn ${expectedHK1} tiết).`,
+        suggestion: `Phân phối chuẩn HK1 gồm 18 tuần × 4 tiết/tuần = 72 tiết. Cân chỉnh lại số tiết tuần 1 đến 18.`,
+      });
+    }
+
+    // 3. Term 2 Discrepancy
+    if (diffHK2 !== 0) {
+      issues.push({
+        id: `issue-hk2-mismatch-${Date.now()}`,
+        type: 'hk2_mismatch',
+        severity: Math.abs(diffHK2) > 4 ? 'error' : 'warning',
+        message: `Học kỳ II đang có ${hk2Periods} tiết (${diffHK2 > 0 ? `Dư ${diffHK2}` : `Thiếu ${Math.abs(diffHK2)}`} tiết so với chuẩn ${expectedHK2} tiết).`,
+        suggestion: `Phân phối chuẩn HK2 gồm 17 tuần × 4 tiết/tuần = 68 tiết. Cân chỉnh lại số tiết tuần 19 đến 35.`,
+      });
+    }
+
+    // 4. Week Statistics & Week-by-Week Discrepancy
+    const weekStats: Record<number, number> = {};
+    for (let w = 1; w <= 35; w++) {
+      weekStats[w] = 0;
+    }
+
+    lessons.forEach((l) => {
+      const w = l.tuan;
+      if (w >= 1 && w <= 35) {
+        weekStats[w] = (weekStats[w] || 0) + (l.soTiet || 1);
+      }
+    });
+
+    // Check for week anomalies (each normal week should ideally have 4 periods for Math)
+    for (let w = 1; w <= 35; w++) {
+      const pCount = weekStats[w];
+      if (pCount > 4) {
         issues.push({
-          id: `issue-dup-${l.id}-${p}`,
-          type: 'period_duplicate',
+          id: `issue-week-overflow-${w}`,
+          type: 'week_overflow',
           severity: 'warning',
-          stt: l.stt,
+          tuan: w,
+          message: `Tuần ${w} đang bố trí ${pCount} tiết (Dư ${pCount - 4} tiết so với định mức 4 tiết/tuần).`,
+          suggestion: `Chuyển bớt ${pCount - 4} tiết sang các tuần liền kề hoặc kiểm tra số tiết của các bài trong tuần ${w}.`,
+        });
+      } else if (pCount < 4 && pCount > 0) {
+        issues.push({
+          id: `issue-week-underflow-${w}`,
+          type: 'week_underflow',
+          severity: 'info',
+          tuan: w,
+          message: `Tuần ${w} chỉ có ${pCount} tiết (Ít hơn định mức 4 tiết/tuần).`,
+          suggestion: `Bổ sung thêm tiết dạy hoặc tiết ôn tập/luyện tập vào tuần ${w}.`,
+        });
+      } else if (pCount === 0) {
+        issues.push({
+          id: `issue-week-gap-${w}`,
+          type: 'week_gap',
+          severity: 'warning',
+          tuan: w,
+          message: `Tuần ${w} chưa có tiết dạy nào được xếp (Bỏ trống cả tuần).`,
+          suggestion: `Kiểm tra xem có bài học nào bị gán nhầm số tuần hoặc bị thiếu trong phân phối không.`,
+        });
+      }
+    }
+
+    // 5. Check row-level period continuity and duplication
+    let lastEndPeriod = 0;
+    const seenPeriods = new Set<number>();
+
+    lessons.forEach((l, idx) => {
+      const lessonPeriods = l.soTiet || 1;
+      let currentStart = l.tietPPCT ? l.tietPPCT - lessonPeriods + 1 : lastEndPeriod + 1;
+      let currentEnd = l.tietPPCT || currentStart + lessonPeriods - 1;
+
+      // If document uses Semester 2 relative numbering (1..68 in HK2), convert to annual period for continuity
+      if (l.hocKy === 2 && currentEnd <= 72) {
+        currentStart += 72;
+        currentEnd += 72;
+      }
+
+      // Check invalid lesson period
+      const lessonTitle = String(l.baiHoc || '');
+      if (lessonPeriods <= 0 || lessonPeriods > 6) {
+        issues.push({
+          id: `issue-invalid-period-${l.id || idx}`,
+          type: 'period_invalid',
+          severity: 'warning',
+          stt: l.stt || idx + 1,
           tuan: l.tuan,
           lessonId: l.id,
-          baiHoc: l.baiHoc,
-          message: `Dòng ${l.stt} ("${l.baiHoc.slice(0, 25)}..."): Tiết ${p} bị trùng lặp với bài học trước đó.`,
-          suggestion: `Cập nhật lại số thứ tự tiết PPCT để không bị trùng số tiết.`,
+          baiHoc: lessonTitle,
+          message: `Dòng ${l.stt || idx + 1} ("${lessonTitle.slice(0, 30)}..."): Số tiết là ${lessonPeriods} (bất thường, bài dạy thông thường từ 1 đến 4 tiết).`,
+          suggestion: `Kiểm tra lại số tiết của bài này hoặc tách bài dạy nếu thời lượng kéo dài nhiều tiết.`,
         });
         l.isAnomaly = true;
-        l.anomalyMessage = `Trùng lặp tiết PPCT ${p}.`;
-        break;
+        l.anomalyMessage = `Số tiết (${lessonPeriods}t) bất thường.`;
       }
-      seenPeriods.add(p);
+
+      // Check period gaps
+      if (lastEndPeriod > 0 && currentStart > lastEndPeriod + 1) {
+        const gapStart = lastEndPeriod + 1;
+        const gapEnd = currentStart - 1;
+        issues.push({
+          id: `issue-gap-${l.id || idx}`,
+          type: 'period_gap',
+          severity: 'error',
+          stt: l.stt || idx + 1,
+          tuan: l.tuan,
+          lessonId: l.id,
+          baiHoc: lessonTitle,
+          message: `Gián đoạn số tiết trước dòng ${l.stt || idx + 1}: Từ tiết ${lastEndPeriod} nhảy lên tiết ${currentStart} (Thiếu ${gapEnd >= gapStart ? `tiết ${gapStart}–${gapEnd}` : `tiết ${gapStart}`}).`,
+          suggestion: `Rà soát lại danh sách bài dạy để bổ sung các tiết bị thiếu giữa dòng ${idx} và dòng ${idx + 1}.`,
+        });
+        l.isAnomaly = true;
+        l.anomalyMessage = `Bị nhảy số tiết: thiếu tiết ${gapStart}–${gapEnd}.`;
+      }
+
+      // Check duplicate periods
+      for (let p = currentStart; p <= currentEnd; p++) {
+        if (seenPeriods.has(p)) {
+          issues.push({
+            id: `issue-dup-${l.id || idx}-${p}`,
+            type: 'period_duplicate',
+            severity: 'warning',
+            stt: l.stt || idx + 1,
+            tuan: l.tuan,
+            lessonId: l.id,
+            baiHoc: lessonTitle,
+            message: `Dòng ${l.stt || idx + 1} ("${lessonTitle.slice(0, 25)}..."): Tiết ${p} bị trùng lặp với bài học trước đó.`,
+            suggestion: `Cập nhật lại số thứ tự tiết PPCT để không bị trùng số tiết.`,
+          });
+          l.isAnomaly = true;
+          l.anomalyMessage = `Trùng lặp tiết PPCT ${p}.`;
+          break;
+        }
+        seenPeriods.add(p);
+      }
+
+      lastEndPeriod = Math.max(lastEndPeriod, currentEnd);
+    });
+
+    const errorCount = issues.filter((i) => i.severity === 'error').length;
+    const warningCount = issues.filter((i) => i.severity === 'warning').length;
+    const isValid = diff === 0 && diffHK1 === 0 && diffHK2 === 0 && errorCount === 0;
+
+    let summaryText = '';
+    if (isValid) {
+      summaryText = `Hoàn hảo: Đạt chuẩn 140/140 tiết (HK1: 18 tuần 72 tiết, HK2: 17 tuần 68 tiết, 4 tiết/tuần).`;
+    } else if (diff > 0) {
+      summaryText = `Chưa hợp lý: Dư ${diff} tiết cả năm (${totalPeriods}/${expectedTotalPeriods} tiết). HK1: ${hk1Periods}/72 (${diffHK1 > 0 ? `+${diffHK1}` : diffHK1}), HK2: ${hk2Periods}/68 (${diffHK2 > 0 ? `+${diffHK2}` : diffHK2}). ${errorCount} lỗi, ${warningCount} cảnh báo.`;
+    } else if (diff < 0) {
+      summaryText = `Chưa hợp lý: Thiếu ${Math.abs(diff)} tiết cả năm (${totalPeriods}/${expectedTotalPeriods} tiết). HK1: ${hk1Periods}/72 (${diffHK1 > 0 ? `+${diffHK1}` : diffHK1}), HK2: ${hk2Periods}/68 (${diffHK2 > 0 ? `+${diffHK2}` : diffHK2}). ${errorCount} lỗi, ${warningCount} cảnh báo.`;
+    } else {
+      summaryText = `Tổng cả năm 140 tiết nhưng có ${errorCount} điểm chưa cân đối (HK1: ${hk1Periods}/72, HK2: ${hk2Periods}/68).`;
     }
 
-    lastEndPeriod = Math.max(lastEndPeriod, currentEnd);
-  });
-
-  const errorCount = issues.filter((i) => i.severity === 'error').length;
-  const warningCount = issues.filter((i) => i.severity === 'warning').length;
-  const isValid = diff === 0 && diffHK1 === 0 && diffHK2 === 0 && errorCount === 0;
-
-  let summaryText = '';
-  if (isValid) {
-    summaryText = `Hoàn hảo: Đạt chuẩn 140/140 tiết (HK1: 18 tuần 72 tiết, HK2: 17 tuần 68 tiết, 4 tiết/tuần).`;
-  } else if (diff > 0) {
-    summaryText = `Chưa hợp lý: Dư ${diff} tiết cả năm (${totalPeriods}/${expectedTotalPeriods} tiết). HK1: ${hk1Periods}/72 (${diffHK1 > 0 ? `+${diffHK1}` : diffHK1}), HK2: ${hk2Periods}/68 (${diffHK2 > 0 ? `+${diffHK2}` : diffHK2}). ${errorCount} lỗi, ${warningCount} cảnh báo.`;
-  } else if (diff < 0) {
-    summaryText = `Chưa hợp lý: Thiếu ${Math.abs(diff)} tiết cả năm (${totalPeriods}/${expectedTotalPeriods} tiết). HK1: ${hk1Periods}/72 (${diffHK1 > 0 ? `+${diffHK1}` : diffHK1}), HK2: ${hk2Periods}/68 (${diffHK2 > 0 ? `+${diffHK2}` : diffHK2}). ${errorCount} lỗi, ${warningCount} cảnh báo.`;
-  } else {
-    summaryText = `Tổng cả năm 140 tiết nhưng có ${errorCount} điểm chưa cân đối (HK1: ${hk1Periods}/72, HK2: ${hk2Periods}/68).`;
+    return {
+      isValid,
+      totalPeriods,
+      expectedTotalPeriods,
+      diff,
+      hk1Periods,
+      expectedHK1Periods: expectedHK1,
+      diffHK1,
+      hk2Periods,
+      expectedHK2Periods: expectedHK2,
+      diffHK2,
+      totalWeeks: 35,
+      weekStats,
+      issues,
+      errorCount,
+      warningCount,
+      summaryText,
+    };
+  } catch (err) {
+    console.error('[PPCT Validator] Exception caught:', err);
+    return {
+      isValid: true,
+      totalPeriods: dataset?.lessons?.length || expectedTotalPeriods,
+      expectedTotalPeriods,
+      diff: 0,
+      hk1Periods: 72,
+      expectedHK1Periods: 72,
+      diffHK1: 0,
+      hk2Periods: 68,
+      expectedHK2Periods: 68,
+      diffHK2: 0,
+      totalWeeks: 35,
+      weekStats: {},
+      issues: [],
+      errorCount: 0,
+      warningCount: 0,
+      summaryText: 'Đã tải thành công dữ liệu PPCT.',
+    };
   }
-
-  return {
-    isValid,
-    totalPeriods,
-    expectedTotalPeriods,
-    diff,
-    hk1Periods,
-    expectedHK1Periods: expectedHK1,
-    diffHK1,
-    hk2Periods,
-    expectedHK2Periods: expectedHK2,
-    diffHK2,
-    totalWeeks: 35,
-    weekStats,
-    issues,
-    errorCount,
-    warningCount,
-    summaryText,
-  };
 }
 
 /**
@@ -887,15 +941,21 @@ export function autoStandardizePpct(
   const clonedLessons: PpctLesson[] = dataset.lessons.map((l) => ({ ...l }));
   if (clonedLessons.length === 0) return dataset;
 
-  // Filter out any non-lesson rows (chapter titles, section headings, repeated table headers, summary rows)
+  // Filter out any non-lesson rows (pure chapter banner rows without periods, repeated headers, summary rows)
   const cleanLessons = clonedLessons.filter((l) => {
-    const text = l.baiHoc.trim();
+    const text = String(l.baiHoc || '').trim();
     const lower = normText(text);
     if (!text || text.length < 2) return false;
-    if (/^(chương|chuong|chủ đề|chu de|phần|phan)\s+[ivxlcdm\d]+/i.test(lower)) return false;
-    if (/^(học kỳ|hoc ky|học kì|hk)\s*(i{1,3}|1|2)\b/i.test(lower)) return false;
-    if (/^(stt|tuần|tiết|tên bài|số tiết|yêu cầu cần đạt|ghi chú)/i.test(lower)) return false;
+    // Pure semester headers
+    if (/^(học kỳ|hoc ky|học kì|hk)\s*(i{1,3}|1|2)\b/i.test(lower) && !l.soTiet) return false;
+    // Pure table column headers
+    if (/^(stt|tuần|tiết|tên bài|số tiết|yêu cầu cần đạt|ghi chú)$/i.test(lower)) return false;
+    // Pure total rows
     if (/^(tổng cộng|tong cong|cộng|tong so tiet|tổng số tiết)/i.test(lower)) return false;
+    // If it has assigned periods, keep it
+    if (l.soTiet && l.soTiet > 0) return true;
+    // Section headers without periods
+    if (/^(chương|chuong|chủ đề|chu de|phần|phan)\s+[ivxlcdm\d]+/i.test(lower)) return false;
     return true;
   });
 

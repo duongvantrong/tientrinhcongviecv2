@@ -57,8 +57,13 @@ export const PpctFullViewerModal: React.FC<PpctFullViewerModalProps> = ({
   const [showIssuesPanel, setShowIssuesPanel] = useState(false);
 
   const activeDataset = useMemo(() => {
-    return datasets.find((d) => d.id === activeDatasetId) || datasets[0];
+    return datasets.find((d) => d.id === activeDatasetId) || datasets[0] || null;
   }, [datasets, activeDatasetId]);
+
+  // Safe lessons array
+  const rawLessons = useMemo(() => {
+    return activeDataset?.lessons || [];
+  }, [activeDataset]);
 
   // Validation report
   const validation = useMemo(() => {
@@ -73,26 +78,30 @@ export const PpctFullViewerModal: React.FC<PpctFullViewerModalProps> = ({
   // Extract all distinct chapters
   const allChapters = useMemo(() => {
     const set = new Set<string>();
-    activeDataset.lessons.forEach((l) => {
-      if (l.chuong) set.add(l.chuong.trim());
+    rawLessons.forEach((l) => {
+      if (l && l.chuong) set.add(String(l.chuong).trim());
     });
     return Array.from(set);
-  }, [activeDataset]);
+  }, [rawLessons]);
 
   // Filter lessons based on active filters
   const filteredLessons = useMemo(() => {
-    return activeDataset.lessons.filter((l) => {
+    return rawLessons.filter((l) => {
+      if (!l) return false;
+      const baiHocStr = String(l.baiHoc || '');
+      const chuongStr = String(l.chuong || '');
+
       // Term filter
       if (selectedTerm !== 'all' && l.hocKy !== selectedTerm) return false;
 
       // Chapter filter
-      if (selectedChapter !== 'all' && l.chuong !== selectedChapter) return false;
+      if (selectedChapter !== 'all' && chuongStr !== selectedChapter) return false;
 
       // Exam only filter
       if (onlyExamLessons) {
         const isExam =
-          /kiểm tra|giữa kì|giữa kỳ|cuối kì|cuối kỳ|kttx|thường xuyên|đánh giá/i.test(l.baiHoc) ||
-          /kiểm tra|ôn tập/i.test(l.chuong);
+          /kiểm tra|giữa kì|giữa kỳ|cuối kì|cuối kỳ|kttx|thường xuyên|đánh giá/i.test(baiHocStr) ||
+          /kiểm tra|ôn tập/i.test(chuongStr);
         if (!isExam) return false;
       }
 
@@ -102,27 +111,28 @@ export const PpctFullViewerModal: React.FC<PpctFullViewerModalProps> = ({
       // Search term
       if (searchTerm.trim()) {
         const q = searchTerm.toLowerCase();
-        const matchTitle = l.baiHoc.toLowerCase().includes(q);
-        const matchChapter = l.chuong.toLowerCase().includes(q);
-        const matchPeriod = String(l.tietPPCT || l.stt).includes(q);
-        const matchWeek = `tuần ${l.tuan}`.includes(q) || String(l.tuan) === q;
+        const matchTitle = baiHocStr.toLowerCase().includes(q);
+        const matchChapter = chuongStr.toLowerCase().includes(q);
+        const matchPeriod = String(l.tietPPCT || l.stt || '').includes(q);
+        const matchWeek = `tuần ${l.tuan || ''}`.includes(q) || String(l.tuan || '') === q;
         if (!matchTitle && !matchChapter && !matchPeriod && !matchWeek) return false;
       }
 
       return true;
     });
-  }, [activeDataset, selectedTerm, selectedChapter, onlyExamLessons, searchTerm]);
+  }, [rawLessons, selectedTerm, selectedChapter, onlyExamLessons, onlyAnomalyLessons, searchTerm]);
 
   // Statistics
-  const totalLessonsCount = activeDataset.lessons.reduce((sum, l) => sum + (l.soTiet || 1), 0) || activeDataset.totalLessons || 140;
-  const hk1Lessons = activeDataset.lessons.filter((l) => l.hocKy === 1);
-  const hk2Lessons = activeDataset.lessons.filter((l) => l.hocKy === 2);
-  const hk1Periods = hk1Lessons.reduce((sum, l) => sum + (l.soTiet || 1), 0);
-  const hk2Periods = hk2Lessons.reduce((sum, l) => sum + (l.soTiet || 1), 0);
+  const totalLessonsCount = rawLessons.reduce((sum, l) => sum + (l?.soTiet || 1), 0) || activeDataset.totalLessons || 140;
+  const hk1Lessons = rawLessons.filter((l) => l && l.hocKy === 1);
+  const hk2Lessons = rawLessons.filter((l) => l && l.hocKy === 2);
+  const hk1Periods = hk1Lessons.reduce((sum, l) => sum + (l?.soTiet || 1), 0);
+  const hk2Periods = hk2Lessons.reduce((sum, l) => sum + (l?.soTiet || 1), 0);
 
   // Categorize lesson badge
   const getLessonBadge = (lesson: PpctLesson) => {
-    const text = (lesson.baiHoc + ' ' + lesson.chuong).toLowerCase();
+    if (!lesson) return null;
+    const text = (String(lesson.baiHoc || '') + ' ' + String(lesson.chuong || '')).toLowerCase();
     if (text.includes('cuối học kỳ') || text.includes('cuối học kì') || text.includes('cuối kì') || text.includes('cuối kỳ')) {
       return {
         label: 'Kiểm tra Cuối kỳ (90p)',
@@ -394,7 +404,7 @@ export const PpctFullViewerModal: React.FC<PpctFullViewerModalProps> = ({
                   <span className={`text-[10px] px-1 py-0.2 rounded font-bold ${
                     isSelected ? 'bg-emerald-950 text-emerald-200' : 'bg-slate-100 text-slate-600'
                   }`}>
-                    {ds.lessons.reduce((s, l) => s + (l.soTiet || 1), 0) || ds.totalLessons || 140}t
+                    {(ds.lessons || []).reduce((s, l) => s + (l?.soTiet || 1), 0) || ds.totalLessons || 140}t
                   </span>
                 </button>
               );
@@ -650,9 +660,9 @@ export const PpctFullViewerModal: React.FC<PpctFullViewerModalProps> = ({
         {/* Modal Bottom Footer */}
         <div className="p-3.5 bg-slate-100 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-600 shrink-0">
           <div className="flex items-center gap-2">
-            <span>Hiển thị: <strong>{filteredLessons.length}</strong> / {activeDataset.lessons.length} bài dạy</span>
+            <span>Hiển thị: <strong>{filteredLessons.length}</strong> / {(activeDataset.lessons || []).length} bài dạy</span>
             <span>•</span>
-            <span>Tổng số tiết: <strong>{filteredLessons.reduce((s, l) => s + (l.soTiet || 1), 0)}</strong> tiết</span>
+            <span>Tổng số tiết: <strong>{filteredLessons.reduce((s, l) => s + (l?.soTiet || 1), 0)}</strong> tiết</span>
           </div>
 
           <div className="flex items-center gap-2">

@@ -16,6 +16,7 @@ interface TabsProps {
   onOpenUploadModal?: (grade?: string) => void;
   onOpenSgkManager?: () => void;
   onOpenFullPpct?: () => void;
+  gvcnClassName?: string;
 }
 
 export const Tabs: React.FC<TabsProps> = ({
@@ -29,6 +30,7 @@ export const Tabs: React.FC<TabsProps> = ({
   onOpenUploadModal,
   onOpenSgkManager,
   onOpenFullPpct,
+  gvcnClassName,
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -107,7 +109,7 @@ export const Tabs: React.FC<TabsProps> = ({
             <GraduationCap className="w-4 h-4 text-emerald-600" />
             <span>Công tác GVCN</span>
             <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.5 rounded-full">
-              Lớp 9A1
+              {gvcnClassName || 'Lớp CN'}
             </span>
           </button>
         </div>
