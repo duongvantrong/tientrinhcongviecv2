@@ -7,6 +7,7 @@ import {
   GvcnParentContact,
   GvcnMonthlyTask,
 } from '../types';
+import { getPhuThoYearPlanForGrade } from './gvcnPhuThoPlans';
 
 export const defaultGvcnClassInfo: GvcnClassInfo = {
   className: 'Lớp 9A1',
@@ -242,67 +243,7 @@ export const defaultGvcnWeeklyRecords: GvcnWeeklyRecord[] = [
   },
 ];
 
-export const defaultGvcnSpecialStudents: GvcnSpecialStudent[] = [
-  {
-    id: 'sp-1',
-    studentId: 'hs-03',
-    studentName: 'Bùi Gia Huy',
-    group: 1,
-    type: 'yeu_kem',
-    typeLabel: 'Học lực môn Toán yếu',
-    circumstance: 'Em bị rỗng kiến thức biến đổi đại số từ lớp 8; hay nản chí khi gặp bài toán chứa ẩn ở mẫu hoặc bài toán hình học.',
-    pedagogicalMeasures: 'GVCN (dạy Toán) xếp em ngồi cùng bàn với Lê Hoàng Nam (Lớp phó học tập - HSG Toán) theo mô hình "Đôi bạn cùng tiến". Giao bài tập ở mức độ Nhận biết, kiểm tra nhẹ nhàng và khen ngợi mỗi khi em tiến bộ.',
-    assignedBuddy: 'Lê Hoàng Nam (Tổ 2)',
-    progressNotes: [
-      { date: '10/09/2026', note: 'Đã hoàn thành 3 bài tập giải hệ phương trình bằng phương pháp thế ở mức độ nhận biết', status: 'improving' },
-      { date: '25/09/2026', note: 'Tự giác lên bảng chữa bài 1 lần, được cô cho 8 điểm miệng', status: 'improving' },
-    ],
-  },
-  {
-    id: 'sp-2',
-    studentId: 'hs-07',
-    studentName: 'Hoàng Nhật Minh',
-    group: 1,
-    type: 'kho_khan',
-    typeLabel: 'Hoàn cảnh gia đình khó khăn',
-    circumstance: 'Bố mẹ đi làm ăn xa tại Bình Dương, gửi em ở với bà nội già yếu 78 tuổi. Hoàn cảnh kinh tế thiếu thốn, thiếu sự kèm cặp sát sao của cha mẹ.',
-    pedagogicalMeasures: 'GVCN phối hợp Ban đại diện CMHS lớp miễn nộp quỹ lớp; đề xuất nhà trường hỗ trợ 01 bộ SGK và học bổng khuyến học; thường xuyên trò chuyện tâm lý sau giờ học, liên hệ điện thoại với bố mẹ mỗi tháng 2 lần.',
-    assignedBuddy: 'Trần Minh Anh (Lớp trưởng)',
-    progressNotes: [
-      { date: '08/09/2026', note: 'Đã trao tặng sách giáo khoa và 10 cuốn vở viết đầu năm cho em', status: 'improving' },
-      { date: '20/09/2026', note: 'Em vui vẻ, hòa đồng hơn với các bạn, đi học rất chuyên cần', status: 'improving' },
-    ],
-  },
-  {
-    id: 'sp-3',
-    studentId: 'hs-14',
-    studentName: 'Trần Đình Trọng',
-    group: 2,
-    type: 'ca_biet',
-    typeLabel: 'Thường xuyên đi muộn / thức khuya',
-    circumstance: 'Em có biểu hiện thức khuya sau 23h30 để chơi game trên điện thoại; sáng dậy muộn dẫn đến đi học muộn hoặc vào lớp với trạng thái mệt mỏi.',
-    pedagogicalMeasures: 'GVCN gọi điện trao đổi trực tiếp với phụ huynh (bác Đức) đề nghị kiểm soát thời gian dùng điện thoại buổi tối; tại lớp giao em làm phụ trách kiểm tra sĩ số và ghi nhận đóng mở cửa phòng học để tăng tính trách nhiệm.',
-    assignedBuddy: 'Nguyễn Mai Chi (Tổ trưởng 2)',
-    progressNotes: [
-      { date: '12/09/2026', note: 'Sau khi phụ huynh nhắc nhở, tuần 2 không còn đi muộn buổi nào', status: 'improving' },
-      { date: '26/09/2026', note: 'Tinh thần tỉnh táo, tích cực phát biểu trong giờ môn Khoa học tự nhiên', status: 'improving' },
-    ],
-  },
-  {
-    id: 'sp-4',
-    studentId: 'hs-25',
-    studentName: 'Chu Thành Nam',
-    group: 3,
-    type: 'tam_ly',
-    typeLabel: 'Hay quên bài tập & thiếu tự tin',
-    circumstance: 'Tâm lý rụt rè, sợ sai, khi chưa hiểu bài không dám hỏi thầy cô và bạn bè; hay quên vở bài tập ở nhà.',
-    pedagogicalMeasures: 'Phân công Tổ trưởng Tổ 3 kiểm tra bài vở trước 15 phút đầu giờ; GVCN gọi phát biểu câu hỏi dễ để tạo sự tự tin; nhắc nhở bố mẹ nhắc em chuẩn bị cặp sách từ tối hôm trước.',
-    assignedBuddy: 'Vũ Quốc Bảo (Tổ trưởng 3)',
-    progressNotes: [
-      { date: '15/09/2026', note: 'Đã chuẩn bị đầy đủ bài tập môn Toán và Tiếng Anh trong tuần 2', status: 'stable' },
-    ],
-  },
-];
+export const defaultGvcnSpecialStudents: GvcnSpecialStudent[] = [];
 
 export const defaultGvcnParentContacts: GvcnParentContact[] = [
   {
@@ -346,105 +287,4 @@ export const defaultGvcnParentContacts: GvcnParentContact[] = [
   },
 ];
 
-export const defaultGvcnYearTasks: GvcnMonthlyTask[] = [
-  {
-    month: 9,
-    monthName: 'Tháng 9/2026',
-    theme: 'Chủ điểm: Mái trường mến yêu — Kỷ cương & Nề nếp đầu năm',
-    tasks: [
-      { id: 't9-1', title: 'Ổn định tổ chức lớp, phân công chỗ ngồi khoa học (kết hợp mắt cận, chiều cao, đôi bạn cùng tiến)', targetWeek: 1, completed: true, note: 'Đã hoàn thành ngày 05/09' },
-      { id: 't9-2', title: 'Tổ chức bầu Ban cán sự lớp, Ban cán sự bộ môn và 4 Tổ trưởng', targetWeek: 1, completed: true, note: 'Đã kiện toàn 5 cán sự + 4 tổ trưởng' },
-      { id: 't9-3', title: 'Xây dựng & thông qua Nội quy nề nếp lớp học, thang điểm thi đua 4 tổ', targetWeek: 1, completed: true, note: 'Dán tại góc học tập của lớp' },
-      { id: 't9-4', title: 'Rà soát hoàn cảnh học sinh: Hộ nghèo, mồ côi, học sinh cần hỗ trợ đặc biệt', targetWeek: 2, completed: true, note: 'Lập danh sách 4 em' },
-      { id: 't9-5', title: 'Tổ chức thành công Đại hội Chi đội nhiệm kỳ 2026 - 2027', targetWeek: 2, completed: true, note: 'Bầu BCH Chi đội 3 em' },
-      { id: 't9-6', title: 'Chuẩn bị & chủ trì Hội nghị Cha mẹ học sinh đầu năm học (khối 9 thi vào 10)', targetWeek: 3, completed: false, note: 'Lịch: 20/09/2026' },
-      { id: 't9-7', title: 'Khảo sát chất lượng đầu năm môn Toán, Ngữ văn, Tiếng Anh', targetWeek: 4, completed: false, note: 'Phân loại học sinh để có kế hoạch phụ đạo' },
-    ],
-  },
-  {
-    month: 10,
-    monthName: 'Tháng 10/2026',
-    theme: 'Chủ điểm: Chăm ngoan học giỏi — Kỷ niệm Ngày PNVN 20/10',
-    tasks: [
-      { id: 't10-1', title: 'Phát động phong trào thi đua "Hoa điểm 10 tặng Mẹ và Cô" chào mừng 20/10', targetWeek: 6, completed: false },
-      { id: 't10-2', title: 'Kiểm tra chéo nề nếp truy bài 15 phút đầu giờ và tác phong đồng phục', targetWeek: 7, completed: false },
-      { id: 't10-3', title: 'Tổ chức sinh hoạt chuyên đề: "Xây dựng tình bạn đẹp — Nói không với bạo lực học đường"', targetWeek: 8, completed: false },
-      { id: 't10-4', title: 'Ôn tập và hướng dẫn kỹ năng làm bài kiểm tra Giữa học kỳ I cho học sinh', targetWeek: 9, completed: false },
-    ],
-  },
-  {
-    month: 11,
-    monthName: 'Tháng 11/2026',
-    theme: 'Chủ điểm: Tôn sư trọng đạo — Tri ân Thầy Cô giáo 20/11',
-    tasks: [
-      { id: 't11-1', title: 'Phát động thi đua "Tuần học tốt — Giờ học tốt" chào mừng Ngày Nhà giáo VN', targetWeek: 10, completed: false },
-      { id: 't11-2', title: 'Hướng dẫn Chi đội làm báo tường / bưu thiếp tri ân thầy cô giáo', targetWeek: 11, completed: false },
-      { id: 't11-3', title: 'Tập luyện văn nghệ tham gia Hội thi văn nghệ cấp trường', targetWeek: 11, completed: false },
-      { id: 't11-4', title: 'Sơ kết đợt thi đua 20/11, khen thưởng các cá nhân và tổ có thành tích xuất sắc', targetWeek: 12, completed: false },
-    ],
-  },
-  {
-    month: 12,
-    monthName: 'Tháng 12/2026',
-    theme: 'Chủ điểm: Tiếp bước anh bộ đội Cụ Hồ — Thi đua Ôn thi Cuối Học kỳ I',
-    tasks: [
-      { id: 't12-1', title: 'Sinh hoạt truyền thống kỷ niệm Ngày thành lập QĐND Việt Nam 22/12', targetWeek: 15, completed: false },
-      { id: 't12-2', title: 'Lập kế hoạch ôn tập nước rút học kỳ I, phân công học sinh khá kèm học sinh yếu', targetWeek: 16, completed: false },
-      { id: 't12-3', title: 'Đôn đốc học sinh tham gia nghiêm túc kỳ thi Cuối học kỳ I (Tuần 18)', targetWeek: 18, completed: false },
-      { id: 't12-4', title: 'Đánh giá, xếp loại kết quả rèn luyện và học tập HK1 theo Thông tư 22/BGDĐT', targetWeek: 18, completed: false },
-    ],
-  },
-  {
-    month: 1,
-    monthName: 'Tháng 1/2027',
-    theme: 'Chủ điểm: Mừng Đảng, Mừng Xuân — Sơ kết HK1 & Nghỉ Tết an toàn',
-    tasks: [
-      { id: 't1-1', title: 'Tổ chức Hội nghị Cha mẹ học sinh Sơ kết Học kỳ I', targetWeek: 19, completed: false },
-      { id: 't1-2', title: 'Tuyên truyền phòng chống pháo nổ, an toàn giao thông, an toàn vệ sinh thực phẩm Tết', targetWeek: 20, completed: false },
-      { id: 't1-3', title: 'Tổ chức ký cam kết nghỉ Tết an toàn, lành mạnh cho 100% học sinh và phụ huynh', targetWeek: 20, completed: false },
-      { id: 't1-4', title: 'Thăm hỏi, tặng quà Tết học sinh có hoàn cảnh khó khăn trong lớp', targetWeek: 20, completed: false },
-    ],
-  },
-  {
-    month: 2,
-    monthName: 'Tháng 2/2027',
-    theme: 'Chủ điểm: Vững bước tiến lên — Bắt nhịp nề nếp sau Tết Nguyên Đán',
-    tasks: [
-      { id: 't2-1', title: 'Nắm chắc sĩ số học sinh ngay sau kỳ nghỉ Tết, ngăn chặn tình trạng nghỉ học kéo dài', targetWeek: 21, completed: false },
-      { id: 't2-2', title: 'Ổn định nề nếp truy bài, giờ giấc học tập của học kỳ II', targetWeek: 21, completed: false },
-      { id: 't2-3', title: 'Phát động phong trào Tết trồng cây và giữ gìn môi trường xanh - sạch - đẹp', targetWeek: 22, completed: false },
-    ],
-  },
-  {
-    month: 3,
-    monthName: 'Tháng 3/2027',
-    theme: 'Chủ điểm: Tiến bước lên Đoàn — Tháng Thanh niên 26/3',
-    tasks: [
-      { id: 't3-1', title: 'Lập danh sách Đội viên ưu tú 15 tuổi đề xuất học lớp Cảm tình Đoàn', targetWeek: 24, completed: false },
-      { id: 't3-2', title: 'Tham gia Hội thao / Ngày hội "Thiếu nhi vui khỏe — Tiến bước lên Đoàn"', targetWeek: 26, completed: false },
-      { id: 't3-3', title: 'Ôn tập và chuẩn bị kiểm tra Giữa học kỳ II (Tuần 26)', targetWeek: 26, completed: false },
-    ],
-  },
-  {
-    month: 4,
-    monthName: 'Tháng 4/2027',
-    theme: 'Chủ điểm: Hướng nghiệp & Chuẩn bị hành trang thi vào lớp 10',
-    tasks: [
-      { id: 't4-1', title: 'Tư vấn hướng nghiệp, phân luồng học sinh khối 9 (thi vào THPT công lập, tư thục, nghề)', targetWeek: 28, completed: false },
-      { id: 't4-2', title: 'Hướng dẫn học sinh và phụ huynh làm hồ sơ đăng ký dự thi tuyển sinh vào lớp 10', targetWeek: 29, completed: false },
-      { id: 't4-3', title: 'Rà soát, kiểm tra độ chính xác của hồ sơ học sinh (Giấy khai sinh, học bạ, điểm ưu tiên)', targetWeek: 30, completed: false },
-    ],
-  },
-  {
-    month: 5,
-    monthName: 'Tháng 5/2027',
-    theme: 'Chủ điểm: Bác Hồ kính yêu — Tổng kết năm học & Lễ tri ân trưởng thành',
-    tasks: [
-      { id: 't5-1', title: 'Đôn đốc học sinh thi Cuối học kỳ II nghiêm túc, đạt kết quả cao nhất', targetWeek: 33, completed: false },
-      { id: 't5-2', title: 'Đánh giá, xếp loại rèn luyện và học tập cả năm theo Thông tư 22/BGDĐT', targetWeek: 34, completed: false },
-      { id: 't5-3', title: 'Hoàn thiện học bạ, sổ điểm điện tử và hồ sơ xét tốt nghiệp THCS', targetWeek: 34, completed: false },
-      { id: 't5-4', title: 'Tổ chức Lễ Tri ân và Trưởng thành cho học sinh lớp 9 (niên khóa 2023 - 2027)', targetWeek: 35, completed: false },
-      { id: 't5-5', title: 'Hội nghị Cha mẹ học sinh Tổng kết năm học; Bàn giao học sinh về sinh hoạt hè tại địa phương', targetWeek: 35, completed: false },
-    ],
-  },
-];
+export const defaultGvcnYearTasks: GvcnMonthlyTask[] = getPhuThoYearPlanForGrade(9, '2026 - 2027');

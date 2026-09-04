@@ -15,6 +15,7 @@ import {
   Send,
   HelpCircle,
   Building2,
+  Trash2,
 } from 'lucide-react';
 import {
   GvcnSpecialStudent,
@@ -22,6 +23,7 @@ import {
   GvcnClassInfo,
   GvcnStudent,
 } from '../../types';
+import { GvcnAddSpecialStudentModal } from './GvcnAddSpecialStudentModal';
 
 interface GvcnSpecialStudentsSectionProps {
   specialStudents: GvcnSpecialStudent[];
@@ -30,6 +32,8 @@ interface GvcnSpecialStudentsSectionProps {
   students: GvcnStudent[];
   onAddSpecialNote: (studentId: string, note: string, status: 'improving' | 'stable' | 'needs_attention') => void;
   onAddParentContact: (contact: GvcnParentContact) => void;
+  onAddSpecialStudent?: (student: GvcnSpecialStudent) => void;
+  onDeleteSpecialStudent?: (studentId: string) => void;
 }
 
 export const GvcnSpecialStudentsSection: React.FC<GvcnSpecialStudentsSectionProps> = ({
@@ -39,8 +43,11 @@ export const GvcnSpecialStudentsSection: React.FC<GvcnSpecialStudentsSectionProp
   students,
   onAddSpecialNote,
   onAddParentContact,
+  onAddSpecialStudent,
+  onDeleteSpecialStudent,
 }) => {
   const [subTab, setSubTab] = useState<'students' | 'contacts'>('students');
+  const [showAddSpecialModal, setShowAddSpecialModal] = useState<boolean>(false);
   const [selectedStudentForNote, setSelectedStudentForNote] = useState<string | null>(null);
   const [newProgressNote, setNewProgressNote] = useState<string>('');
   const [newProgressStatus, setNewProgressStatus] = useState<'improving' | 'stable' | 'needs_attention'>('improving');
@@ -145,6 +152,16 @@ export const GvcnSpecialStudentsSection: React.FC<GvcnSpecialStudentsSectionProp
           </button>
         </div>
 
+        {subTab === 'students' && (
+          <button
+            onClick={() => setShowAddSpecialModal(true)}
+            className="px-3.5 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-xs transition-colors"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>Thêm hồ sơ theo dõi</span>
+          </button>
+        )}
+
         {subTab === 'contacts' && (
           <button
             onClick={() => setShowAddContactModal(true)}
@@ -158,46 +175,88 @@ export const GvcnSpecialStudentsSection: React.FC<GvcnSpecialStudentsSectionProp
 
       {/* TAB A: HỌC SINH CẦN QUAN TÂM ĐẶC BIỆT */}
       {subTab === 'students' && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-          {specialStudents.map((item) => (
-            <div
-              key={item.id}
-              className="bg-white rounded-2xl border border-slate-200 hover:border-emerald-300 shadow-2xs p-5 flex flex-col justify-between space-y-4"
+        specialStudents.length === 0 ? (
+          <div className="bg-white rounded-2xl border border-slate-200 p-8 sm:p-12 text-center shadow-xs">
+            <div className="w-16 h-16 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-700 flex items-center justify-center mx-auto mb-4">
+              <UserCheck className="w-8 h-8" />
+            </div>
+            <h4 className="text-base sm:text-lg font-bold text-slate-800 mb-2">
+              Hiện chưa có học sinh cá biệt / học sinh cần uốn nắn đặc biệt
+            </h4>
+            <p className="text-xs sm:text-sm text-slate-500 max-w-lg mx-auto mb-6 leading-relaxed">
+              Tập thể <span className="font-semibold text-slate-800">{classInfo.className}</span> hiện duy trì nề nếp ổn định, chưa có học sinh thuộc diện cá biệt hay hổng kiến thức nghiêm trọng. Danh sách được để trống theo yêu cầu và chỉ hiển thị khi Thầy/Cô thêm hồ sơ mới.
+            </p>
+            <button
+              onClick={() => setShowAddSpecialModal(true)}
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs sm:text-sm font-bold shadow-xs transition-colors"
             >
-              <div>
-                {/* Header card */}
-                <div className="flex items-start justify-between gap-2 mb-3">
+              <Plus className="w-4 h-4" />
+              <span>Thêm Học Sinh Cần Quan Tâm Đặc Biệt</span>
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <p className="text-xs text-slate-500">
+                Đang quản lý <span className="font-bold text-slate-800">{specialStudents.length}</span> học sinh cần quan tâm, uốn nắn sư phạm và theo dõi chuyển biến ({classInfo.className}).
+              </p>
+            </div>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+              {specialStudents.map((item) => (
+                <div
+                  key={item.id}
+                  className="bg-white rounded-2xl border border-slate-200 hover:border-emerald-300 shadow-2xs p-5 flex flex-col justify-between space-y-4"
+                >
                   <div>
-                    <div className="flex items-center gap-2">
-                      <h4 className="text-base font-black text-slate-900">
-                        {item.studentName}
-                      </h4>
-                      <span className="text-xs px-2 py-0.5 bg-slate-100 text-slate-700 rounded font-semibold border border-slate-200">
-                        Tổ {item.group}
-                      </span>
-                    </div>
-                    <span
-                      className={`inline-block mt-1 text-[11px] font-bold px-2 py-0.5 rounded-full ${
-                        item.type === 'yeu_kem'
-                          ? 'bg-rose-100 text-rose-800'
-                          : item.type === 'kho_khan'
-                          ? 'bg-amber-100 text-amber-800'
-                          : item.type === 'ca_biet'
-                          ? 'bg-purple-100 text-purple-800'
-                          : 'bg-blue-100 text-blue-800'
-                      }`}
-                    >
-                      ● {item.typeLabel}
-                    </span>
-                  </div>
+                    {/* Header card */}
+                    <div className="flex items-start justify-between gap-2 mb-3">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h4 className="text-base font-black text-slate-900">
+                            {item.studentName}
+                          </h4>
+                          <span className="text-xs px-2 py-0.5 bg-slate-100 text-slate-700 rounded font-semibold border border-slate-200">
+                            Tổ {item.group}
+                          </span>
+                        </div>
+                        <span
+                          className={`inline-block mt-1 text-[11px] font-bold px-2 py-0.5 rounded-full ${
+                            item.type === 'yeu_kem'
+                              ? 'bg-rose-100 text-rose-800'
+                              : item.type === 'kho_khan'
+                              ? 'bg-amber-100 text-amber-800'
+                              : item.type === 'ca_biet'
+                              ? 'bg-purple-100 text-purple-800'
+                              : 'bg-blue-100 text-blue-800'
+                          }`}
+                        >
+                          ● {item.typeLabel}
+                        </span>
+                      </div>
 
-                  {item.assignedBuddy && (
-                    <div className="text-right text-[11px] bg-emerald-50 text-emerald-900 px-2.5 py-1 rounded-lg border border-emerald-200">
-                      <div className="text-[10px] text-emerald-700 font-semibold uppercase">Đôi bạn cùng tiến</div>
-                      <div className="font-bold">{item.assignedBuddy}</div>
+                      <div className="flex items-center gap-2">
+                        {item.assignedBuddy && (
+                          <div className="text-right text-[11px] bg-emerald-50 text-emerald-900 px-2.5 py-1 rounded-lg border border-emerald-200">
+                            <div className="text-[10px] text-emerald-700 font-semibold uppercase">Đôi bạn cùng tiến</div>
+                            <div className="font-bold">{item.assignedBuddy}</div>
+                          </div>
+                        )}
+                        {onDeleteSpecialStudent && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (window.confirm(`Thầy/Cô có chắc chắn muốn xóa hồ sơ theo dõi của học sinh ${item.studentName}?`)) {
+                                onDeleteSpecialStudent(item.id);
+                              }
+                            }}
+                            title="Xóa hồ sơ theo dõi"
+                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
                     </div>
-                  )}
-                </div>
 
                 {/* Hoàn cảnh & Biện pháp sư phạm */}
                 <div className="space-y-2.5 text-xs">
@@ -300,7 +359,9 @@ export const GvcnSpecialStudentsSection: React.FC<GvcnSpecialStudentsSectionProp
             </div>
           ))}
         </div>
-      )}
+      </div>
+    )
+  )}
 
       {/* TAB B: NHẬT KÝ LIÊN LẠC PHỤ HUYNH */}
       {subTab === 'contacts' && (
@@ -309,7 +370,7 @@ export const GvcnSpecialStudentsSection: React.FC<GvcnSpecialStudentsSectionProp
           <div className="bg-gradient-to-r from-emerald-50 via-teal-50 to-cyan-50 border border-emerald-200 rounded-2xl p-4.5 shadow-2xs">
             <h4 className="text-xs font-bold uppercase tracking-wider text-emerald-950 mb-2.5 flex items-center gap-2">
               <Users className="w-4 h-4 text-emerald-700" />
-              <span>Thường Trực Ban Đại Diện Cha Mẹ Học Sinh Lớp 9A1</span>
+              <span>Thường Trực Ban Đại Diện Cha Mẹ Học Sinh {classInfo.className}</span>
             </h4>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
               <div className="bg-white p-3 rounded-xl border border-emerald-100 shadow-2xs">
@@ -330,9 +391,9 @@ export const GvcnSpecialStudentsSection: React.FC<GvcnSpecialStudentsSectionProp
 
               <div className="bg-white p-3 rounded-xl border border-emerald-100 shadow-2xs">
                 <span className="text-[11px] text-slate-500 font-semibold block">Kênh kết nối chính thức:</span>
-                <span className="font-bold text-slate-900 block text-sm">Nhóm Zalo Lớp 9A1 (42/42 PH)</span>
+                <span className="font-bold text-slate-900 block text-sm">Nhóm Zalo {classInfo.className} ({students.length}/{students.length} PH)</span>
                 <span className="text-blue-700 font-semibold flex items-center gap-1 mt-1 underline">
-                  <MessageSquare className="w-3 h-3" /> zalo.me/g/lop9a1-lequydon
+                  <MessageSquare className="w-3 h-3" /> zalo.me/g/lop-{classInfo.className.toLowerCase().replace(/\s+/g, '')}
                 </span>
               </div>
             </div>
@@ -522,6 +583,16 @@ export const GvcnSpecialStudentsSection: React.FC<GvcnSpecialStudentsSectionProp
             </form>
           </div>
         </div>
+      )}
+
+      {/* Add special student modal */}
+      {onAddSpecialStudent && (
+        <GvcnAddSpecialStudentModal
+          isOpen={showAddSpecialModal}
+          onClose={() => setShowAddSpecialModal(false)}
+          students={students}
+          onAddSpecialStudent={onAddSpecialStudent}
+        />
       )}
     </div>
   );

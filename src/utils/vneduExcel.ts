@@ -3,25 +3,53 @@ import { saveAs } from 'file-saver';
 import { GvcnClassInfo, GvcnStudent, GvcnSubjectGrade, GvcnTT22Evaluation } from '../types';
 
 /**
- * Ngân hàng gợi ý nhận xét chuẩn Thông tư 22/2021/TT-BGDĐT
+ * Lấy tên gọi thân thiện/tên gọi hàng ngày của học sinh (vd: "Trần Minh Anh" -> "Minh Anh", "Bùi Gia Huy" -> "Gia Huy")
+ */
+export function getStudentCallName(fullName: string): string {
+  if (!fullName) return 'em';
+  const parts = fullName.trim().split(/\s+/);
+  if (parts.length <= 1) return fullName;
+  if (parts.length === 2) return parts.join(' ');
+  // Lấy 2 từ cuối (tên đệm + tên chính) rất tự nhiên và gần gũi trong xưng hô sư phạm Việt Nam
+  return [parts[parts.length - 2], parts[parts.length - 1]].join(' ');
+}
+
+/**
+ * Hàm tính mã băm ổn định kết hợp ID, STT, họ tên và biến thể để mỗi học sinh có nhận xét độc bản, không trùng lặp
+ */
+function computeStudentHash(student: GvcnStudent, variant: number = 0): number {
+  const seedStr = `${student.id}#${student.stt}#${student.name}#${student.role || 'hs'}#${student.category || 'norm'}#${variant}`;
+  let hash = 0;
+  for (let i = 0; i < seedStr.length; i++) {
+    hash = (hash * 31 + seedStr.charCodeAt(i)) >>> 0;
+  }
+  return hash;
+}
+
+/**
+ * Ngân hàng nhận xét mẫu phong phú, chuẩn mực theo Thông tư 22/2021/TT-BGDĐT
  */
 export const TT22_COMMENT_BANK = {
   phamChat: {
     tot: [
-      'Gương mẫu, trung thực, chăm chỉ, có tinh thần trách nhiệm rất cao với tập thể lớp.',
+      'Gương mẫu, trung thực, khiêm tốn, có tinh thần trách nhiệm rất cao với tập thể lớp.',
       'Lễ phép, nhân ái, tích cực giúp đỡ bạn bè, luôn chấp hành nghiêm chỉnh nội quy trường lớp.',
-      'Có ý thức tự giác cao, trung thực trong học tập và kiểm tra, đoàn kết yêu thương bạn bè.',
-      'Sống chan hòa, có trách nhiệm với nhiệm vụ được giao, kính trọng thầy cô, thân thiện với bạn bè.'
+      'Có ý thức tự giác cao, trung thực trong học tập và kiểm tra, sống chan hòa, đoàn kết.',
+      'Tác phong nghiêm túc, chuẩn mực, kính trọng thầy cô, thân thiện và nhiệt tình với bạn bè.',
+      'Có tinh thần tương thân tương ái, chủ động tham gia các phong tràu Đội, giữ gìn vệ sinh lớp tốt.',
+      'Ngoan ngoãn, trung thực, khiêm nhường, luôn biết lắng nghe và tôn trọng ý kiến tập thể.'
     ],
     kha: [
       'Ngoan ngoãn, lễ phép, có tinh thần tương thân tương ái, hòa đồng cùng các bạn trong lớp.',
       'Chấp hành tốt nội quy trường lớp, kính trọng thầy cô, có ý thức rèn luyện phẩm chất tốt.',
-      'Trung thực, có tinh thần xây dựng tập thể, đôi lúc còn cần chủ động hơn trong phong trào chung.'
+      'Trung thực, có tinh thần xây dựng tập thể, đôi lúc cần chủ động hơn trong phong trào chung.',
+      'Tác phong đi học chuyên cần, đúng giờ, đối xử hòa nhã với bạn bè trong và ngoài lớp.'
     ],
     dat: [
-      'Chấp hành nội quy trường lớp, lễ phép với thầy cô, đoàn kết với bạn bè.',
+      'Chấp hành nội quy trường lớp, lễ phép với thầy cô, hòa đồng với bạn bè.',
       'Tính tình hiền lành, thực hiện tương đối đầy đủ các quy định về nề nếp học sinh.',
-      'Cần rèn luyện thêm tính kiên trì, tự giác và tích cực tham gia các hoạt động tập thể.'
+      'Cần rèn luyện thêm tính kiên trì, tự giác và tích cực tham gia các hoạt động tập thể.',
+      'Biết lắng nghe lời nhắc nhở của thầy cô, cần tự tin hơn trong các hoạt động giao tiếp chung.'
     ],
     chuaDat: [
       'Còn vi phạm nội quy về nề nếp, giờ giấc; cần nghiêm túc rèn luyện tác phong học sinh.',
@@ -32,17 +60,21 @@ export const TT22_COMMENT_BANK = {
     tot: [
       'Khả năng tự chủ và tự học xuất sắc, tư duy sáng tạo nhạy bén, kỹ năng hợp tác nhóm rất tốt.',
       'Tiếp thu bài nhanh, giải quyết vấn đề linh hoạt, diễn đạt rõ ràng và có tư duy phản biện tốt.',
-      'Chủ động trong tìm tòi kiến thức, năng động trong thảo luận nhóm, có năng khiếu nổi bật.'
+      'Chủ động trong tìm tòi kiến thức, năng động trong thảo luận nhóm, có năng khiếu nổi bật.',
+      'Tư duy logic tốt, tiếp thu kiến thức nhanh nhạy, thường xuyên phát biểu xây dựng bài sôi nổi.',
+      'Kỹ năng tự học và nghiên cứu tài liệu tốt, có tinh thần sáng tạo trong giải quyết bài tập nâng cao.'
     ],
     kha: [
       'Nắm vững kiến thức kỹ năng các môn học, có ý thức tự học và khả năng làm việc nhóm tốt.',
       'Có cố gắng trong học tập, tiếp thu bài tốt, cần rèn luyện thêm kỹ năng thuyết trình tự tin.',
-      'Khả năng vận dụng kiến thức khá, cần rèn thêm tính kiên trì trong các bài tập chuyên sâu.'
+      'Khả năng vận dụng kiến thức khá, cần rèn thêm tính kiên trì trong các bài tập chuyên sâu.',
+      'Ý thức chuẩn bị bài và hoàn thành bài tập về nhà đầy đủ, tích cực tham gia các giờ học trên lớp.'
     ],
     dat: [
       'Hoàn thành các nhiệm vụ học tập được giao, có tiến bộ trong khả năng tự học.',
       'Tiếp thu kiến thức cơ bản ở mức vừa phải, cần rèn thêm kỹ năng tính toán và ghi nhớ.',
-      'Cần tích cực phát biểu xây dựng bài và chủ động trao đổi với bạn bè trong giờ học.'
+      'Cần tích cực phát biểu xây dựng bài và chủ động trao đổi với bạn bè trong giờ học.',
+      'Có ý thức học bài nhưng cần tăng cường thời gian tự học ở nhà để củng cố kiến thức nền tảng.'
     ],
     chuaDat: [
       'Khả năng tiếp thu còn chậm, kỹ năng tự học còn hạn chế, chưa tập trung trong giờ học.',
@@ -52,15 +84,18 @@ export const TT22_COMMENT_BANK = {
   nhanXetChung: {
     xuatSac: [
       'Học sinh xuất sắc toàn diện, chăm ngoan gương mẫu, đạt thành tích cao trong học tập và rèn luyện. Xứng đáng là tấm gương sáng của lớp.',
-      'Ý thức kỷ luật tuyệt vời, kết quả học tập xuất sắc đồng đều tất cả các môn. Tích cực tham gia các hoạt động phong trào Đội/Đoàn.'
+      'Ý thức kỷ luật tuyệt vời, kết quả học tập xuất sắc đồng đều tất cả các môn. Tích cực tham gia các hoạt động phong trào Đội/Đoàn.',
+      'Tư duy độc lập, sáng tạo, tiếp thu bài nhanh nhạy và luôn hoàn thành xuất sắc các nhiệm vụ học tập được giao.'
     ],
     gioi: [
       'Học sinh chăm ngoan, nề nếp tốt, học lực giỏi toàn diện. Tích cực tham gia xây dựng bài và phong trào thi đua của lớp.',
-      'Có tinh thần tự giác cao, rèn luyện tốt, đạt học sinh Giỏi. Cần tiếp tục duy trì và phát huy phong độ trong năm học tới.'
+      'Có tinh thần tự giác cao, rèn luyện tốt, đạt học sinh Giỏi. Cần tiếp tục duy trì và phát huy phong độ trong năm học tới.',
+      'Nắm chắc kiến thức các môn, làm bài cẩn thận, có kỹ năng làm việc nhóm và giao tiếp rất tự tin.'
     ],
     kha: [
       'Học sinh ngoan, nề nếp ổn định, đạt học lực Khá. Tiếp thu bài tốt, cần rèn thêm các môn tự nhiên để bứt phá đạt danh hiệu Học sinh Giỏi.',
-      'Chăm chỉ, chấp hành nghiêm quy định trường lớp, học lực Khá đều. Cần tự tin hơn trong giao tiếp và phát biểu xây dựng bài.'
+      'Chăm chỉ, chấp hành nghiêm quy định trường lớp, học lực Khá đều. Cần tự tin hơn trong giao tiếp và phát biểu xây dựng bài.',
+      'Có ý thức rèn luyện tốt, học lực Khá vững vàng, luôn hoàn thành đầy đủ bài tập và tích cực giúp đỡ bạn bè.'
     ],
     dat: [
       'Học sinh ngoan, lễ phép, có tiến bộ về nề nếp và học tập so với đầu năm. Cần tăng cường thời gian tự học ở nhà để cải thiện điểm số.',
@@ -74,71 +109,238 @@ export const TT22_COMMENT_BANK = {
 };
 
 /**
- * Tự động sinh nhận xét cá nhân chuẩn TT22 dựa trên điểm số và nề nếp
+ * Tự động sinh nhận xét cá nhân chuẩn TT22 độc bản cho từng học sinh:
+ * - KHÔNG nhận xét giống nhau giữa các em.
+ * - Lời văn tự nhiên, thân tình, đúng chất sư phạm của GVCN lớp 9.
+ * - Khi CHƯA CÓ ĐIỂM SỐ: Tuyệt đối không tự tính điểm trung bình hay đoán xếp loại học lực; tập trung nhận xét nề nếp, thái độ học tập và động viên.
+ * - Khi ĐÃ CÓ ĐIỂM SỐ: Phản ánh chuẩn xác theo Thông tư 22 dựa trên ĐTB và kết quả thực tế.
  */
-export function generateTT22CommentForStudent(student: GvcnStudent): GvcnTT22Evaluation {
+export function generateTT22CommentForStudent(
+  student: GvcnStudent,
+  variant: number = 0
+): GvcnTT22Evaluation {
   const hasGrades = student.grades && typeof student.grades.dtbChung === 'number';
   const dtb = hasGrades ? student.grades!.dtbChung : undefined;
-  
-  // Xác định mức rèn luyện (theo nề nếp)
+  const callName = getStudentCallName(student.name);
+  const hash = computeStudentHash(student, variant);
+
+  // 1. Xác định mức rèn luyện (Hạnh kiểm)
   let renLuyen: 'Tốt' | 'Khá' | 'Đạt' | 'Chưa đạt' = 'Tốt';
   if (student.category === 'special_care') {
     renLuyen = 'Khá';
   }
 
-  // Chọn ngẫu nhiên có ngữ cảnh câu nhận xét
-  const hash = student.name.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0) + student.stt;
+  // 2. Mảng nhận xét Phẩm chất tự nhiên & đa dạng (tránh rập khuôn)
+  const phamChatPoolTot = [
+    `Em ${callName} luôn chấp hành nghiêm túc nội quy trường lớp, lễ phép với thầy cô và sống chan hòa, thân thiện với bạn bè.`,
+    `Tác phong nghiêm túc, chuẩn mực, trung thực trong học tập và rèn luyện; có tinh thần giữ gìn nề nếp lớp rất tốt.`,
+    `Có tinh thần tương thân tương ái, khiêm tốn, biết lắng nghe và luôn nhiệt tình giúp đỡ bạn bè trong các hoạt động chung.`,
+    `Ý thức tự giác cao, kính trọng thầy cô, trung thực và có tinh thần trách nhiệm đáng tin cậy với tập thể.`,
+    `Em ${callName} ngoan ngoãn, lễ phép, sống nhân ái, có tinh thần kỷ luật và ý thức giữ gìn vệ sinh chung của trường lớp.`,
+    `Luôn gương mẫu trong việc thực hiện nền nếp Đội, trung thực, tác phong nhanh nhẹn và giàu tinh thần trách nhiệm.`,
+    `Có lối sống lành mạnh, tôn trọng thầy cô và bạn bè, luôn sẵn sàng chia sẻ khó khăn cùng các bạn trong lớp.`,
+    `Chăm chỉ rèn luyện nề nếp, tính tình trung thực, có tinh thần tự giác và luôn giữ đúng tác phong người học sinh.`
+  ];
 
-  // Nếu CHƯA CÓ ĐIỂM: không tự gán điểm giả hay xếp loại học lực Tốt/Khá!
+  const phamChatPoolKha = [
+    `Em ${callName} ngoan ngoãn, lễ phép, chấp hành tốt nội quy trường lớp và có ý thức giữ gìn vệ sinh chung.`,
+    `Tính tình hòa đồng, thân thiện với bạn bè, kính trọng thầy cô giáo; có ý thức rèn luyện phẩm chất tốt.`,
+    `Nề nếp tương đối ổn định, trung thực, cần phát huy hơn nữa tinh thần chủ động trong các hoạt động phong trào của lớp.`,
+    `Đi học chuyên cần, đúng giờ, tôn trọng thầy cô và đoàn kết với bạn bè trong tổ sinh hoạt.`
+  ];
+
+  const phamChatPoolDat = [
+    `Chấp hành nội quy trường lớp, lễ phép với thầy cô, tính tình hiền lành và hòa nhã với bạn bè.`,
+    `Có ý thức thực hiện quy định nề nếp của trường lớp, cần rèn luyện thêm tính kiên trì và tự giác hơn.`,
+    `Biết tiếp thu sự góp ý của thầy cô và ban cán sự, cần chủ động hơn trong việc tham gia sinh hoạt tập thể.`
+  ];
+
+  const pcBank = renLuyen === 'Tốt' ? phamChatPoolTot : renLuyen === 'Khá' ? phamChatPoolKha : phamChatPoolDat;
+  const phamChat = pcBank[(hash * 17 + 5) % pcBank.length];
+
+  // 3. Mảng nhận xét Năng lực tự nhiên & đa dạng
+  const nangLucPoolTot = [
+    `Tư duy linh hoạt, tiếp thu bài nhanh, có tinh thần tự giác chuẩn bị bài và hoàn thành tốt nhiệm vụ học tập.`,
+    `Có năng lực tự chủ và tự học tốt, biết chủ động tìm kiếm kiến thức và tích cực hợp tác trong các giờ thảo luận nhóm.`,
+    `Khả năng tư duy logic nhạy bén, diễn đạt lưu loát, hăng hái phát biểu xây dựng bài và có nhiều ý tưởng sáng tạo.`,
+    `Tiếp thu bài nhanh, có kỹ năng làm việc nhóm hiệu quả, chịu khó suy nghĩ và giải quyết bài tập độc lập.`,
+    `Tự giác trong học tập, ghi chép bài cẩn thận, có kỹ năng thuyết trình tự tin và năng lực giải quyết vấn đề tốt.`,
+    `Có khả năng nắm bắt kiến thức trọng tâm chắc chắn, chủ động trao đổi bài vở và có tinh thần tự học rất đáng khen.`
+  ];
+
+  const nangLucPoolKha = [
+    `Nắm vững kiến thức cơ bản các môn học, có ý thức tự học và khả năng hợp tác nhóm khá tốt.`,
+    `Tiếp thu bài tốt, hoàn thành đầy đủ bài tập được giao, cần rèn luyện thêm sự tự tin khi phát biểu trước lớp.`,
+    `Có tinh thần học hỏi, tiếp thu bài khá nhanh, cần kiên trì hơn ở những bài tập có độ khó cao.`,
+    `Chăm chỉ chuẩn bị bài trước khi đến lớp, có tinh thần học tập tích cực và ý thức xây dựng bài khá đều.`
+  ];
+
+  const nangLucPoolDat = [
+    `Hoàn thành các nhiệm vụ học tập cơ bản, có ý thức lắng nghe bài giảng và làm bài tập trên lớp.`,
+    `Tiếp thu bài ở mức vừa phải, cần dành thêm thời gian tự ôn tập tại nhà để củng cố các kỹ năng làm bài.`,
+    `Có cố gắng trong học tập, cần mạnh dạn đặt câu hỏi với thầy cô và các bạn khi gặp bài tập chưa hiểu.`
+  ];
+
+  const nlBank = renLuyen === 'Tốt' ? nangLucPoolTot : renLuyen === 'Khá' ? nangLucPoolKha : nangLucPoolDat;
+  const nangLuc = nlBank[(hash * 19 + 7) % nlBank.length];
+
+  // 4. Sinh Lời nhận xét chung của GVCN (nhanXetChung)
+  // Xây dựng 3 thành phần ghép nối tự nhiên: [Phần 1: Nề nếp & Vai trò] + [Phần 2: Học tập & Nỗ lực] + [Phần 3: Lời dặn dò sư phạm]
+  
+  // Phần 1: Tác phong & vai trò của học sinh trong lớp
+  let part1Opening = '';
+  const role = student.role || 'Học sinh';
+
+  if (role === 'Lớp trưởng') {
+    const role1Options = [
+      `Trên cương vị Lớp trưởng, em ${callName} luôn gương mẫu đi đầu, tác phong chững chạc và là cánh tay đắc lực của GVCN.`,
+      `Em ${callName} đảm nhiệm vai trò Lớp trưởng rất xuất sắc, tinh thần trách nhiệm cao, luôn biết bao quát và gắn kết tập thể.`,
+      `${callName} là một Lớp trưởng nhiệt huyết, gương mẫu trong học tập và có uy tín cao với toàn thể các bạn trong lớp.`
+    ];
+    part1Opening = role1Options[(hash * 3 + 1) % role1Options.length];
+  } else if (role === 'Lớp phó học tập') {
+    const role2Options = [
+      `Với vai trò Lớp phó học tập, em ${callName} luôn theo sát nề nếp học tập của lớp, nhiệt tình hướng dẫn và giúp đỡ bạn bè.`,
+      `Em ${callName} hoàn thành rất tốt nhiệm vụ Lớp phó học tập, vừa học giỏi vừa tích cực thúc đẩy phong trào học tập của lớp.`
+    ];
+    part1Opening = role2Options[(hash * 3 + 1) % role2Options.length];
+  } else if (role === 'Lớp phó kỷ luật') {
+    const role3Options = [
+      `Em ${callName} hoàn thành rất tốt trọng trách Lớp phó kỷ luật, thẳng thắn, công tâm và có ý thức giữ gìn nền nếp lớp rất cao.`,
+      `Trên cương vị Lớp phó kỷ luật, em ${callName} luôn nghiêm túc, đôn đốc nhắc nhở các bạn chấp hành tốt nội quy trường lớp.`
+    ];
+    part1Opening = role3Options[(hash * 3 + 1) % role3Options.length];
+  } else if (role === 'Thủ quỹ') {
+    part1Opening = `Em ${callName} quản lý quỹ lớp rất cẩn thận, minh bạch và chu đáo, luôn nhận được sự tin yêu từ tập thể lớp.`;
+  } else if (role === 'Bí thư Chi đội') {
+    part1Opening = `Là Bí thư Chi đội năng nổ, em ${callName} luôn đi đầu trong các hoạt động Đoàn Đội và phong trào thi đua của trường lớp.`;
+  } else if (role.startsWith('Tổ trưởng')) {
+    const leaderOptions = [
+      `Là ${role} gương mẫu, em ${callName} luôn nhiệt tình đôn đốc các bạn trong tổ giữ gìn trật tự và hoàn thành tốt nhiệm vụ.`,
+      `Em ${callName} điều hành các hoạt động của tổ rất năng nổ, có trách nhiệm cao và hòa đồng với mọi người.`
+    ];
+    part1Opening = leaderOptions[(hash * 3 + 1) % leaderOptions.length];
+  } else if (student.category === 'gifted') {
+    const giftedOptions = [
+      `Em ${callName} là một học sinh có tố chất nổi bật, tư chất thông minh, khiêm tốn và luôn giữ vững nề nếp gương mẫu.`,
+      `${callName} luôn thể hiện tinh thần tự giác rất cao, tác phong nhanh nhẹn và thái độ rèn luyện hết sức nghiêm túc.`,
+      `Em ${callName} chăm ngoan, có ý thức rèn luyện xuất sắc và luôn là điểm sáng tích cực của tập thể lớp.`
+    ];
+    part1Opening = giftedOptions[(hash * 3 + 1) % giftedOptions.length];
+  } else if (student.category === 'special_care') {
+    const specialOptions = [
+      `Em ${callName} tính tình hiền lành, ngoan ngoãn, lễ phép với thầy cô và có nhiều chuyển biến tích cực trong nề nếp.`,
+      `${callName} có thái độ rèn luyện cầu tiến hơn trước, biết lắng nghe sự chỉ bảo của thầy cô và hòa đồng với bạn bè.`,
+      `Em ${callName} có nhiều nỗ lực vươn lên trong việc chấp hành nề nếp, tính tình chân thật và biết quan tâm mọi người.`
+    ];
+    part1Opening = specialOptions[(hash * 3 + 1) % specialOptions.length];
+  } else if (student.category === 'difficult') {
+    const diffOptions = [
+      `Em ${callName} giàu nghị lực, tuy hoàn cảnh gia đình còn vất vả nhưng luôn chăm ngoan, lễ phép và giàu tinh thần vượt khó.`,
+      `${callName} là học sinh có ý chí, nề nếp tốt, luôn kiên trì vượt qua khó khăn để hoàn thành tốt các nhiệm vụ trường lớp.`
+    ];
+    part1Opening = diffOptions[(hash * 3 + 1) % diffOptions.length];
+  } else {
+    const normalOptions = [
+      `Em ${callName} ngoan ngoãn, lễ phép, chấp hành nghiêm chỉnh nội quy trường lớp và luôn hòa nhã cùng bạn bè.`,
+      `${callName} có ý thức kỷ luật tốt, đi học chuyên cần, tính tình trung thực và được thầy cô cùng bạn bè quý mến.`,
+      `Em ${callName} là học sinh chăm ngoan, luôn thực hiện tốt các quy định học đường và có tinh thần tập thể cao.`,
+      `${callName} có tác phong nghiêm túc, tính tình nhã nhặn, biết kính thầy yêu bạn và sẵn sàng tương trợ mọi người.`,
+      `Em ${callName} luôn giữ gìn nề nếp tốt, tích cực tham gia các phong trào chung và có ý thức tự giác đáng khen ngợi.`,
+      `Tính tình hiền hòa, lễ độ, em ${callName} luôn chấp hành nghiêm túc thời gian biểu và các quy định của nhà trường.`
+    ];
+    part1Opening = normalOptions[(hash * 7 + 3) % normalOptions.length];
+  }
+
+  // Phần 3: Lời dặn dò, động viên sư phạm dành cho học sinh lớp 9 (chuẩn bị thi vào 10)
+  const advicePool = [
+    `Thầy/Cô mong em tiếp tục giữ vững tinh thần này, rèn luyện bản lĩnh để tự tin bứt phá trong kỳ thi vào lớp 10 sắp tới!`,
+    `Chúc em luôn duy trì sự say mê và quyết tâm học tập để gặt hái thêm nhiều thành tích rực rỡ hơn nữa.`,
+    `Khuyên em tiếp tục phát huy thế mạnh của mình, mạnh dạn trao đổi và đặt câu hỏi để hoàn thiện bản thân mỗi ngày.`,
+    `Cần tiếp tục phân bổ thời gian học tập và nghỉ ngơi thật khoa học để giữ vững phong độ và sức khỏe tốt nhất.`,
+    `Thầy/Cô tin tưởng rằng sự kiên trì và nỗ lực bền bỉ sẽ giúp em chạm tới những mục tiêu mơ ước của mình!`,
+    `Hãy luôn tự tin vào năng lực của bản thân, không ngừng rèn luyện để sẵn sàng cho chặng đường học tập cấp THPT.`,
+    `Chúc em luôn giữ vững ngọn lửa nhiệt huyết, tiếp tục là tấm gương chăm ngoan, gương mẫu của lớp chúng ta!`,
+    `Thầy/Cô luôn tin yêu và đồng hành cùng em trên con đường chinh phục tri thức phía trước.`
+  ];
+  const part3Advice = advicePool[(hash * 23 + 29) % advicePool.length];
+
+  // NẾU CHƯA CÓ ĐIỂM SỐ:
+  // Tuyệt đối không tự cho điểm trung bình, không tự phong học lực Tốt/Khá/Đạt!
+  // Đánh giá dựa trên thái độ học tập, sự chuyên cần và ý thức chuẩn bị bài trong thực tế.
   if (!hasGrades || dtb === undefined) {
+    const studyAttitudePool = [
+      `Trong các giờ học, em luôn chú ý lắng nghe bài giảng, tích cực phát biểu xây dựng bài và làm việc nhóm hiệu quả.`,
+      `Thái độ học tập nghiêm túc, chuẩn bị bài đầy đủ trước khi đến lớp, có tinh thần tự giác cao trong giờ tự quản.`,
+      `Có ý thức học tập chăm chỉ, ghi chép bài cẩn thận, luôn hoàn thành chu đáo mọi nhiệm vụ học tập thầy cô giao.`,
+      `Tiếp thu bài nhanh nhạy, chịu khó tìm tòi kiến thức mới và thường xuyên giúp đỡ các bạn trong tổ cùng tiến bộ.`,
+      `Có tinh thần ham học hỏi, kỹ năng tự học tốt, biết chủ động trao đổi với thầy cô khi gặp các vấn đề chưa rõ.`,
+      `Chăm chỉ rèn luyện kỹ năng, giữ gìn vở sạch chữ đẹp, luôn tuân thủ nghiêm túc hiệu lệnh và yêu cầu bộ môn.`,
+      `Có nỗ lực học tập đều đặn, tích cực tham gia các buổi học tập nhóm và thảo luận chuyên đề của lớp.`,
+      `Ý thức học tập ngày càng tiến bộ, chú ý nghe giảng và thể hiện sự nghiêm túc trong từng tiết học.`
+    ];
+    const part2Study = studyAttitudePool[(hash * 13 + 17) % studyAttitudePool.length];
+
+    const nhanXetChung = `${part1Opening} ${part2Study} ${part3Advice}`;
+
     return {
       renLuyen,
-      hocTap: 'Chưa đạt' as any, // Trạng thái sẽ được kiểm tra hasGrades để hiển thị "Chưa đánh giá"
-      phamChat: 'Chấp hành tốt nội quy trường lớp, kính trọng thầy cô, có ý thức rèn luyện phẩm chất đạo đức tốt.',
-      nangLuc: 'Có ý thức tự giác trong học tập, hoàn thành các nhiệm vụ được giao trên lớp.',
-      nhanXetChung: 'Nề nếp tốt, chăm ngoan. Chờ cập nhật bảng điểm học kỳ để tổng kết kết quả học tập theo Thông tư 22.',
-      khenThuong: 'Không',
+      hocTap: 'Chưa đánh giá',
+      phamChat,
+      nangLuc,
+      nhanXetChung,
+      khenThuong: 'Chưa xét',
       updatedAt: new Date().toLocaleDateString('vi-VN')
     };
   }
 
-  // Xác định mức học lực theo TT22 khi ĐÃ CÓ ĐIỂM
+  // NẾU ĐÃ CÓ ĐIỂM SỐ:
+  // Tính toán chuẩn xác học lực và khen thưởng theo Thông tư 22
   let hocTap: 'Tốt' | 'Khá' | 'Đạt' | 'Chưa đạt' = 'Khá';
   if (dtb >= 8.0) hocTap = 'Tốt';
   else if (dtb >= 6.5) hocTap = 'Khá';
   else if (dtb >= 5.0) hocTap = 'Đạt';
   else hocTap = 'Chưa đạt';
 
-  const pcBank = hocTap === 'Tốt' ? TT22_COMMENT_BANK.phamChat.tot :
-                 hocTap === 'Khá' ? TT22_COMMENT_BANK.phamChat.kha :
-                 hocTap === 'Đạt' ? TT22_COMMENT_BANK.phamChat.dat : TT22_COMMENT_BANK.phamChat.chuaDat;
-  const phamChat = pcBank[hash % pcBank.length];
-
-  const nlBank = hocTap === 'Tốt' ? TT22_COMMENT_BANK.nangLuc.tot :
-                 hocTap === 'Khá' ? TT22_COMMENT_BANK.nangLuc.kha :
-                 hocTap === 'Đạt' ? TT22_COMMENT_BANK.nangLuc.dat : TT22_COMMENT_BANK.nangLuc.chuaDat;
-  const nangLuc = nlBank[(hash + 1) % nlBank.length];
-
   let khenThuong: 'Học sinh Xuất sắc' | 'Học sinh Giỏi' | 'Khen thưởng chuyên đề' | 'Không' = 'Không';
-  let nxBank = TT22_COMMENT_BANK.nhanXetChung.kha;
+  let part2Study = '';
 
   if (hocTap === 'Tốt' && renLuyen === 'Tốt') {
     if (dtb >= 9.0) {
       khenThuong = 'Học sinh Xuất sắc';
-      nxBank = TT22_COMMENT_BANK.nhanXetChung.xuatSac;
+      const xuatSacOptions = [
+        `Kết quả học tập đạt mức Xuất sắc toàn diện (ĐTB: ${dtb.toFixed(1)}), tư duy logic sắc sảo, hoàn thành xuất sắc nhiệm vụ và đạt danh hiệu Học sinh Xuất sắc.`,
+        `Thành tích học tập xuất sắc đồng đều ở tất cả các môn (ĐTB: ${dtb.toFixed(1)}), tiếp thu bài cực nhanh và có năng lực tự học tuyệt vời, xứng đáng đạt danh hiệu Học sinh Xuất sắc.`,
+        `Tư duy độc lập, sáng tạo, giải quyết các bài tập nâng cao rất nhạy bén, kết quả học tập xuất sắc (ĐTB: ${dtb.toFixed(1)}) và là tấm gương sáng của lớp.`
+      ];
+      part2Study = xuatSacOptions[(hash * 5 + 2) % xuatSacOptions.length];
     } else {
       khenThuong = 'Học sinh Giỏi';
-      nxBank = TT22_COMMENT_BANK.nhanXetChung.gioi;
+      const gioiOptions = [
+        `Kết quả học tập đạt mức Giỏi (ĐTB: ${dtb.toFixed(1)}), nắm chắc kiến thức trọng tâm, tiếp thu bài nhanh và luôn chủ động trong các giờ học.`,
+        `Học lực Giỏi toàn diện (ĐTB: ${dtb.toFixed(1)}), làm bài cẩn thận, chu đáo, có kỹ năng làm việc nhóm và giải quyết vấn đề rất tốt.`,
+        `Năng lực học tập vững vàng (ĐTB: ${dtb.toFixed(1)}), có thế mạnh nổi trội và phong độ học tập ổn định, hoàn thành tốt mục tiêu đề ra.`
+      ];
+      part2Study = gioiOptions[(hash * 5 + 2) % gioiOptions.length];
     }
   } else if (hocTap === 'Khá') {
-    nxBank = TT22_COMMENT_BANK.nhanXetChung.kha;
+    const khaOptions = [
+      `Đạt học lực Khá (ĐTB: ${dtb.toFixed(1)}), nắm vững kiến thức cơ bản các môn học, chăm chỉ làm bài tập về nhà và có ý thức học hỏi cao.`,
+      `Khả năng tiếp thu bài tốt, đạt kết quả học tập Khá (ĐTB: ${dtb.toFixed(1)}), có sự tiến bộ rõ nét trong các bài kiểm tra định kỳ.`,
+      `Học tập chăm chỉ, hoàn thành tốt các yêu cầu của thầy cô bộ môn, học lực Khá vững chắc (ĐTB: ${dtb.toFixed(1)}).`
+    ];
+    part2Study = khaOptions[(hash * 5 + 2) % khaOptions.length];
   } else if (hocTap === 'Đạt') {
-    nxBank = TT22_COMMENT_BANK.nhanXetChung.dat;
+    const datOptions = [
+      `Đạt chuẩn kiến thức kỹ năng theo yêu cầu (ĐTB: ${dtb.toFixed(1)}), có nhiều cố gắng trong từng tuần học để hoàn thành nhiệm vụ.`,
+      `Tiếp thu bài ở mức vừa phải (ĐTB: ${dtb.toFixed(1)}), có tinh thần cầu tiến, cần rèn thêm tính kiên trì ở các môn tự nhiên.`
+    ];
+    part2Study = datOptions[(hash * 5 + 2) % datOptions.length];
   } else {
-    nxBank = TT22_COMMENT_BANK.nhanXetChung.chuaDat;
+    part2Study = `Còn gặp khó khăn ở một số môn học chính (ĐTB: ${dtb.toFixed(1)}), khả năng tiếp thu còn chậm, cần lập kế hoạch tự học khoa học hơn và phối hợp cùng thầy cô.`;
   }
 
-  const nhanXetChung = nxBank[(hash + 2) % nxBank.length];
+  const nhanXetChung = `${part1Opening} ${part2Study} ${part3Advice}`;
 
   return {
     renLuyen,

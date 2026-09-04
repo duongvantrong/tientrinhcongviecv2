@@ -13,6 +13,7 @@ import {
   Phone,
   Sparkles,
   BookOpen,
+  UserPlus,
 } from 'lucide-react';
 import { GvcnStudent, GvcnClassInfo } from '../../types';
 import {
@@ -27,6 +28,7 @@ interface GvcnStudentGradesSectionProps {
   classInfo: GvcnClassInfo;
   onUpdateStudents: (updated: GvcnStudent[]) => void;
   onSelectStudent: (student: GvcnStudent) => void;
+  onOpenAddStudent?: () => void;
 }
 
 export const GvcnStudentGradesSection: React.FC<GvcnStudentGradesSectionProps> = ({
@@ -34,6 +36,7 @@ export const GvcnStudentGradesSection: React.FC<GvcnStudentGradesSectionProps> =
   classInfo,
   onUpdateStudents,
   onSelectStudent,
+  onOpenAddStudent,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedGroup, setSelectedGroup] = useState<number | 'all'>('all');
@@ -162,11 +165,23 @@ export const GvcnStudentGradesSection: React.FC<GvcnStudentGradesSectionProps> =
           </div>
 
           <div className="flex flex-wrap items-center gap-2.5">
+            {/* Thêm học sinh cụ thể từng em */}
+            {onOpenAddStudent && (
+              <button
+                onClick={onOpenAddStudent}
+                className="px-3.5 py-2 bg-emerald-800 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-2 transition-all shadow-xs border border-emerald-600/40 cursor-pointer"
+                title="Thêm học sinh mới vào danh sách lớp"
+              >
+                <UserPlus className="w-4 h-4 text-emerald-200" />
+                <span>Thêm Học Sinh Mới</span>
+              </button>
+            )}
+
             {/* Tải lên DS học sinh */}
             <button
               onClick={() => studentFileInputRef.current?.click()}
               disabled={isProcessing}
-              className="px-3.5 py-2 bg-emerald-700 hover:bg-emerald-600 text-white rounded-xl text-xs font-bold flex items-center gap-2 transition-all shadow-xs disabled:opacity-50"
+              className="px-3.5 py-2 bg-emerald-700 hover:bg-emerald-600 text-white rounded-xl text-xs font-bold flex items-center gap-2 transition-all shadow-xs disabled:opacity-50 cursor-pointer"
             >
               <Upload className="w-4 h-4 text-emerald-200" />
               <span>Tải Lên DS Học Sinh (VnEdu)</span>

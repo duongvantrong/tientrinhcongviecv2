@@ -19,6 +19,9 @@ import {
   ExternalLink,
   Settings,
   FileSpreadsheet,
+  UserPlus,
+  RefreshCw,
+  Cloud,
 } from 'lucide-react';
 import {
   GvcnClassInfo,
@@ -39,6 +42,10 @@ import {
   defaultGvcnParentContacts,
   defaultGvcnYearTasks,
 } from '../../data/gvcnDefaultData';
+import {
+  getGradeFromClassInfo,
+  getPhuThoYearPlanForGrade,
+} from '../../data/gvcnPhuThoPlans';
 import { GvcnRulesSection } from './GvcnRulesSection';
 import { GvcnWeeklyRecordSection } from './GvcnWeeklyRecordSection';
 import { GvcnMeetingSection } from './GvcnMeetingSection';
@@ -50,6 +57,9 @@ import { GvcnStudentListModal } from './GvcnStudentListModal';
 import { GvcnQuickLogModal } from './GvcnQuickLogModal';
 import { GvcnClassSettingsModal } from './GvcnClassSettingsModal';
 import { GvcnStudentProfileModal } from './GvcnStudentProfileModal';
+import { GvcnAddStudentModal } from './GvcnAddStudentModal';
+import { useAuth } from '../auth/AuthGate';
+import { subscribeToGvcnData, syncGvcnDataToCloud } from '../../lib/firebase';
 
 export type GvcnSubTab =
   | 'students_grades'
@@ -130,8 +140,58 @@ export const GvcnDashboardTab: React.FC = () => {
   const [activeSubTab, setActiveSubTab] = useState<GvcnSubTab>('students_grades');
   const [activeWeek, setActiveWeek] = useState<number>(1);
 
+  // Auth & Cloud Sync
+  const { user } = useAuth();
+  const [isCloudSyncing, setIsCloudSyncing] = useState(false);
+  const [lastCloudSyncTime, setLastCloudSyncTime] = useState<string | null>(null);
+
+  // Subscribe to real-time Cloud updates across devices using same Gmail
+  useEffect(() => {
+    if (!user?.uid) return;
+
+    const unsubscribe = subscribeToGvcnData(
+      user.uid,
+      (cloudPayload) => {
+        if (cloudPayload && Array.isArray(cloudPayload.students) && cloudPayload.students.length > 0) {
+          setStudents(cloudPayload.students);
+          if (cloudPayload.classInfo) setClassInfo(cloudPayload.classInfo);
+          if (cloudPayload.weeklyRecords) setWeeklyRecords(cloudPayload.weeklyRecords);
+          if (cloudPayload.rules) setRules(cloudPayload.rules);
+          setLastCloudSyncTime(new Date().toLocaleTimeString('vi-VN'));
+        }
+      },
+      (err) => console.warn('Could not sync from cloud:', err)
+    );
+
+    return () => unsubscribe();
+  }, [user?.uid]);
+
+  // Trigger manual or automatic cloud save
+  const handleManualCloudSync = async () => {
+    if (!user?.uid || !user.email) {
+      alert('Vui lòng đăng nhập tài khoản Gmail để đồng bộ đám mây!');
+      return;
+    }
+    setIsCloudSyncing(true);
+    try {
+      await syncGvcnDataToCloud(user.uid, user.email, {
+        classInfo,
+        students,
+        weeklyRecords,
+        rules,
+      });
+      setLastCloudSyncTime(new Date().toLocaleTimeString('vi-VN'));
+    } catch (err: any) {
+      console.error('Cloud sync error:', err);
+      alert('Lỗi đồng bộ đám mây: ' + (err?.message || 'Kiểm tra kết nối'));
+    } finally {
+      setIsCloudSyncing(false);
+    }
+  };
+
   // Modals
   const [showStudentListModal, setShowStudentListModal] = useState<boolean>(false);
+  const [showAddStudentModal, setShowAddStudentModal] = useState<boolean>(false);
   const [showQuickLogModal, setShowQuickLogModal] = useState<boolean>(false);
   const [showClassSettingsModal, setShowClassSettingsModal] = useState<boolean>(false);
   const [selectedStudentForProfile, setSelectedStudentForProfile] = useState<GvcnStudent | null>(null);
@@ -144,18 +204,79 @@ export const GvcnDashboardTab: React.FC = () => {
   };
 
   const handleUpdateStudent = (updatedStudent: GvcnStudent) => {
-    setStudents((prev) => prev.map((s) => (s.id === updatedStudent.id ? updatedStudent : s)));
+    const updated = students.map((s) => (s.id === updatedStudent.id ? updatedStudent : s));
+    setStudents(updated);
     if (selectedStudentForProfile?.id === updatedStudent.id) {
       setSelectedStudentForProfile(updatedStudent);
+    }
+    if (user?.uid && user.email) {
+      syncGvcnDataToCloud(user.uid, user.email, {
+        classInfo,
+        students: updated,
+        weeklyRecords,
+        rules,
+      }).catch(console.error);
     }
   };
 
   const handleUpdateStudents = (updatedList: GvcnStudent[]) => {
     setStudents(updatedList);
+    if (user?.uid && user.email) {
+      syncGvcnDataToCloud(user.uid, user.email, {
+        classInfo,
+        students: updatedList,
+        weeklyRecords,
+        rules,
+      }).catch(console.error);
+    }
+  };
+
+  // Handler to add a specific student individually
+  const handleAddStudent = (newStudent: GvcnStudent) => {
+    const updatedList = [...students, newStudent].sort((a, b) => (a.stt || 0) - (b.stt || 0));
+    setStudents(updatedList);
+    if (user?.uid && user.email) {
+      syncGvcnDataToCloud(user.uid, user.email, {
+        classInfo,
+        students: updatedList,
+        weeklyRecords,
+        rules,
+      }).catch(console.error);
+    }
   };
 
   const handleSaveClassInfo = (newInfo: GvcnClassInfo) => {
+    const oldGrade = getGradeFromClassInfo(classInfo);
+    const newGrade = getGradeFromClassInfo(newInfo);
     setClassInfo(newInfo);
+
+    // If grade changed, automatically update homeroom year plan to match the new grade
+    if (newGrade !== oldGrade) {
+      const newPlan = getPhuThoYearPlanForGrade(newGrade, newInfo.academicYear);
+      setMonthlyTasks(newPlan);
+    }
+
+    if (user?.uid && user.email) {
+      syncGvcnDataToCloud(user.uid, user.email, {
+        classInfo: newInfo,
+        students,
+        weeklyRecords,
+        rules,
+      }).catch(console.error);
+    }
+  };
+
+  const handleApplyGradePlan = (grade: 6 | 7 | 8 | 9) => {
+    const newPlan = getPhuThoYearPlanForGrade(grade, classInfo.academicYear);
+    setMonthlyTasks(newPlan);
+  };
+
+  const handleAddSpecialStudent = (student: GvcnSpecialStudent) => {
+    setSpecialStudents((prev) => [student, ...prev]);
+  };
+
+  const handleDeleteSpecialStudent = (studentId: string) => {
+    setSpecialStudents((prev) => prev.filter((s) => s.id !== studentId));
   };
 
   // Handlers for updating state
@@ -351,14 +472,48 @@ export const GvcnDashboardTab: React.FC = () => {
               <p className="text-xs sm:text-sm text-emerald-200/90 leading-relaxed max-w-3xl">
                 <strong>{classInfo.homeroomTeacher}</strong> • {classInfo.schoolName}. Bảng điều khiển quản lý nề nếp, thi đua 4 tổ, biên bản sinh hoạt lớp và đồng hành cùng phụ huynh theo phong cách sư phạm mẫu mực.
               </p>
+
+              {/* Cloud Sync Status Indicator */}
+              {user?.email && (
+                <div className="flex items-center gap-2 pt-1 flex-wrap">
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500/20 text-emerald-200 border border-emerald-400/30 shadow-2xs">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                    <span>Đồng bộ Cloud đa thiết bị: {user.email}</span>
+                  </span>
+                  {lastCloudSyncTime && (
+                    <span className="text-[10px] text-emerald-300/80 font-mono">
+                      (Cập nhật: {lastCloudSyncTime})
+                    </span>
+                  )}
+                  <button
+                    onClick={handleManualCloudSync}
+                    disabled={isCloudSyncing}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer border border-white/10"
+                    title="Bấm để đẩy dữ liệu lên máy chủ đám mây ngay lập tức"
+                  >
+                    <RefreshCw className={`w-3 h-3 ${isCloudSyncing ? 'animate-spin text-emerald-300' : ''}`} />
+                    <span>{isCloudSyncing ? 'Đang đồng bộ...' : 'Đồng bộ ngay'}</span>
+                  </button>
+                </div>
+              )}
             </div>
           </div>
 
           {/* Quick Action Top Buttons */}
           <div className="flex flex-wrap items-center gap-2.5 flex-shrink-0 w-full lg:w-auto">
+            {/* Button Thêm học sinh cụ thể từng học sinh */}
+            <button
+              onClick={() => setShowAddStudentModal(true)}
+              className="px-4 py-2.5 bg-teal-600 hover:bg-teal-500 text-white rounded-xl text-xs font-bold flex items-center gap-2 transition-all shadow-md border border-teal-400/40 cursor-pointer"
+              title="Thêm học sinh mới cụ thể từng em vào danh sách lớp"
+            >
+              <UserPlus className="w-4 h-4 text-teal-200" />
+              <span>Thêm Học Sinh Mới</span>
+            </button>
+
             <button
               onClick={() => setShowClassSettingsModal(true)}
-              className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold flex items-center gap-2 transition-all shadow-md border border-emerald-400/40"
+              className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold flex items-center gap-2 transition-all shadow-md border border-emerald-400/40 cursor-pointer"
               title="Tùy chỉnh tên trường, lớp chủ nhiệm, năm học và họ tên GVCN"
             >
               <Settings className="w-4 h-4 text-emerald-200" />
@@ -416,17 +571,41 @@ export const GvcnDashboardTab: React.FC = () => {
             <span className="text-[11px] font-bold text-cyan-300 uppercase tracking-wider block">
               ĐTB Chung Của Lớp
             </span>
-            <div className="text-xl font-black text-white mt-1">
-              {(
-                students.reduce((acc, s) => acc + (s.grades?.dtbChung || 7.8), 0) /
-                (students.length || 1)
-              ).toFixed(1)}{' '}
-              <span className="text-xs font-normal text-cyan-200/80">/ 10</span>
-            </div>
-            <span className="text-[10px] text-cyan-200/70 block mt-0.5">
-              Tốt: {students.filter((s) => (s.grades?.dtbChung || 7.8) >= 8.0).length} • Khá:{' '}
-              {students.filter((s) => (s.grades?.dtbChung || 7.8) >= 6.5 && (s.grades?.dtbChung || 7.8) < 8.0).length} HS
-            </span>
+            {(() => {
+              const studentsWithGrades = students.filter(
+                (s) => s.grades && typeof s.grades.dtbChung === 'number'
+              );
+              if (studentsWithGrades.length === 0) {
+                return (
+                  <>
+                    <div className="text-xl font-black text-white/70 mt-1">
+                      — <span className="text-xs font-normal text-cyan-200/60">(Chưa có điểm)</span>
+                    </div>
+                    <span className="text-[10px] text-cyan-200/70 block mt-0.5">
+                      Chưa nhập điểm • Khi nào nhập mới tính ĐTB
+                    </span>
+                  </>
+                );
+              }
+              const avg =
+                studentsWithGrades.reduce((acc, s) => acc + s.grades!.dtbChung!, 0) /
+                studentsWithGrades.length;
+              const totCount = studentsWithGrades.filter((s) => s.grades!.dtbChung! >= 8.0).length;
+              const khaCount = studentsWithGrades.filter(
+                (s) => s.grades!.dtbChung! >= 6.5 && s.grades!.dtbChung! < 8.0
+              ).length;
+              return (
+                <>
+                  <div className="text-xl font-black text-white mt-1">
+                    {avg.toFixed(1)}{' '}
+                    <span className="text-xs font-normal text-cyan-200/80">/ 10</span>
+                  </div>
+                  <span className="text-[10px] text-cyan-200/70 block mt-0.5">
+                    Đã nhập {studentsWithGrades.length}/{students.length} HS • Tốt: {totCount} • Khá: {khaCount}
+                  </span>
+                </>
+              );
+            })()}
           </div>
 
           <div className="bg-white/5 border border-white/10 p-3.5 rounded-2xl backdrop-blur-xs">
@@ -601,6 +780,7 @@ export const GvcnDashboardTab: React.FC = () => {
             classInfo={classInfo}
             onUpdateStudents={handleUpdateStudents}
             onSelectStudent={handleSelectStudent}
+            onOpenAddStudent={() => setShowAddStudentModal(true)}
           />
         )}
 
@@ -648,14 +828,18 @@ export const GvcnDashboardTab: React.FC = () => {
             students={students}
             onAddSpecialNote={handleAddSpecialNote}
             onAddParentContact={handleAddParentContact}
+            onAddSpecialStudent={handleAddSpecialStudent}
+            onDeleteSpecialStudent={handleDeleteSpecialStudent}
           />
         )}
 
         {activeSubTab === 'year_plan' && (
           <GvcnYearPlanSection
             monthlyTasks={monthlyTasks}
+            classInfo={classInfo}
             onToggleTask={handleToggleTask}
             onAddTask={handleAddTask}
+            onApplyGradePlan={handleApplyGradePlan}
           />
         )}
       </div>
@@ -703,6 +887,13 @@ export const GvcnDashboardTab: React.FC = () => {
         rules={rules}
         activeWeek={activeWeek}
         onSaveLog={handleSaveQuickLog}
+      />
+
+      <GvcnAddStudentModal
+        isOpen={showAddStudentModal}
+        onClose={() => setShowAddStudentModal(false)}
+        onAddStudent={handleAddStudent}
+        existingStudents={students}
       />
     </div>
   );

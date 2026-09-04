@@ -52,6 +52,8 @@ export const GvcnStudentProfileModal: React.FC<GvcnStudentProfileModalProps> = (
   const [editEvaluation, setEditEvaluation] = useState<GvcnTT22Evaluation | null>(null);
   const [savedSuccess, setSavedSuccess] = useState(false);
 
+  const [variantCount, setVariantCount] = useState(0);
+
   if (!isOpen || !student) return null;
 
   // Initialize evaluation state if not set
@@ -76,7 +78,9 @@ export const GvcnStudentProfileModal: React.FC<GvcnStudentProfileModalProps> = (
   };
 
   const handleAutoSuggestTT22 = () => {
-    const generated = generateTT22CommentForStudent(student);
+    const nextVariant = variantCount + 1;
+    setVariantCount(nextVariant);
+    const generated = generateTT22CommentForStudent(student, nextVariant);
     setEditEvaluation(generated);
   };
 
@@ -497,6 +501,7 @@ export const GvcnStudentProfileModal: React.FC<GvcnStudentProfileModalProps> = (
                     }
                     className="w-full px-3.5 py-2 text-xs font-bold bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-hidden"
                   >
+                    <option value="Chưa đánh giá">Chưa đánh giá (Chưa có điểm)</option>
                     <option value="Tốt">Tốt (ĐTB ≥ 8.0, không môn &lt; 6.5)</option>
                     <option value="Khá">Khá (ĐTB ≥ 6.5, không môn &lt; 5.0)</option>
                     <option value="Đạt">Đạt (ĐTB ≥ 5.0, không môn &lt; 3.5)</option>
@@ -565,7 +570,7 @@ export const GvcnStudentProfileModal: React.FC<GvcnStudentProfileModalProps> = (
                   Danh hiệu thi đua / Khen thưởng:
                 </label>
                 <select
-                  value={currentEvaluation.khenThuong || 'Không'}
+                  value={currentEvaluation.khenThuong || 'Chưa xét'}
                   onChange={(e) =>
                     setEditEvaluation({
                       ...currentEvaluation,
@@ -574,6 +579,7 @@ export const GvcnStudentProfileModal: React.FC<GvcnStudentProfileModalProps> = (
                   }
                   className="w-full px-3.5 py-2 text-xs font-bold bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-hidden"
                 >
+                  <option value="Chưa xét">Chưa xét khen thưởng (Chưa có điểm)</option>
                   <option value="Không">Không khen thưởng</option>
                   <option value="Học sinh Giỏi">Học sinh Giỏi (Rèn luyện Tốt, Học tập Tốt)</option>
                   <option value="Học sinh Xuất sắc">

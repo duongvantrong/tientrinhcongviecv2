@@ -1,0 +1,60 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "User Profile",
+      "description": "User profile information and role",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "role": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "lastLoginAt": { "type": "string" }
+      },
+      "required": ["email"]
+    },
+    "GvcnClassData": {
+      "title": "GVCN Class Data",
+      "description": "Class info, students list, and evaluation data for a teacher",
+      "type": "object",
+      "properties": {
+        "ownerId": { "type": "string" },
+        "ownerEmail": { "type": "string" },
+        "updatedAt": { "type": "string" },
+        "classInfo": { "type": "object" },
+        "students": { "type": "array" },
+        "weeklyRecords": { "type": "array" },
+        "rules": { "type": "array" }
+      },
+      "required": ["ownerId", "updatedAt"]
+    },
+    "WhitelistUser": {
+      "title": "Whitelist User",
+      "description": "Authorized email address allowed to access the application",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string" },
+        "name": { "type": "string" },
+        "addedBy": { "type": "string" },
+        "addedAt": { "type": "string" },
+        "role": { "type": "string" }
+      },
+      "required": ["email"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "User profile document"
+    },
+    "/users/{userId}/gvcn_data/{docId}": {
+      "schema": "GvcnClassData",
+      "description": "Teacher synchronized class data"
+    },
+    "/whitelist_users/{emailId}": {
+      "schema": "WhitelistUser",
+      "description": "Authorized email list document"
+    }
+  }
+}

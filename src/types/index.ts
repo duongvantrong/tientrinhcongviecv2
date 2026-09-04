@@ -348,11 +348,11 @@ export interface GvcnStudentGrades {
 
 export interface GvcnTT22Evaluation {
   renLuyen: 'Tốt' | 'Khá' | 'Đạt' | 'Chưa đạt'; // Kết quả rèn luyện (Hạnh kiểm) theo TT22
-  hocTap: 'Tốt' | 'Khá' | 'Đạt' | 'Chưa đạt'; // Kết quả học tập (Học lực) theo TT22
+  hocTap?: 'Tốt' | 'Khá' | 'Đạt' | 'Chưa đạt' | 'Chưa đánh giá'; // Kết quả học tập (Học lực) theo TT22 - chỉ tính khi có điểm
   phamChat: string; // Nhận xét về phẩm chất (Yêu nước, nhân ái, chăm chỉ, trung thực, trách nhiệm)
   nangLuc: string; // Nhận xét về năng lực (Tự chủ, giao tiếp, sáng tạo & năng lực đặc thù)
   nhanXetChung: string; // Nhận xét tổng thể của GVCN vào học bạ / vnEdu
-  khenThuong?: 'Học sinh Xuất sắc' | 'Học sinh Giỏi' | 'Khen thưởng chuyên đề' | 'Không';
+  khenThuong?: 'Học sinh Xuất sắc' | 'Học sinh Giỏi' | 'Khen thưởng chuyên đề' | 'Chưa xét' | 'Không';
   updatedAt?: string;
 }
 

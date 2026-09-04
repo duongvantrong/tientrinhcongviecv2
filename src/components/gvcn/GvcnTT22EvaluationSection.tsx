@@ -38,36 +38,39 @@ export const GvcnTT22EvaluationSection: React.FC<GvcnTT22EvaluationSectionProps>
   const [selectedGroup, setSelectedGroup] = useState<number | 'all'>('all');
   const [showBankModal, setShowBankModal] = useState(false);
   const [notification, setNotification] = useState<string | null>(null);
+  const [studentVariants, setStudentVariants] = useState<Record<string, number>>({});
 
   const showToast = (msg: string) => {
     setNotification(msg);
     setTimeout(() => setNotification(null), 4000);
   };
 
-  // Tự động sinh nhận xét cho tất cả học sinh trong lớp
+  // Tự động sinh nhận xét cho tất cả học sinh trong lớp (mỗi em một nét riêng)
   const handleBatchAutoGenerate = () => {
     const updated = students.map((s) => ({
       ...s,
-      tt22Evaluation: generateTT22CommentForStudent(s),
+      tt22Evaluation: generateTT22CommentForStudent(s, studentVariants[s.id] || 0),
     }));
     onUpdateStudents(updated);
-    showToast(`Đã tự động tạo nhận xét sư phạm chuẩn TT22 cho toàn bộ ${students.length} học sinh!`);
+    showToast(`Đã tự động tạo nhận xét độc bản, chuẩn TT22 cho toàn bộ ${students.length} học sinh!`);
   };
 
-  // Tự động sinh lại nhận xét cho 1 em
+  // Tự động sinh lại nhận xét tự nhiên mới cho 1 em (đổi biến thể câu chữ)
   const handleSingleAutoGenerate = (studentId: string, e: React.MouseEvent) => {
     e.stopPropagation();
+    const nextVar = (studentVariants[studentId] || 0) + 1;
+    setStudentVariants((prev) => ({ ...prev, [studentId]: nextVar }));
     const updated = students.map((s) => {
       if (s.id === studentId) {
         return {
           ...s,
-          tt22Evaluation: generateTT22CommentForStudent(s),
+          tt22Evaluation: generateTT22CommentForStudent(s, nextVar),
         };
       }
       return s;
     });
     onUpdateStudents(updated);
-    showToast('Đã tạo gợi ý nhận xét mới cho học sinh!');
+    showToast('Đã đổi phương án nhận xét tự nhiên mới cho học sinh!');
   };
 
   // Thay đổi trường nhận xét trực tiếp
@@ -78,7 +81,7 @@ export const GvcnTT22EvaluationSection: React.FC<GvcnTT22EvaluationSectionProps>
   ) => {
     const updated = students.map((s) => {
       if (s.id === studentId) {
-        const prevEval = s.tt22Evaluation || generateTT22CommentForStudent(s);
+        const prevEval = s.tt22Evaluation || generateTT22CommentForStudent(s, studentVariants[s.id] || 0);
         return {
           ...s,
           tt22Evaluation: {
@@ -99,20 +102,31 @@ export const GvcnTT22EvaluationSection: React.FC<GvcnTT22EvaluationSectionProps>
     showToast(`Đã xuất và tải về file Excel nhận xét TT22 lớp ${classInfo.className}!`);
   };
 
-  // Thống kê nhanh TT22
+  // Thống kê nhanh TT22 - Tuyệt đối không tự tính khi chưa có điểm số
+  const studentsWithGrades = students.filter(
+    (s) => s.grades && typeof s.grades.dtbChung === 'number'
+  ).length;
+
   const stats = {
-    xuatSac: students.filter((s) => s.tt22Evaluation?.khenThuong === 'Học sinh Xuất sắc').length,
-    gioi: students.filter((s) => s.tt22Evaluation?.khenThuong === 'Học sinh Giỏi').length,
-    hocTapTot: students.filter((s) => s.tt22Evaluation?.hocTap === 'Tốt').length,
-    hocTapKha: students.filter((s) => s.tt22Evaluation?.hocTap === 'Khá').length,
-    hocTapDat: students.filter((s) => s.tt22Evaluation?.hocTap === 'Đạt').length,
+    hasGradesCount: studentsWithGrades,
+    xuatSac: students.filter((s) => s.grades?.dtbChung !== undefined && s.tt22Evaluation?.khenThuong === 'Học sinh Xuất sắc').length,
+    gioi: students.filter((s) => s.grades?.dtbChung !== undefined && s.tt22Evaluation?.khenThuong === 'Học sinh Giỏi').length,
+    hocTapTot: students.filter((s) => s.grades?.dtbChung !== undefined && s.tt22Evaluation?.hocTap === 'Tốt').length,
+    hocTapKha: students.filter((s) => s.grades?.dtbChung !== undefined && s.tt22Evaluation?.hocTap === 'Khá').length,
+    hocTapDat: students.filter((s) => s.grades?.dtbChung !== undefined && s.tt22Evaluation?.hocTap === 'Đạt').length,
     renLuyenTot: students.filter((s) => (s.tt22Evaluation?.renLuyen || 'Tốt') === 'Tốt').length,
   };
 
   const filteredStudents = students.filter((s) => {
-    const evalData = s.tt22Evaluation || generateTT22CommentForStudent(s);
+    const evalData = s.tt22Evaluation || generateTT22CommentForStudent(s, studentVariants[s.id] || 0);
     const matchGroup = selectedGroup === 'all' || s.group === selectedGroup;
-    const matchRank = selectedRank === 'all' || evalData.hocTap === selectedRank;
+    const hasGrades = typeof s.grades?.dtbChung === 'number';
+    let matchRank = true;
+    if (selectedRank === 'no_grade') {
+      matchRank = !hasGrades || evalData.hocTap === 'Chưa đánh giá';
+    } else if (selectedRank !== 'all') {
+      matchRank = evalData.hocTap === selectedRank;
+    }
     const q = (searchQuery || '').toLowerCase();
     const matchSearch =
       (s.name || '').toLowerCase().includes(q) ||
@@ -183,36 +197,66 @@ export const GvcnTT22EvaluationSection: React.FC<GvcnTT22EvaluationSectionProps>
             <span className="text-[10px] font-bold uppercase text-emerald-800 block">
               Học Sinh Xuất Sắc & Giỏi
             </span>
-            <span className="text-lg font-black text-emerald-950">
-              {stats.xuatSac + stats.gioi} <span className="text-xs font-normal">({stats.xuatSac} Xuất sắc, {stats.gioi} Giỏi)</span>
-            </span>
+            <div className="text-lg font-black text-emerald-950">
+              {stats.hasGradesCount > 0 ? (
+                <>
+                  {stats.xuatSac + stats.gioi}{' '}
+                  <span className="text-xs font-normal">
+                    ({stats.xuatSac} Xuất sắc, {stats.gioi} Giỏi)
+                  </span>
+                </>
+              ) : (
+                <span className="text-xs text-slate-500 font-semibold italic">Chưa xét (Chờ nhập điểm)</span>
+              )}
+            </div>
           </div>
 
           <div className="bg-blue-50/80 p-3 rounded-xl border border-blue-200">
             <span className="text-[10px] font-bold uppercase text-blue-800 block">
               Học Lực Mức Tốt
             </span>
-            <span className="text-lg font-black text-blue-950">
-              {stats.hocTapTot} / {students.length} <span className="text-xs font-normal">({((stats.hocTapTot / (students.length || 1)) * 100).toFixed(0)}%)</span>
-            </span>
+            <div className="text-lg font-black text-blue-950">
+              {stats.hasGradesCount > 0 ? (
+                <>
+                  {stats.hocTapTot} / {stats.hasGradesCount}{' '}
+                  <span className="text-xs font-normal">
+                    ({((stats.hocTapTot / stats.hasGradesCount) * 100).toFixed(0)}%)
+                  </span>
+                </>
+              ) : (
+                <span className="text-xs text-slate-500 font-semibold italic">Chưa xếp loại (—)</span>
+              )}
+            </div>
           </div>
 
           <div className="bg-cyan-50/80 p-3 rounded-xl border border-cyan-200">
             <span className="text-[10px] font-bold uppercase text-cyan-800 block">
               Học Lực Mức Khá
             </span>
-            <span className="text-lg font-black text-cyan-950">
-              {stats.hocTapKha} / {students.length} <span className="text-xs font-normal">({((stats.hocTapKha / (students.length || 1)) * 100).toFixed(0)}%)</span>
-            </span>
+            <div className="text-lg font-black text-cyan-950">
+              {stats.hasGradesCount > 0 ? (
+                <>
+                  {stats.hocTapKha} / {stats.hasGradesCount}{' '}
+                  <span className="text-xs font-normal">
+                    ({((stats.hocTapKha / stats.hasGradesCount) * 100).toFixed(0)}%)
+                  </span>
+                </>
+              ) : (
+                <span className="text-xs text-slate-500 font-semibold italic">Chưa xếp loại (—)</span>
+              )}
+            </div>
           </div>
 
           <div className="bg-amber-50/80 p-3 rounded-xl border border-amber-200">
             <span className="text-[10px] font-bold uppercase text-amber-800 block">
               Rèn Luyện Mức Tốt
             </span>
-            <span className="text-lg font-black text-amber-950">
-              {stats.renLuyenTot} / {students.length} <span className="text-xs font-normal">({((stats.renLuyenTot / (students.length || 1)) * 100).toFixed(0)}%)</span>
-            </span>
+            <div className="text-lg font-black text-amber-950">
+              {stats.renLuyenTot} / {students.length}{' '}
+              <span className="text-xs font-normal">
+                ({((stats.renLuyenTot / (students.length || 1)) * 100).toFixed(0)}%)
+              </span>
+            </div>
           </div>
         </div>
 
@@ -254,6 +298,7 @@ export const GvcnTT22EvaluationSection: React.FC<GvcnTT22EvaluationSectionProps>
                 className="px-2.5 py-1 text-xs font-semibold bg-slate-100 border border-slate-200 rounded-lg focus:outline-hidden"
               >
                 <option value="all">Tất cả các mức</option>
+                <option value="no_grade">Chưa đánh giá (Chưa có điểm)</option>
                 <option value="Tốt">Mức Tốt</option>
                 <option value="Khá">Mức Khá</option>
                 <option value="Đạt">Mức Đạt</option>
@@ -302,8 +347,9 @@ export const GvcnTT22EvaluationSection: React.FC<GvcnTT22EvaluationSectionProps>
                 </tr>
               ) : (
                 filteredStudents.map((s) => {
-                  const evalData = s.tt22Evaluation || generateTT22CommentForStudent(s);
-                  const dtb = s.grades?.dtbChung ?? (s.category === 'gifted' ? 8.8 : s.category === 'difficult' ? 5.2 : 7.6);
+                  const evalData = s.tt22Evaluation || generateTT22CommentForStudent(s, studentVariants[s.id] || 0);
+                  const hasGrades = typeof s.grades?.dtbChung === 'number';
+                  const dtb = hasGrades ? s.grades!.dtbChung! : null;
 
                   return (
                     <tr
@@ -324,8 +370,14 @@ export const GvcnTT22EvaluationSection: React.FC<GvcnTT22EvaluationSectionProps>
                         </div>
                       </td>
 
-                      <td className="px-2 py-3 text-center font-black font-mono text-emerald-900 bg-emerald-50/40">
-                        {dtb.toFixed(1)}
+                      <td className="px-2 py-3 text-center font-mono">
+                        {dtb !== null ? (
+                          <span className="font-black text-emerald-900 bg-emerald-50 px-2 py-0.5 rounded-md">
+                            {dtb.toFixed(1)}
+                          </span>
+                        ) : (
+                          <span className="text-slate-400 font-bold" title="Chưa có điểm số">—</span>
+                        )}
                       </td>
 
                       <td className="px-2 py-3 text-center" onClick={(e) => e.stopPropagation()}>
@@ -349,7 +401,7 @@ export const GvcnTT22EvaluationSection: React.FC<GvcnTT22EvaluationSectionProps>
 
                       <td className="px-2 py-3 text-center" onClick={(e) => e.stopPropagation()}>
                         <select
-                          value={evalData.hocTap}
+                          value={evalData.hocTap || (hasGrades ? 'Khá' : 'Chưa đánh giá')}
                           onChange={(e) => handleFieldChange(s.id, 'hocTap', e.target.value)}
                           className={`w-full py-1 px-1.5 text-[11px] font-bold rounded-lg border focus:outline-hidden ${
                             evalData.hocTap === 'Tốt'
@@ -358,9 +410,12 @@ export const GvcnTT22EvaluationSection: React.FC<GvcnTT22EvaluationSectionProps>
                               ? 'bg-blue-50 text-blue-800 border-blue-300'
                               : evalData.hocTap === 'Đạt'
                               ? 'bg-amber-50 text-amber-800 border-amber-300'
-                              : 'bg-rose-50 text-rose-800 border-rose-300'
+                              : evalData.hocTap === 'Chưa đạt'
+                              ? 'bg-rose-50 text-rose-800 border-rose-300'
+                              : 'bg-slate-100 text-slate-500 border-slate-200'
                           }`}
                         >
+                          <option value="Chưa đánh giá">Chưa đánh giá</option>
                           <option value="Tốt">Tốt</option>
                           <option value="Khá">Khá</option>
                           <option value="Đạt">Đạt</option>
@@ -397,10 +452,11 @@ export const GvcnTT22EvaluationSection: React.FC<GvcnTT22EvaluationSectionProps>
 
                       <td className="px-2 py-3 text-center" onClick={(e) => e.stopPropagation()}>
                         <select
-                          value={evalData.khenThuong || 'Không'}
+                          value={evalData.khenThuong || (hasGrades ? 'Không' : 'Chưa xét')}
                           onChange={(e) => handleFieldChange(s.id, 'khenThuong', e.target.value)}
                           className="w-full py-1 px-1.5 text-[10px] font-bold rounded-lg border border-slate-200 bg-white focus:outline-hidden"
                         >
+                          <option value="Chưa xét">Chưa xét</option>
                           <option value="Không">Không</option>
                           <option value="Học sinh Giỏi">HS Giỏi</option>
                           <option value="Học sinh Xuất sắc">HS Xuất sắc</option>
