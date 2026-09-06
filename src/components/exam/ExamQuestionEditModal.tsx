@@ -10,6 +10,7 @@ import {
   Plus,
   Code,
   Sigma,
+  Sparkles,
 } from 'lucide-react';
 import { ExamQuestion } from '../../types';
 import { LatexRenderer, formatQuestionLatex } from '../../utils/latexUtils';
@@ -20,6 +21,7 @@ interface ExamQuestionEditModalProps {
   onClose: () => void;
   onSave: (updated: ExamQuestion) => void;
   onRegenerateEquivalent?: (question: ExamQuestion) => void;
+  onOpenSuggestions?: (question: ExamQuestion) => void;
   onDelete?: (id: string) => void;
 }
 
@@ -164,18 +166,31 @@ export const ExamQuestionEditModal: React.FC<ExamQuestionEditModalProps> = ({
 
             <div>
               <label className="block text-xs font-semibold text-slate-600 mb-1">
-                Đổi câu tương đương
+                Tùy biến câu hỏi
               </label>
-              {onRegenerateEquivalent && (
-                <button
-                  type="button"
-                  onClick={() => onRegenerateEquivalent(formData)}
-                  className="w-full flex items-center justify-center gap-1.5 text-xs font-medium px-2.5 py-1.5 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded-lg border border-indigo-200 transition-colors"
-                >
-                  <RefreshCw size={13} />
-                  Lấy từ ngân hàng
-                </button>
-              )}
+              <div className="flex items-center gap-1.5">
+                {onOpenSuggestions && (
+                  <button
+                    type="button"
+                    onClick={() => onOpenSuggestions(formData)}
+                    className="flex-1 flex items-center justify-center gap-1 text-xs font-bold px-2 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg shadow-2xs transition-colors cursor-pointer"
+                    title="Xem các câu hỏi gợi ý cùng mức độ hoặc đổi mức độ nhận thức"
+                  >
+                    <Sparkles size={12} className="text-amber-300" />
+                    <span>Gợi ý cùng mức độ</span>
+                  </button>
+                )}
+                {onRegenerateEquivalent && (
+                  <button
+                    type="button"
+                    onClick={() => onRegenerateEquivalent(formData)}
+                    className="p-1.5 text-xs font-medium bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded-lg border border-indigo-200 transition-colors cursor-pointer"
+                    title="Đổi nhanh câu tương đương từ ngân hàng"
+                  >
+                    <RefreshCw size={13} />
+                  </button>
+                )}
+              </div>
             </div>
           </div>
 

@@ -88,25 +88,23 @@ export const GvcnClassSettingsModal: React.FC<GvcnClassSettingsModalProps> = ({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Tên Lớp <span className="text-rose-500">*</span>
+                  Tên Lớp (Tùy chỉnh)
                 </label>
                 <input
                   type="text"
-                  required
                   value={formData.className}
                   onChange={(e) => setFormData({ ...formData, className: e.target.value })}
-                  placeholder="ví dụ: Lớp 9A1, Lớp 8B..."
+                  placeholder="Nhập tên lớp tùy chỉnh (ví dụ: 9A1, 8B, 10C...)"
                   className="w-full px-3.5 py-2 text-sm bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-hidden font-semibold"
                 />
               </div>
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Khối Lớp <span className="text-rose-500">*</span>
+                  Khối Lớp
                 </label>
                 <input
                   type="text"
-                  required
                   value={formData.grade}
                   onChange={(e) => setFormData({ ...formData, grade: e.target.value })}
                   placeholder="ví dụ: 9, 8, 7, 6..."
@@ -116,25 +114,23 @@ export const GvcnClassSettingsModal: React.FC<GvcnClassSettingsModalProps> = ({
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Tên Giáo Viên Chủ Nhiệm (GVCN) <span className="text-rose-500">*</span>
+                  Tên Giáo Viên Chủ Nhiệm (GVCN)
                 </label>
                 <input
                   type="text"
-                  required
                   value={formData.homeroomTeacher}
                   onChange={(e) => setFormData({ ...formData, homeroomTeacher: e.target.value })}
-                  placeholder="ví dụ: Dương Văn Trong..."
+                  placeholder="ví dụ: Dương Văn Trong"
                   className="w-full px-3.5 py-2 text-sm bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-hidden font-semibold text-emerald-900"
                 />
               </div>
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Năm Học <span className="text-rose-500">*</span>
+                  Năm Học
                 </label>
                 <input
                   type="text"
-                  required
                   value={formData.academicYear}
                   onChange={(e) => setFormData({ ...formData, academicYear: e.target.value })}
                   placeholder="ví dụ: 2026 - 2027"
@@ -163,7 +159,7 @@ export const GvcnClassSettingsModal: React.FC<GvcnClassSettingsModalProps> = ({
                   type="text"
                   value={formData.room}
                   onChange={(e) => setFormData({ ...formData, room: e.target.value })}
-                  placeholder="ví dụ: Dãy cũ, Tầng trệt, Phòng 4"
+                  placeholder="ví dụ: Dãy cũ, Tầng trệt, Phòng 4 (để trống nếu chưa có)"
                   className="w-full px-3.5 py-2 text-sm bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-hidden"
                 />
               </div>
@@ -172,10 +168,12 @@ export const GvcnClassSettingsModal: React.FC<GvcnClassSettingsModalProps> = ({
 
           {/* 2. Ban Cán Sự Lớp */}
           <div className="bg-slate-50 p-4.5 rounded-2xl border border-slate-200 space-y-4">
-            <h4 className="text-xs font-black uppercase tracking-wider text-emerald-800 flex items-center gap-2">
-              <User className="w-4 h-4 text-emerald-700" />
-              <span>Ban Cán Sự Lớp (Cán Sự Điều Hành)</span>
-            </h4>
+            <div className="flex items-center justify-between">
+              <h4 className="text-xs font-black uppercase tracking-wider text-emerald-800 flex items-center gap-2">
+                <User className="w-4 h-4 text-emerald-700" />
+                <span>Ban Cán Sự Lớp (Để trống nếu chưa bầu, khi nhập sẽ hiển thị)</span>
+              </h4>
+            </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
@@ -191,6 +189,7 @@ export const GvcnClassSettingsModal: React.FC<GvcnClassSettingsModalProps> = ({
                       boardOfLeaders: { ...formData.boardOfLeaders, monitor: e.target.value },
                     })
                   }
+                  placeholder="Nhập họ tên Lớp trưởng..."
                   className="w-full px-3.5 py-2 text-sm bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-hidden"
                 />
               </div>
@@ -208,6 +207,7 @@ export const GvcnClassSettingsModal: React.FC<GvcnClassSettingsModalProps> = ({
                       boardOfLeaders: { ...formData.boardOfLeaders, viceMonitorStudy: e.target.value },
                     })
                   }
+                  placeholder="Nhập họ tên Lớp phó học tập..."
                   className="w-full px-3.5 py-2 text-sm bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-hidden"
                 />
               </div>
@@ -228,6 +228,7 @@ export const GvcnClassSettingsModal: React.FC<GvcnClassSettingsModalProps> = ({
                       },
                     })
                   }
+                  placeholder="Nhập họ tên Lớp phó kỷ luật..."
                   className="w-full px-3.5 py-2 text-sm bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-hidden"
                 />
               </div>
@@ -245,6 +246,7 @@ export const GvcnClassSettingsModal: React.FC<GvcnClassSettingsModalProps> = ({
                       boardOfLeaders: { ...formData.boardOfLeaders, treasurer: e.target.value },
                     })
                   }
+                  placeholder="Nhập họ tên Thủ quỹ..."
                   className="w-full px-3.5 py-2 text-sm bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-hidden"
                 />
               </div>
@@ -262,6 +264,7 @@ export const GvcnClassSettingsModal: React.FC<GvcnClassSettingsModalProps> = ({
                       boardOfLeaders: { ...formData.boardOfLeaders, secretary: e.target.value },
                     })
                   }
+                  placeholder="Nhập họ tên Bí thư chi đội..."
                   className="w-full px-3.5 py-2 text-sm bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-hidden"
                 />
               </div>
@@ -270,10 +273,12 @@ export const GvcnClassSettingsModal: React.FC<GvcnClassSettingsModalProps> = ({
 
           {/* 3. Ban Đại Diện Cha Mẹ Học Sinh (CMHS) */}
           <div className="bg-slate-50 p-4.5 rounded-2xl border border-slate-200 space-y-4">
-            <h4 className="text-xs font-black uppercase tracking-wider text-emerald-800 flex items-center gap-2">
-              <Users className="w-4 h-4 text-emerald-700" />
-              <span>Ban Đại Diện Cha Mẹ Học Sinh (CMHS)</span>
-            </h4>
+            <div className="flex items-center justify-between">
+              <h4 className="text-xs font-black uppercase tracking-wider text-emerald-800 flex items-center gap-2">
+                <Users className="w-4 h-4 text-emerald-700" />
+                <span>Ban Đại Diện Cha Mẹ Học Sinh (Để trống nếu chưa bầu, khi nhập sẽ hiển thị)</span>
+              </h4>
+            </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
@@ -289,6 +294,7 @@ export const GvcnClassSettingsModal: React.FC<GvcnClassSettingsModalProps> = ({
                       parentCommittee: { ...formData.parentCommittee, head: e.target.value },
                     })
                   }
+                  placeholder="Nhập họ tên Trưởng ban CMHS..."
                   className="w-full px-3.5 py-2 text-sm bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-hidden"
                 />
               </div>
@@ -306,6 +312,7 @@ export const GvcnClassSettingsModal: React.FC<GvcnClassSettingsModalProps> = ({
                       parentCommittee: { ...formData.parentCommittee, headPhone: e.target.value },
                     })
                   }
+                  placeholder="Nhập số điện thoại Trưởng ban..."
                   className="w-full px-3.5 py-2 text-sm bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-hidden"
                 />
               </div>
@@ -323,6 +330,7 @@ export const GvcnClassSettingsModal: React.FC<GvcnClassSettingsModalProps> = ({
                       parentCommittee: { ...formData.parentCommittee, deputy: e.target.value },
                     })
                   }
+                  placeholder="Nhập họ tên Phó ban CMHS..."
                   className="w-full px-3.5 py-2 text-sm bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-hidden"
                 />
               </div>
@@ -340,6 +348,7 @@ export const GvcnClassSettingsModal: React.FC<GvcnClassSettingsModalProps> = ({
                       parentCommittee: { ...formData.parentCommittee, deputyPhone: e.target.value },
                     })
                   }
+                  placeholder="Nhập số điện thoại Phó ban..."
                   className="w-full px-3.5 py-2 text-sm bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-hidden"
                 />
               </div>
@@ -357,7 +366,7 @@ export const GvcnClassSettingsModal: React.FC<GvcnClassSettingsModalProps> = ({
                       parentCommittee: { ...formData.parentCommittee, zaloGroupLink: e.target.value },
                     })
                   }
-                  placeholder="https://zalo.me/g/..."
+                  placeholder="https://zalo.me/g/... (để trống nếu chưa tạo)"
                   className="w-full px-3.5 py-2 text-sm bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-hidden"
                 />
               </div>

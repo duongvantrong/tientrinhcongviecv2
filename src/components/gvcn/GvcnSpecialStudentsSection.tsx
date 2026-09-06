@@ -370,31 +370,60 @@ export const GvcnSpecialStudentsSection: React.FC<GvcnSpecialStudentsSectionProp
           <div className="bg-gradient-to-r from-emerald-50 via-teal-50 to-cyan-50 border border-emerald-200 rounded-2xl p-4.5 shadow-2xs">
             <h4 className="text-xs font-bold uppercase tracking-wider text-emerald-950 mb-2.5 flex items-center gap-2">
               <Users className="w-4 h-4 text-emerald-700" />
-              <span>Thường Trực Ban Đại Diện Cha Mẹ Học Sinh {classInfo.className}</span>
+              <span>Thường Trực Ban Đại Diện Cha Mẹ Học Sinh {classInfo.className ? `— ${classInfo.className}` : ''}</span>
             </h4>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
               <div className="bg-white p-3 rounded-xl border border-emerald-100 shadow-2xs">
                 <span className="text-[11px] text-slate-500 font-semibold block">Trưởng ban đại diện:</span>
-                <span className="font-bold text-slate-900 block text-sm">{classInfo.parentCommittee.head}</span>
-                <span className="text-emerald-800 font-semibold flex items-center gap-1 mt-1">
-                  <PhoneCall className="w-3 h-3" /> {classInfo.parentCommittee.headPhone}
+                <span className="font-bold text-slate-900 block text-sm">
+                  {classInfo.parentCommittee?.head ? classInfo.parentCommittee.head : <span className="text-slate-400 italic font-normal">Chưa nhập</span>}
                 </span>
+                {classInfo.parentCommittee?.headPhone ? (
+                  <a
+                    href={`tel:${classInfo.parentCommittee.headPhone}`}
+                    className="text-emerald-800 hover:text-emerald-950 font-semibold flex items-center gap-1 mt-1"
+                  >
+                    <PhoneCall className="w-3 h-3 text-emerald-600" /> {classInfo.parentCommittee.headPhone}
+                  </a>
+                ) : (
+                  <span className="text-slate-400 text-[11px] italic block mt-1">Chưa có số điện thoại</span>
+                )}
               </div>
 
               <div className="bg-white p-3 rounded-xl border border-emerald-100 shadow-2xs">
                 <span className="text-[11px] text-slate-500 font-semibold block">Phó ban đại diện:</span>
-                <span className="font-bold text-slate-900 block text-sm">{classInfo.parentCommittee.deputy}</span>
-                <span className="text-emerald-800 font-semibold flex items-center gap-1 mt-1">
-                  <PhoneCall className="w-3 h-3" /> {classInfo.parentCommittee.deputyPhone}
+                <span className="font-bold text-slate-900 block text-sm">
+                  {classInfo.parentCommittee?.deputy ? classInfo.parentCommittee.deputy : <span className="text-slate-400 italic font-normal">Chưa nhập</span>}
                 </span>
+                {classInfo.parentCommittee?.deputyPhone ? (
+                  <a
+                    href={`tel:${classInfo.parentCommittee.deputyPhone}`}
+                    className="text-emerald-800 hover:text-emerald-950 font-semibold flex items-center gap-1 mt-1"
+                  >
+                    <PhoneCall className="w-3 h-3 text-emerald-600" /> {classInfo.parentCommittee.deputyPhone}
+                  </a>
+                ) : (
+                  <span className="text-slate-400 text-[11px] italic block mt-1">Chưa có số điện thoại</span>
+                )}
               </div>
 
               <div className="bg-white p-3 rounded-xl border border-emerald-100 shadow-2xs">
                 <span className="text-[11px] text-slate-500 font-semibold block">Kênh kết nối chính thức:</span>
-                <span className="font-bold text-slate-900 block text-sm">Nhóm Zalo {classInfo.className} ({students.length}/{students.length} PH)</span>
-                <span className="text-blue-700 font-semibold flex items-center gap-1 mt-1 underline">
-                  <MessageSquare className="w-3 h-3" /> zalo.me/g/lop-{classInfo.className.toLowerCase().replace(/\s+/g, '')}
+                <span className="font-bold text-slate-900 block text-sm">
+                  {classInfo.className ? `Nhóm Zalo ${classInfo.className}` : 'Nhóm Zalo Phụ Huynh'}
                 </span>
+                {classInfo.parentCommittee?.zaloGroupLink ? (
+                  <a
+                    href={classInfo.parentCommittee.zaloGroupLink.startsWith('http') ? classInfo.parentCommittee.zaloGroupLink : `https://${classInfo.parentCommittee.zaloGroupLink}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-blue-700 hover:text-blue-800 font-semibold flex items-center gap-1 mt-1 underline truncate"
+                  >
+                    <MessageSquare className="w-3 h-3 text-blue-600" /> {classInfo.parentCommittee.zaloGroupLink}
+                  </a>
+                ) : (
+                  <span className="text-slate-400 text-[11px] italic block mt-1">Chưa có liên kết nhóm Zalo</span>
+                )}
               </div>
             </div>
           </div>

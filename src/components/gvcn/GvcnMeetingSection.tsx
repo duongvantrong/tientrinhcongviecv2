@@ -27,12 +27,12 @@ export const GvcnMeetingSection: React.FC<GvcnMeetingSectionProps> = ({
 }) => {
   const initialMinutes = weeklyRecord?.meetingMinutes || {
     date: `Thứ Bảy cuối tuần ${activeWeek} (Tiết 5)`,
-    teacherComment: 'Lớp giữ vững nề nếp tốt. Ban cán sự điều hành có trách nhiệm. Cần tiếp tục duy trì tinh thần tự học và chuẩn bị bài chu đáo.',
-    monitorReport: 'Lớp trưởng báo cáo: Sĩ số 42/42 duy trì đều đặn. 4 tổ đều đạt trên 95 điểm. Nề nếp trực nhật sạch sẽ.',
-    specialNotices: 'Nhắc nhở học sinh mang đầy đủ đồ dùng học tập bộ môn Toán và KHTN. Đội viên đeo khăn quàng đỏ đầy đủ.',
-    nextWeekGoals: 'Phấn đấu dẫn đầu thi đua toàn trường. Tăng cường phong trào "Đôi bạn cùng tiến" môn Toán và Tiếng Anh.',
-    commendations: ['Tổ 1 (Đạt cờ luân lưu thi đua tuần)', 'Lê Hoàng Nam (Gương sáng học tập)', 'Trần Minh Anh (Gương mẫu nề nếp)'],
-    reminders: ['Trần Đình Trọng (Chấn chỉnh giờ giấc)', 'Chu Thành Nam (Làm bài tập đầy đủ)'],
+    teacherComment: 'Lớp duy trì nề nếp ổn định, các em có ý thức tự giác và tham gia học tập nghiêm túc.',
+    monitorReport: 'Ban cán sự báo cáo tình hình nề nếp, chuyên cần và học tập trong tuần của các tổ.',
+    specialNotices: 'Nhắc nhở học sinh mang đầy đủ đồ dùng học tập, thực hiện đúng nội quy nhà trường.',
+    nextWeekGoals: 'Phấn đấu hoàn thành tốt nhiệm vụ học tập và giữ vững phong trào thi đua.',
+    commendations: [],
+    reminders: [],
   };
 
   const [minutes, setMinutes] = useState(initialMinutes);

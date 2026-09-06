@@ -1,5 +1,5 @@
 import React from 'react';
-import { GraduationCap, Calendar, Clock, RotateCcw, Radio, Cloud, CloudCheck, RefreshCw } from 'lucide-react';
+import { GraduationCap, Calendar, Clock, RotateCcw, Radio } from 'lucide-react';
 import { formatDateVN, formatTimeVN, getDayOfWeekVN, parseDate } from '../utils/dateCalculations';
 import { User } from 'firebase/auth';
 
@@ -31,10 +31,6 @@ export const Header: React.FC<HeaderProps> = ({
   onDateChange,
   onSyncRealTime,
   onResetDate,
-  user,
-  isSyncing,
-  lastSyncTime,
-  onOpenCloudSync,
 }) => {
   const currentDate = parseDate(currentDateStr);
   const startDate = parseDate(startDateWeek1Str);
@@ -99,36 +95,8 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
         </div>
 
-        {/* Right side: Cloud Sync Pill & Simulation Date Controls */}
+        {/* Right side: Simulation Date Controls */}
         <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap justify-between md:justify-end">
-          {/* Cloud Sync Status Button */}
-          {onOpenCloudSync && (
-            <button
-              onClick={onOpenCloudSync}
-              className="flex items-center gap-2 px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100/90 text-emerald-900 border border-emerald-300/90 rounded-xl text-xs font-semibold transition-all shadow-2xs cursor-pointer min-h-[38px]"
-              title={`Đồng bộ đám mây: ${user?.email || 'dvtrong.spdt09@gmail.com'}`}
-            >
-              <div className="relative flex items-center justify-center">
-                <Cloud className="w-4 h-4 text-emerald-700" />
-                {isSyncing ? (
-                  <RefreshCw className="w-2.5 h-2.5 text-emerald-600 animate-spin absolute -top-1 -right-1" />
-                ) : (
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 absolute -top-0.5 -right-0.5 ring-2 ring-white" />
-                )}
-              </div>
-              <div className="flex flex-col text-left">
-                <div className="flex items-center gap-1">
-                  <span className="text-[11px] font-bold text-emerald-950">
-                    {isSyncing ? 'Đang đồng bộ...' : 'Đồng bộ Gmail'}
-                  </span>
-                </div>
-                <span className="text-[10px] text-emerald-700 max-w-[130px] sm:max-w-[160px] truncate font-mono">
-                  {user?.email || 'dvtrong.spdt09@gmail.com'}
-                </span>
-              </div>
-            </button>
-          )}
-
           {/* Date Controls: Real-time vs Simulation */}
           <div className="flex items-center gap-2">
             {isRealTime ? (

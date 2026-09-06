@@ -19,6 +19,7 @@ import {
   TableProperties,
   Code,
   Sigma,
+  Sparkles,
 } from 'lucide-react';
 import { ExamPaper, ExamQuestion, MatrixConfig, MatrixRow, SpecificationRow } from '../../types';
 import { exportExamPaperToDocx } from '../../utils/examDocxExport';
@@ -33,6 +34,7 @@ interface ExamPaperViewProps {
   onOpenConfig: () => void;
   onEditQuestion: (question: ExamQuestion) => void;
   onRegenerateEquivalent: (question: ExamQuestion) => void;
+  onOpenSuggestions?: (question: ExamQuestion) => void;
 }
 
 export const ExamPaperView: React.FC<ExamPaperViewProps> = ({
@@ -44,6 +46,7 @@ export const ExamPaperView: React.FC<ExamPaperViewProps> = ({
   onOpenConfig,
   onEditQuestion,
   onRegenerateEquivalent,
+  onOpenSuggestions,
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<'exam' | 'solutions' | 'matrix_alignment'>('exam');
   const [isExportMenuOpen, setIsExportMenuOpen] = useState<boolean>(false);
@@ -375,6 +378,31 @@ export const ExamPaperView: React.FC<ExamPaperViewProps> = ({
                     >
                       {/* Action buttons on hover */}
                       <div className="absolute right-2 top-2 hidden group-hover:flex items-center gap-1 font-sans">
+                        <span
+                          onClick={() => onOpenSuggestions && onOpenSuggestions(q)}
+                          className={`text-[10px] font-bold px-1.5 py-0.5 rounded cursor-pointer border ${
+                            q.cognitiveLevel === 'nhanBiet'
+                              ? 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100'
+                              : q.cognitiveLevel === 'thongHieu'
+                              ? 'bg-blue-50 text-blue-800 border-blue-200 hover:bg-blue-100'
+                              : q.cognitiveLevel === 'vanDung'
+                              ? 'bg-amber-50 text-amber-900 border-amber-200 hover:bg-amber-100'
+                              : 'bg-purple-50 text-purple-800 border-purple-200 hover:bg-purple-100'
+                          }`}
+                          title="Mức độ nhận thức. Nhấn để xem gợi ý câu cùng mức độ hoặc đổi mức độ"
+                        >
+                          {q.cognitiveLevelLabel || q.cognitiveLevel}
+                        </span>
+                        {onOpenSuggestions && (
+                          <button
+                            type="button"
+                            onClick={() => onOpenSuggestions(q)}
+                            title="Gợi ý câu hỏi cùng mức độ"
+                            className="p-1 text-emerald-700 hover:text-emerald-900 hover:bg-emerald-50 rounded border border-emerald-200 shadow-2xs cursor-pointer"
+                          >
+                            <Sparkles size={12} />
+                          </button>
+                        )}
                         <button
                           type="button"
                           onClick={() => onRegenerateEquivalent(q)}
@@ -434,6 +462,31 @@ export const ExamPaperView: React.FC<ExamPaperViewProps> = ({
                       className="group relative p-2.5 rounded-xl hover:bg-slate-50/80 transition-colors"
                     >
                       <div className="absolute right-2 top-2 hidden group-hover:flex items-center gap-1 font-sans">
+                        <span
+                          onClick={() => onOpenSuggestions && onOpenSuggestions(q)}
+                          className={`text-[10px] font-bold px-1.5 py-0.5 rounded cursor-pointer border ${
+                            q.cognitiveLevel === 'nhanBiet'
+                              ? 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100'
+                              : q.cognitiveLevel === 'thongHieu'
+                              ? 'bg-blue-50 text-blue-800 border-blue-200 hover:bg-blue-100'
+                              : q.cognitiveLevel === 'vanDung'
+                              ? 'bg-amber-50 text-amber-900 border-amber-200 hover:bg-amber-100'
+                              : 'bg-purple-50 text-purple-800 border-purple-200 hover:bg-purple-100'
+                          }`}
+                          title="Mức độ nhận thức. Nhấn để xem gợi ý câu cùng mức độ hoặc đổi mức độ"
+                        >
+                          {q.cognitiveLevelLabel || q.cognitiveLevel}
+                        </span>
+                        {onOpenSuggestions && (
+                          <button
+                            type="button"
+                            onClick={() => onOpenSuggestions(q)}
+                            title="Gợi ý câu hỏi cùng mức độ"
+                            className="p-1 text-emerald-700 hover:text-emerald-900 hover:bg-emerald-50 rounded border border-emerald-200 shadow-2xs cursor-pointer"
+                          >
+                            <Sparkles size={12} />
+                          </button>
+                        )}
                         <button
                           type="button"
                           onClick={() => onRegenerateEquivalent(q)}
@@ -497,6 +550,31 @@ export const ExamPaperView: React.FC<ExamPaperViewProps> = ({
                       className="group relative p-2.5 rounded-xl hover:bg-slate-50/80 transition-colors"
                     >
                       <div className="absolute right-2 top-2 hidden group-hover:flex items-center gap-1 font-sans">
+                        <span
+                          onClick={() => onOpenSuggestions && onOpenSuggestions(q)}
+                          className={`text-[10px] font-bold px-1.5 py-0.5 rounded cursor-pointer border ${
+                            q.cognitiveLevel === 'nhanBiet'
+                              ? 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100'
+                              : q.cognitiveLevel === 'thongHieu'
+                              ? 'bg-blue-50 text-blue-800 border-blue-200 hover:bg-blue-100'
+                              : q.cognitiveLevel === 'vanDung'
+                              ? 'bg-amber-50 text-amber-900 border-amber-200 hover:bg-amber-100'
+                              : 'bg-purple-50 text-purple-800 border-purple-200 hover:bg-purple-100'
+                          }`}
+                          title="Mức độ nhận thức. Nhấn để xem gợi ý câu cùng mức độ hoặc đổi mức độ"
+                        >
+                          {q.cognitiveLevelLabel || q.cognitiveLevel}
+                        </span>
+                        {onOpenSuggestions && (
+                          <button
+                            type="button"
+                            onClick={() => onOpenSuggestions(q)}
+                            title="Gợi ý câu hỏi cùng mức độ"
+                            className="p-1 text-emerald-700 hover:text-emerald-900 hover:bg-emerald-50 rounded border border-emerald-200 shadow-2xs cursor-pointer"
+                          >
+                            <Sparkles size={12} />
+                          </button>
+                        )}
                         <button
                           type="button"
                           onClick={() => onRegenerateEquivalent(q)}
@@ -550,6 +628,31 @@ export const ExamPaperView: React.FC<ExamPaperViewProps> = ({
                       className="group relative p-2.5 rounded-xl hover:bg-slate-50/80 transition-colors"
                     >
                       <div className="absolute right-2 top-2 hidden group-hover:flex items-center gap-1 font-sans">
+                        <span
+                          onClick={() => onOpenSuggestions && onOpenSuggestions(q)}
+                          className={`text-[10px] font-bold px-1.5 py-0.5 rounded cursor-pointer border ${
+                            q.cognitiveLevel === 'nhanBiet'
+                              ? 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100'
+                              : q.cognitiveLevel === 'thongHieu'
+                              ? 'bg-blue-50 text-blue-800 border-blue-200 hover:bg-blue-100'
+                              : q.cognitiveLevel === 'vanDung'
+                              ? 'bg-amber-50 text-amber-900 border-amber-200 hover:bg-amber-100'
+                              : 'bg-purple-50 text-purple-800 border-purple-200 hover:bg-purple-100'
+                          }`}
+                          title="Mức độ nhận thức. Nhấn để xem gợi ý câu cùng mức độ hoặc đổi mức độ"
+                        >
+                          {q.cognitiveLevelLabel || q.cognitiveLevel}
+                        </span>
+                        {onOpenSuggestions && (
+                          <button
+                            type="button"
+                            onClick={() => onOpenSuggestions(q)}
+                            title="Gợi ý câu hỏi cùng mức độ"
+                            className="p-1 text-emerald-700 hover:text-emerald-900 hover:bg-emerald-50 rounded border border-emerald-200 shadow-2xs cursor-pointer"
+                          >
+                            <Sparkles size={12} />
+                          </button>
+                        )}
                         <button
                           type="button"
                           onClick={() => onRegenerateEquivalent(q)}

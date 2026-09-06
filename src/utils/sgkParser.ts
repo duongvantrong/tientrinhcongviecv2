@@ -36,7 +36,8 @@ export function findMatchingSgkLesson(
   topicName: string,
   chapterName: string,
   sgkBooks: SgkBook[],
-  preferredVolume?: 1 | 2 | 'all'
+  preferredVolume?: 1 | 2 | 'all',
+  preferredGrade?: string
 ): { lesson?: SgkLesson; chapter?: SgkChapter; book?: SgkBook; matchScore: number } {
   const normTopic = normalizeVietnameseText(topicName);
   const normChapter = normalizeVietnameseText(chapterName);
@@ -46,6 +47,9 @@ export function findMatchingSgkLesson(
   };
 
   for (const book of sgkBooks) {
+    if (preferredGrade && (book.grade || '9') !== preferredGrade) {
+      continue;
+    }
     if (preferredVolume && preferredVolume !== 'all' && book.volume !== preferredVolume) {
       continue;
     }
@@ -100,9 +104,10 @@ export function getLearningObjectiveForTopic(
   topic: string,
   chapter: string,
   sgkBooks: SgkBook[],
-  preferredVolume?: 1 | 2 | 'all'
+  preferredVolume?: 1 | 2 | 'all',
+  preferredGrade?: string
 ): string {
-  const match = findMatchingSgkLesson(topic, chapter, sgkBooks, preferredVolume);
+  const match = findMatchingSgkLesson(topic, chapter, sgkBooks, preferredVolume, preferredGrade);
   
   if (match.lesson && match.matchScore > 25) {
     if (level === 'nhanBiet' && match.lesson.objectives.nhanBiet) {

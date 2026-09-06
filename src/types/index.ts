@@ -514,6 +514,23 @@ export interface ExamEssayGradingStep {
   point: number;
 }
 
+export interface BankQuestionTemplate {
+  subject: string;
+  grade: string;
+  topicKeywords: string[];
+  section: 'part1_mcq' | 'part2_true_false' | 'part3_short_answer' | 'part4_essay';
+  type: QuestionType;
+  cognitiveLevel: 'nhanBiet' | 'thongHieu' | 'vanDung' | 'vanDungCao';
+  prompt: string;
+  options?: { key: 'A' | 'B' | 'C' | 'D'; text: string }[];
+  correctOption?: 'A' | 'B' | 'C' | 'D';
+  tfStatements?: { subKey: 'a' | 'b' | 'c' | 'd'; text: string; isCorrect: boolean; explanation: string }[];
+  shortAnswerText?: string;
+  essayGradingSteps?: { step: string; point: number }[];
+  solutionExplanation: string;
+  learningObjective: string;
+}
+
 export interface ExamQuestion {
   id: string;
   code: string; // "[C1]", "[C2]", "[C13]"...

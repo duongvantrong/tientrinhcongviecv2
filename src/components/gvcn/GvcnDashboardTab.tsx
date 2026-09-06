@@ -23,6 +23,8 @@ import {
   RefreshCw,
   Cloud,
   LayoutGrid,
+  User,
+  PhoneCall,
 } from 'lucide-react';
 import {
   GvcnClassInfo,
@@ -62,8 +64,6 @@ import { GvcnQuickLogModal } from './GvcnQuickLogModal';
 import { GvcnClassSettingsModal } from './GvcnClassSettingsModal';
 import { GvcnStudentProfileModal } from './GvcnStudentProfileModal';
 import { GvcnAddStudentModal } from './GvcnAddStudentModal';
-import { useAuth } from '../auth/AuthGate';
-import { subscribeToGvcnData, syncGvcnDataToCloud } from '../../lib/firebase';
 
 export type GvcnSubTab =
   | 'students_grades'
@@ -94,6 +94,22 @@ export const GvcnDashboardTab: React.FC = () => {
         if (parsed.academicYear && parsed.academicYear.includes('2025')) {
           parsed.academicYear = '2026 - 2027';
         }
+        // Clean out legacy mock ban can su if it contained dummy names
+        if (parsed.boardOfLeaders) {
+          if (parsed.boardOfLeaders.monitor === 'Trần Minh Anh') parsed.boardOfLeaders.monitor = '';
+          if (parsed.boardOfLeaders.viceMonitorStudy === 'Lê Hoàng Nam') parsed.boardOfLeaders.viceMonitorStudy = '';
+          if (parsed.boardOfLeaders.viceMonitorDiscipline === 'Phạm Thu Trang') parsed.boardOfLeaders.viceMonitorDiscipline = '';
+          if (parsed.boardOfLeaders.treasurer === 'Nguyễn Thảo Linh') parsed.boardOfLeaders.treasurer = '';
+          if (parsed.boardOfLeaders.secretary === 'Đặng Quốc Huy') parsed.boardOfLeaders.secretary = '';
+        }
+        // Clean out legacy mock parent committee if it contained dummy names or phone numbers
+        if (parsed.parentCommittee) {
+          if (parsed.parentCommittee.head === 'Trần Văn Hưng' || parsed.parentCommittee.head?.includes('Trần Văn Hưng')) parsed.parentCommittee.head = '';
+          if (parsed.parentCommittee.headPhone === '0912.345.678') parsed.parentCommittee.headPhone = '';
+          if (parsed.parentCommittee.deputy === 'Lê Thị Mai Hoa') parsed.parentCommittee.deputy = '';
+          if (parsed.parentCommittee.deputyPhone === '0983.456.789') parsed.parentCommittee.deputyPhone = '';
+          if (parsed.parentCommittee.zaloGroupLink?.includes('lop9a1')) parsed.parentCommittee.zaloGroupLink = '';
+        }
         return parsed;
       } catch (e) {
         console.error(e);
@@ -109,7 +125,18 @@ export const GvcnDashboardTab: React.FC = () => {
 
   const [students, setStudents] = useState<GvcnStudent[]>(() => {
     const saved = localStorage.getItem('gvcn_students');
-    return saved ? JSON.parse(saved) : defaultGvcnStudents;
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0 && parsed[0]?.id === 'hs-01' && parsed[0]?.name === 'Trần Minh Anh') {
+          return [];
+        }
+        return parsed;
+      } catch (e) {
+        console.error(e);
+      }
+    }
+    return defaultGvcnStudents;
   });
 
   const [weeklyRecords, setWeeklyRecords] = useState<GvcnWeeklyRecord[]>(() => {
@@ -124,7 +151,18 @@ export const GvcnDashboardTab: React.FC = () => {
 
   const [parentContacts, setParentContacts] = useState<GvcnParentContact[]>(() => {
     const saved = localStorage.getItem('gvcn_parent_contacts');
-    return saved ? JSON.parse(saved) : defaultGvcnParentContacts;
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.some((c: any) => c.phone === '0912.345.678' || c.parentName?.includes('Trần Văn Hưng'))) {
+          return [];
+        }
+        return parsed;
+      } catch (e) {
+        console.error(e);
+      }
+    }
+    return defaultGvcnParentContacts;
   });
 
   const [monthlyTasks, setMonthlyTasks] = useState<GvcnMonthlyTask[]>(() => {
@@ -174,88 +212,6 @@ export const GvcnDashboardTab: React.FC = () => {
   const [activeSubTab, setActiveSubTab] = useState<GvcnSubTab>('students_grades');
   const [activeWeek, setActiveWeek] = useState<number>(1);
 
-  // Auth & Cloud Sync
-  const { user } = useAuth();
-  const [isCloudSyncing, setIsCloudSyncing] = useState(false);
-  const [lastCloudSyncTime, setLastCloudSyncTime] = useState<string | null>(null);
-
-  // Subscribe to real-time Cloud updates across devices using same Gmail
-  useEffect(() => {
-    if (!user?.uid) return;
-
-    const unsubscribe = subscribeToGvcnData(
-      user.uid,
-      (cloudPayload) => {
-        if (cloudPayload && Array.isArray(cloudPayload.students) && cloudPayload.students.length > 0) {
-          setStudents(cloudPayload.students);
-          if (cloudPayload.classInfo) setClassInfo(cloudPayload.classInfo);
-          if (cloudPayload.weeklyRecords) setWeeklyRecords(cloudPayload.weeklyRecords);
-          if (cloudPayload.rules) setRules(cloudPayload.rules);
-          if (cloudPayload.seatingChart) setSeatingChart(cloudPayload.seatingChart);
-          if (cloudPayload.specialStudents) setSpecialStudents(cloudPayload.specialStudents);
-          if (cloudPayload.parentContacts) setParentContacts(cloudPayload.parentContacts);
-          if (cloudPayload.monthlyTasks) setMonthlyTasks(cloudPayload.monthlyTasks);
-          setLastCloudSyncTime(new Date().toLocaleTimeString('vi-VN'));
-        }
-      },
-      (err) => console.warn('Could not sync from cloud:', err)
-    );
-
-    return () => unsubscribe();
-  }, [user?.uid]);
-
-  // Debounced auto-sync to Cloud whenever GVCN data changes
-  useEffect(() => {
-    if (!user?.uid || !user.email) return;
-
-    const timeout = setTimeout(async () => {
-      try {
-        await syncGvcnDataToCloud(user.uid, user.email || '', {
-          classInfo,
-          students,
-          weeklyRecords,
-          rules,
-          seatingChart,
-          specialStudents,
-          parentContacts,
-          monthlyTasks,
-        });
-        setLastCloudSyncTime(new Date().toLocaleTimeString('vi-VN'));
-      } catch (e) {
-        console.warn('Auto sync GVCN warning:', e);
-      }
-    }, 1500);
-
-    return () => clearTimeout(timeout);
-  }, [user?.uid, user?.email, classInfo, students, weeklyRecords, rules, seatingChart, specialStudents, parentContacts, monthlyTasks]);
-
-  // Trigger manual or automatic cloud save
-  const handleManualCloudSync = async () => {
-    if (!user?.uid || !user.email) {
-      alert('Vui lòng đăng nhập tài khoản Gmail để đồng bộ đám mây!');
-      return;
-    }
-    setIsCloudSyncing(true);
-    try {
-      await syncGvcnDataToCloud(user.uid, user.email, {
-        classInfo,
-        students,
-        weeklyRecords,
-        rules,
-        seatingChart,
-        specialStudents,
-        parentContacts,
-        monthlyTasks,
-      });
-      setLastCloudSyncTime(new Date().toLocaleTimeString('vi-VN'));
-    } catch (err: any) {
-      console.error('Cloud sync error:', err);
-      alert('Lỗi đồng bộ đám mây: ' + (err?.message || 'Kiểm tra kết nối'));
-    } finally {
-      setIsCloudSyncing(false);
-    }
-  };
-
   // Modals
   const [showStudentListModal, setShowStudentListModal] = useState<boolean>(false);
   const [showAddStudentModal, setShowAddStudentModal] = useState<boolean>(false);
@@ -276,40 +232,16 @@ export const GvcnDashboardTab: React.FC = () => {
     if (selectedStudentForProfile?.id === updatedStudent.id) {
       setSelectedStudentForProfile(updatedStudent);
     }
-    if (user?.uid && user.email) {
-      syncGvcnDataToCloud(user.uid, user.email, {
-        classInfo,
-        students: updated,
-        weeklyRecords,
-        rules,
-      }).catch(console.error);
-    }
   };
 
   const handleUpdateStudents = (updatedList: GvcnStudent[]) => {
     setStudents(updatedList);
-    if (user?.uid && user.email) {
-      syncGvcnDataToCloud(user.uid, user.email, {
-        classInfo,
-        students: updatedList,
-        weeklyRecords,
-        rules,
-      }).catch(console.error);
-    }
   };
 
   // Handler to add a specific student individually
   const handleAddStudent = (newStudent: GvcnStudent) => {
     const updatedList = [...students, newStudent].sort((a, b) => (a.stt || 0) - (b.stt || 0));
     setStudents(updatedList);
-    if (user?.uid && user.email) {
-      syncGvcnDataToCloud(user.uid, user.email, {
-        classInfo,
-        students: updatedList,
-        weeklyRecords,
-        rules,
-      }).catch(console.error);
-    }
   };
 
   const handleSaveClassInfo = (newInfo: GvcnClassInfo) => {
@@ -322,29 +254,10 @@ export const GvcnDashboardTab: React.FC = () => {
       const newPlan = getPhuThoYearPlanForGrade(newGrade, newInfo.academicYear);
       setMonthlyTasks(newPlan);
     }
-
-    if (user?.uid && user.email) {
-      syncGvcnDataToCloud(user.uid, user.email, {
-        classInfo: newInfo,
-        students,
-        weeklyRecords,
-        rules,
-        seatingChart,
-      }).catch(console.error);
-    }
   };
 
   const handleUpdateSeatingChart = (newChart: GvcnSeatingChartConfig) => {
     setSeatingChart(newChart);
-    if (user?.uid && user.email) {
-      syncGvcnDataToCloud(user.uid, user.email, {
-        classInfo,
-        students,
-        weeklyRecords,
-        rules,
-        seatingChart: newChart,
-      }).catch(console.error);
-    }
   };
 
   const handleApplyGradePlan = (grade: 6 | 7 | 8 | 9) => {
@@ -539,44 +452,40 @@ export const GvcnDashboardTab: React.FC = () => {
 
             <div className="space-y-1.5">
               <div className="flex flex-wrap items-center gap-2.5">
-                <h1 className="text-xl sm:text-2xl font-black tracking-tight text-white">
-                  SỔ CHỦ NHIỆM LỚP — {classInfo.className}
+                <h1 className="text-xl sm:text-2xl font-black tracking-tight text-white flex items-center gap-2 flex-wrap">
+                  <span>SỔ CHỦ NHIỆM LỚP</span>
+                  {classInfo.className ? (
+                    <span
+                      onClick={() => setShowClassSettingsModal(true)}
+                      className="text-emerald-300 underline decoration-dotted underline-offset-4 cursor-pointer hover:text-emerald-200 transition-colors"
+                      title="Bấm để chỉnh sửa tên lớp"
+                    >
+                      — {classInfo.className}
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setShowClassSettingsModal(true)}
+                      className="px-2.5 py-0.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-full text-xs shadow-xs cursor-pointer transition-all"
+                      title="Bấm để tùy chỉnh tên lớp"
+                    >
+                      + Tùy chỉnh tên lớp
+                    </button>
+                  )}
                 </h1>
                 <span className="px-3 py-0.5 text-xs font-black bg-emerald-500/30 text-emerald-300 rounded-full border border-emerald-400/40">
                   Năm học {classInfo.academicYear}
                 </span>
-                <span className="px-2.5 py-0.5 text-xs font-semibold bg-white/10 text-white rounded-full">
-                  {classInfo.room}
-                </span>
+                {classInfo.room && (
+                  <span className="px-2.5 py-0.5 text-xs font-semibold bg-white/10 text-white rounded-full">
+                    {classInfo.room}
+                  </span>
+                )}
               </div>
 
               <p className="text-xs sm:text-sm text-emerald-200/90 leading-relaxed max-w-3xl">
                 <strong>{classInfo.homeroomTeacher}</strong> • {classInfo.schoolName}. Bảng điều khiển quản lý nề nếp, thi đua 4 tổ, biên bản sinh hoạt lớp và đồng hành cùng phụ huynh theo phong cách sư phạm mẫu mực.
               </p>
-
-              {/* Cloud Sync Status Indicator */}
-              {user?.email && (
-                <div className="flex items-center gap-2 pt-1 flex-wrap">
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500/20 text-emerald-200 border border-emerald-400/30 shadow-2xs">
-                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                    <span>Đồng bộ Cloud đa thiết bị: {user.email}</span>
-                  </span>
-                  {lastCloudSyncTime && (
-                    <span className="text-[10px] text-emerald-300/80 font-mono">
-                      (Cập nhật: {lastCloudSyncTime})
-                    </span>
-                  )}
-                  <button
-                    onClick={handleManualCloudSync}
-                    disabled={isCloudSyncing}
-                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer border border-white/10"
-                    title="Bấm để đẩy dữ liệu lên máy chủ đám mây ngay lập tức"
-                  >
-                    <RefreshCw className={`w-3 h-3 ${isCloudSyncing ? 'animate-spin text-emerald-300' : ''}`} />
-                    <span>{isCloudSyncing ? 'Đang đồng bộ...' : 'Đồng bộ ngay'}</span>
-                  </button>
-                </div>
-              )}
             </div>
           </div>
 
@@ -702,6 +611,153 @@ export const GvcnDashboardTab: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* 1.5. Thông tin Ban Cán Sự Lớp & Ban Đại Diện Cha Mẹ Học Sinh */}
+      {(() => {
+        const hasLeader =
+          classInfo.boardOfLeaders &&
+          (classInfo.boardOfLeaders.monitor ||
+            classInfo.boardOfLeaders.viceMonitorStudy ||
+            classInfo.boardOfLeaders.viceMonitorDiscipline ||
+            classInfo.boardOfLeaders.treasurer ||
+            classInfo.boardOfLeaders.secretary);
+
+        const hasParent =
+          classInfo.parentCommittee &&
+          (classInfo.parentCommittee.head ||
+            classInfo.parentCommittee.headPhone ||
+            classInfo.parentCommittee.deputy ||
+            classInfo.parentCommittee.deputyPhone ||
+            classInfo.parentCommittee.zaloGroupLink);
+
+        return (
+          <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-xs space-y-3.5">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-2.5">
+              <div className="flex items-center gap-2">
+                <Users className="w-4 h-4 text-emerald-700" />
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900">
+                  Cán Sự Lớp & Ban Đại Diện Cha Mẹ Học Sinh {classInfo.className ? `(${classInfo.className})` : ''}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowClassSettingsModal(true)}
+                className="text-xs font-bold text-emerald-700 hover:text-emerald-800 flex items-center gap-1 cursor-pointer transition-colors bg-emerald-50 hover:bg-emerald-100 px-2.5 py-1 rounded-lg border border-emerald-200"
+              >
+                <Settings className="w-3.5 h-3.5" />
+                <span>{hasLeader || hasParent ? 'Chỉnh sửa thông tin' : 'Tùy chỉnh thông tin'}</span>
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Cột 1: Ban Cán Sự Lớp */}
+              <div className="bg-slate-50/80 rounded-xl p-3.5 border border-slate-200/80 space-y-2.5">
+                <span className="text-[11px] font-bold text-emerald-900 uppercase tracking-wider block flex items-center gap-1.5">
+                  <User className="w-3.5 h-3.5 text-emerald-700" />
+                  Ban Cán Sự Lớp
+                </span>
+
+                {hasLeader ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                    {classInfo.boardOfLeaders.monitor && (
+                      <div className="bg-white p-2.5 rounded-lg border border-slate-200 shadow-2xs">
+                        <span className="text-[10px] text-slate-500 font-semibold block">Lớp trưởng:</span>
+                        <span className="font-bold text-slate-900">{classInfo.boardOfLeaders.monitor}</span>
+                      </div>
+                    )}
+                    {classInfo.boardOfLeaders.viceMonitorStudy && (
+                      <div className="bg-white p-2.5 rounded-lg border border-slate-200 shadow-2xs">
+                        <span className="text-[10px] text-slate-500 font-semibold block">Lớp phó học tập:</span>
+                        <span className="font-bold text-slate-900">{classInfo.boardOfLeaders.viceMonitorStudy}</span>
+                      </div>
+                    )}
+                    {classInfo.boardOfLeaders.viceMonitorDiscipline && (
+                      <div className="bg-white p-2.5 rounded-lg border border-slate-200 shadow-2xs">
+                        <span className="text-[10px] text-slate-500 font-semibold block">Lớp phó kỷ luật:</span>
+                        <span className="font-bold text-slate-900">{classInfo.boardOfLeaders.viceMonitorDiscipline}</span>
+                      </div>
+                    )}
+                    {classInfo.boardOfLeaders.treasurer && (
+                      <div className="bg-white p-2.5 rounded-lg border border-slate-200 shadow-2xs">
+                        <span className="text-[10px] text-slate-500 font-semibold block">Thủ quỹ:</span>
+                        <span className="font-bold text-slate-900">{classInfo.boardOfLeaders.treasurer}</span>
+                      </div>
+                    )}
+                    {classInfo.boardOfLeaders.secretary && (
+                      <div className="bg-white p-2.5 rounded-lg border border-slate-200 shadow-2xs sm:col-span-2">
+                        <span className="text-[10px] text-slate-500 font-semibold block">Bí thư chi đội:</span>
+                        <span className="font-bold text-slate-900">{classInfo.boardOfLeaders.secretary}</span>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="text-xs text-slate-500 italic py-2 bg-white/60 p-3 rounded-lg border border-dashed border-slate-300">
+                    Chưa nhập danh sách ban cán sự. Bấm &quot;Tùy chỉnh thông tin&quot; để thêm Lớp trưởng, Lớp phó, Thủ quỹ... khi lớp bầu xong.
+                  </div>
+                )}
+              </div>
+
+              {/* Cột 2: Ban Đại Diện Cha Mẹ Học Sinh */}
+              <div className="bg-slate-50/80 rounded-xl p-3.5 border border-slate-200/80 space-y-2.5">
+                <span className="text-[11px] font-bold text-emerald-900 uppercase tracking-wider block flex items-center gap-1.5">
+                  <Users className="w-3.5 h-3.5 text-emerald-700" />
+                  Ban Đại Diện Cha Mẹ Học Sinh (CMHS)
+                </span>
+
+                {hasParent ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                    {(classInfo.parentCommittee.head || classInfo.parentCommittee.headPhone) && (
+                      <div className="bg-white p-2.5 rounded-lg border border-slate-200 shadow-2xs">
+                        <span className="text-[10px] text-slate-500 font-semibold block">Trưởng ban CMHS:</span>
+                        <span className="font-bold text-slate-900">{classInfo.parentCommittee.head || '—'}</span>
+                        {classInfo.parentCommittee.headPhone && (
+                          <a
+                            href={`tel:${classInfo.parentCommittee.headPhone}`}
+                            className="text-[11px] text-emerald-700 hover:text-emerald-900 font-semibold flex items-center gap-1 mt-1"
+                          >
+                            <PhoneCall className="w-3 h-3 text-emerald-600" /> {classInfo.parentCommittee.headPhone}
+                          </a>
+                        )}
+                      </div>
+                    )}
+                    {(classInfo.parentCommittee.deputy || classInfo.parentCommittee.deputyPhone) && (
+                      <div className="bg-white p-2.5 rounded-lg border border-slate-200 shadow-2xs">
+                        <span className="text-[10px] text-slate-500 font-semibold block">Phó ban CMHS:</span>
+                        <span className="font-bold text-slate-900">{classInfo.parentCommittee.deputy || '—'}</span>
+                        {classInfo.parentCommittee.deputyPhone && (
+                          <a
+                            href={`tel:${classInfo.parentCommittee.deputyPhone}`}
+                            className="text-[11px] text-emerald-700 hover:text-emerald-900 font-semibold flex items-center gap-1 mt-1"
+                          >
+                            <PhoneCall className="w-3 h-3 text-emerald-600" /> {classInfo.parentCommittee.deputyPhone}
+                          </a>
+                        )}
+                      </div>
+                    )}
+                    {classInfo.parentCommittee.zaloGroupLink && (
+                      <div className="bg-white p-2.5 rounded-lg border border-slate-200 shadow-2xs sm:col-span-2">
+                        <span className="text-[10px] text-slate-500 font-semibold block">Nhóm Zalo kết nối PH:</span>
+                        <a
+                          href={classInfo.parentCommittee.zaloGroupLink.startsWith('http') ? classInfo.parentCommittee.zaloGroupLink : `https://${classInfo.parentCommittee.zaloGroupLink}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-xs text-blue-700 hover:text-blue-900 font-semibold underline truncate block mt-0.5"
+                        >
+                          {classInfo.parentCommittee.zaloGroupLink}
+                        </a>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="text-xs text-slate-500 italic py-2 bg-white/60 p-3 rounded-lg border border-dashed border-slate-300">
+                    Chưa nhập thông tin thường trực ban đại diện CMHS và số điện thoại. Sẽ hiển thị khi nhập trong phần tùy chỉnh.
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* 2. Sub-tabs Navigation */}
       <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-thin border-b border-slate-200">

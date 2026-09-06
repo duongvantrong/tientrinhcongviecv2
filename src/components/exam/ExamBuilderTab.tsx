@@ -31,10 +31,12 @@ import {
   generateCustomExamPaper,
   shuffleExamPaper,
   regenerateSingleQuestion,
+  calculateAlignmentSummary,
 } from '../../utils/examGenerator';
 import { ExamPaperView } from './ExamPaperView';
 import { ExamConfigModal } from './ExamConfigModal';
 import { ExamQuestionEditModal } from './ExamQuestionEditModal';
+import { ExamQuestionSuggestionModal } from './ExamQuestionSuggestionModal';
 
 interface ExamBuilderTabProps {
   matrixConfig: MatrixConfig;

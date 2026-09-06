@@ -972,11 +972,25 @@ export function calculateTopicPointSummary(
  */
 export function generateSpecificationFromMatrix(
   rows: MatrixRow[],
-  subject: string = 'Toán',
-  grade: string = '9',
+  arg2: string = 'Toán',
+  arg3: string = '9',
   sgkBooks?: SgkBook[],
   preferredVolume?: 1 | 2 | 'all'
 ): SpecificationRow[] {
+  // Chuẩn hóa grade và subject dù người gọi truyền theo thứ tự nào
+  let grade = '9';
+  let subject = 'Toán';
+  if (['6', '7', '8', '9'].includes(arg2)) {
+    grade = arg2;
+    subject = arg3 || 'Toán';
+  } else if (['6', '7', '8', '9'].includes(arg3)) {
+    grade = arg3;
+    subject = arg2 || 'Toán';
+  } else {
+    subject = arg2 || 'Toán';
+    grade = arg3 || '9';
+  }
+
   let currentD1Index = 1; // 1 -> 12 (Nhiều lựa chọn)
   let currentD2Index = 13; // 13 -> 14 (Đúng - sai)
   let currentD3Index = 15; // 15 -> 18 (Trả lời ngắn)
@@ -1014,7 +1028,7 @@ export function generateSpecificationFromMatrix(
 
       const getObjective = (level: CognitiveLevel) => {
         if (sgkBooks && sgkBooks.length > 0) {
-          return getLearningObjectiveForTopic(level, r.noiDung, r.chuong, sgkBooks, preferredVolume);
+          return getLearningObjectiveForTopic(level, r.noiDung, r.chuong, sgkBooks, preferredVolume, grade);
         }
         return generateLearningObjective(level, r.noiDung, subject, grade);
       };

@@ -10,32 +10,27 @@ import {
   PpctDataset,
   QuestionType,
   SgkBook,
+  BankQuestionTemplate,
+  CognitiveLevel,
 } from '../types';
 import { formatPaperLatex, formatQuestionLatex } from './latexUtils';
+import {
+  GRADE_6_QUESTIONS,
+  GRADE_7_QUESTIONS,
+  GRADE_8_QUESTIONS,
+} from '../data/questionBankGrades';
 
 // =================================================================
 // NGÂN HÀNG CÂU HỎI MẪU CHUẨN MỰC BỘ GD&ĐT (TOÁN VÀ MÔN HỌC THCS)
 // CÁC CÔNG THỨC TOÁN ĐƯỢC ĐỊNH DẠNG VỀ LATEX ($...$) ĐỂ TƯƠNG THÍCH MATHTYPE
 // =================================================================
 
-interface BankQuestionTemplate {
-  subject: string;
-  grade: string;
-  topicKeywords: string[];
-  section: 'part1_mcq' | 'part2_true_false' | 'part3_short_answer' | 'part4_essay';
-  type: QuestionType;
-  cognitiveLevel: 'nhanBiet' | 'thongHieu' | 'vanDung' | 'vanDungCao';
-  prompt: string;
-  options?: { key: 'A' | 'B' | 'C' | 'D'; text: string }[];
-  correctOption?: 'A' | 'B' | 'C' | 'D';
-  tfStatements?: { subKey: 'a' | 'b' | 'c' | 'd'; text: string; isCorrect: boolean; explanation: string }[];
-  shortAnswerText?: string;
-  essayGradingSteps?: { step: string; point: number }[];
-  solutionExplanation: string;
-  learningObjective: string;
-}
+export const QUESTION_BANK: BankQuestionTemplate[] = [
+  // --- TOÁN 6, 7, 8 (TỰ ĐỘNG NẠP) ---
+  ...GRADE_6_QUESTIONS,
+  ...GRADE_7_QUESTIONS,
+  ...GRADE_8_QUESTIONS,
 
-const QUESTION_BANK: BankQuestionTemplate[] = [
   // --- TOÁN 9: CĂN BẬC HAI & HẰNG ĐẲNG THỨC ---
   {
     subject: 'Toán',
@@ -577,33 +572,57 @@ function findBestQuestionFromBank(
   usedPrompts: Set<string>
 ): BankQuestionTemplate | null {
   const topicLower = topic.toLowerCase();
+  const normGrade = String(grade || '').replace(/\D/g, '') || '9';
 
-  // 1. Thử tìm câu hỏi khớp môn, khối lớp, dạng câu hỏi, mức độ và từ khóa chủ đề
-  const exactCandidates = QUESTION_BANK.filter((q) => {
+  // 1. Khớp cả Khối Lớp, Dạng phần, Mức độ nhận thức và Từ khóa chủ đề
+  const gradeTopicCandidates = QUESTION_BANK.filter((q) => {
     if (usedPrompts.has(q.prompt)) return false;
     if (q.section !== section) return false;
     if (q.cognitiveLevel !== cognitiveLevel) return false;
-    const hasTopicMatch = q.topicKeywords.some((kw) => topicLower.includes(kw.toLowerCase()));
-    return hasTopicMatch;
+    if ((q.grade || '9') !== normGrade) return false;
+    return q.topicKeywords.some((kw) => topicLower.includes(kw.toLowerCase()));
   });
 
-  if (exactCandidates.length > 0) {
-    return exactCandidates[Math.floor(Math.random() * exactCandidates.length)];
+  if (gradeTopicCandidates.length > 0) {
+    return gradeTopicCandidates[Math.floor(Math.random() * gradeTopicCandidates.length)];
   }
 
-  // 2. Thử tìm câu hỏi khớp dạng và mức độ nhận thức (dù chủ đề có thể tương đương)
+  // 2. Khớp Khối Lớp, Dạng phần, Mức độ nhận thức
+  const gradeLevelCandidates = QUESTION_BANK.filter((q) => {
+    if (usedPrompts.has(q.prompt)) return false;
+    if (q.section !== section) return false;
+    if (q.cognitiveLevel !== cognitiveLevel) return false;
+    return (q.grade || '9') === normGrade;
+  });
+
+  if (gradeLevelCandidates.length > 0) {
+    return gradeLevelCandidates[Math.floor(Math.random() * gradeLevelCandidates.length)];
+  }
+
+  // 3. Khớp Dạng phần, Mức độ nhận thức và Từ khóa chủ đề (bất kể khối lớp)
+  const topicCandidates = QUESTION_BANK.filter((q) => {
+    if (usedPrompts.has(q.prompt)) return false;
+    if (q.section !== section) return false;
+    if (q.cognitiveLevel !== cognitiveLevel) return false;
+    return q.topicKeywords.some((kw) => topicLower.includes(kw.toLowerCase()));
+  });
+
+  if (topicCandidates.length > 0) {
+    return topicCandidates[Math.floor(Math.random() * topicCandidates.length)];
+  }
+
+  // 4. Khớp Dạng phần và Mức độ nhận thức
   const levelCandidates = QUESTION_BANK.filter((q) => {
     if (usedPrompts.has(q.prompt)) return false;
     if (q.section !== section) return false;
-    if (q.cognitiveLevel === cognitiveLevel) return true;
-    return false;
+    return q.cognitiveLevel === cognitiveLevel;
   });
 
   if (levelCandidates.length > 0) {
     return levelCandidates[Math.floor(Math.random() * levelCandidates.length)];
   }
 
-  // 3. Thử tìm bất kỳ câu hỏi nào khớp dạng
+  // 5. Thử tìm bất kỳ câu hỏi nào khớp dạng
   const sectionCandidates = QUESTION_BANK.filter((q) => {
     if (usedPrompts.has(q.prompt)) return false;
     return q.section === section;
@@ -1344,18 +1363,79 @@ export function shuffleExamPaper(originalPaper: ExamPaper, newCode: string): Exa
 }
 
 // =================================================================
-// 4. THAY ĐỔI CÂU HỎI TƯƠNG ĐƯƠNG (REGENERATE SINGLE QUESTION)
+// 4. THAY ĐỔI CÂU HỎI TƯƠNG ĐƯƠNG & GỢI Ý CÂU CÙNG MỨC ĐỘ
 // =================================================================
+
+/**
+ * Lấy danh sách câu hỏi gợi ý cùng mức độ nhận thức (hoặc mức độ tùy chỉnh)
+ * bám sát môn học, khối lớp (6, 7, 8, 9) và dạng thức câu hỏi.
+ */
+export function getSuggestedQuestions(
+  currentQuestion: ExamQuestion,
+  grade: string = '9',
+  targetLevel?: CognitiveLevel
+): BankQuestionTemplate[] {
+  const desiredLevel = targetLevel || currentQuestion.cognitiveLevel;
+  const section = currentQuestion.section;
+  const topicLower = (currentQuestion.lesson || '').toLowerCase();
+  const normGrade = String(grade || '').replace(/\D/g, '') || '9';
+
+  // 1. Lọc từ QUESTION_BANK cùng dạng thức (section) và cùng mức độ nhận thức
+  const matchingQuestions = QUESTION_BANK.filter((q) => {
+    if (q.prompt.trim() === currentQuestion.prompt.trim()) return false;
+    if (q.section !== section) return false;
+    if (q.cognitiveLevel !== desiredLevel) return false;
+    return true;
+  });
+
+  // Ưu tiên sắp xếp:
+  // 1. Đúng khối lớp và trùng từ khóa bài học
+  // 2. Đúng khối lớp
+  // 3. Trùng từ khóa bài học
+  matchingQuestions.sort((a, b) => {
+    const aGrade = (a.grade || '9') === normGrade ? 2 : 0;
+    const bGrade = (b.grade || '9') === normGrade ? 2 : 0;
+
+    const aTopic = a.topicKeywords.some((kw) => topicLower.includes(kw.toLowerCase())) ? 1 : 0;
+    const bTopic = b.topicKeywords.some((kw) => topicLower.includes(kw.toLowerCase())) ? 1 : 0;
+
+    return (bGrade + bTopic) - (aGrade + aTopic);
+  });
+
+  const results: BankQuestionTemplate[] = [...matchingQuestions.slice(0, 6)];
+
+  // Nếu số lượng gợi ý ít hơn 3, tự động sinh các biến thể chất lượng cao cho đúng mức độ nhận thức đó
+  if (results.length < 3) {
+    for (let i = 1; results.length < 4; i++) {
+      const fallback = createFallbackQuestion(
+        'Toán',
+        normGrade,
+        currentQuestion.chapter || 'Chủ đề bài học',
+        currentQuestion.lesson || 'Kiến thức trọng tâm',
+        section,
+        desiredLevel,
+        i * 11 + results.length
+      );
+      if (!results.some((r) => r.prompt.trim() === fallback.prompt.trim())) {
+        results.push(fallback);
+      }
+    }
+  }
+
+  return results;
+}
 
 export function regenerateSingleQuestion(
   currentQuestion: ExamQuestion,
-  allQuestionsInPaper: ExamQuestion[]
+  allQuestionsInPaper: ExamQuestion[],
+  grade: string = '9'
 ): ExamQuestion {
   const usedPrompts = new Set(allQuestionsInPaper.map((q) => q.prompt));
+  const normGrade = String(grade || '').replace(/\D/g, '') || '9';
 
   let replacement = findBestQuestionFromBank(
     'Toán',
-    '9',
+    normGrade,
     currentQuestion.lesson,
     currentQuestion.section,
     currentQuestion.cognitiveLevel,
@@ -1365,7 +1445,7 @@ export function regenerateSingleQuestion(
   if (!replacement) {
     replacement = createFallbackQuestion(
       'Toán',
-      '9',
+      normGrade,
       currentQuestion.chapter,
       currentQuestion.lesson,
       currentQuestion.section,
@@ -1391,7 +1471,7 @@ export function regenerateSingleQuestion(
 // 5. TÍNH TOÁN BẢNG ĐỐI CHIẾU MA TRẬN & YÊU CẦU CẦN ĐẠT
 // =================================================================
 
-function calculateAlignmentSummary(questions: ExamQuestion[]) {
+export function calculateAlignmentSummary(questions: ExamQuestion[]) {
   let mcqCount = 0;
   let tfCount = 0;
   let shortCount = 0;
