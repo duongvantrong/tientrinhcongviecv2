@@ -51,16 +51,32 @@ export const UploadPpctModal: React.FC<UploadPpctModalProps> = ({
   const [showAllIssues, setShowAllIssues] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Synchronize grade and reset state whenever modal is opened
+  React.useEffect(() => {
+    if (isOpen) {
+      if (initialGrade) {
+        setSelectedGrade(initialGrade);
+      }
+      setErrorMessage(null);
+      setSuccessNotice(null);
+      setSelectedFile(null);
+      setParsedPreview(null);
+    }
+  }, [isOpen, initialGrade]);
+
   if (!isOpen) return null;
 
   const handleGradeChange = (grade: string) => {
     setSelectedGrade(grade);
     setErrorMessage(null);
+    setSuccessNotice(null);
     if (parsedPreview) {
       setParsedPreview({
         ...parsedPreview,
         grade,
-        name: `Toán ${grade} — ${parsedPreview.fileName?.replace(/\.[^/.]+$/, '') || 'PPCT'}`,
+        name: className.trim()
+          ? `Toán ${grade} (${className.trim()}) — ${parsedPreview.fileName?.replace(/\.[^/.]+$/, '') || 'PPCT'}`
+          : `Toán ${grade} — ${parsedPreview.fileName?.replace(/\.[^/.]+$/, '') || 'PPCT 140 tiết'}`,
       });
     }
   };
@@ -138,8 +154,13 @@ export const UploadPpctModal: React.FC<UploadPpctModalProps> = ({
         finalDataset.academicYear = academicYear;
         finalDataset.school = schoolName;
 
-        if (className.trim()) {
-          finalDataset.name = `Toán ${selectedGrade} (${className.trim()}) — ${finalDataset.fileName?.replace(/\.[^/.]+$/, '') || 'PPCT'}`;
+        // Ensure name clearly identifies the grade
+        finalDataset.name = className.trim()
+          ? `Toán ${selectedGrade} (${className.trim()}) — ${finalDataset.fileName?.replace(/\.[^/.]+$/, '') || 'PPCT'}`
+          : `Toán ${selectedGrade} — ${finalDataset.fileName?.replace(/\.[^/.]+$/, '') || `PPCT TOÁN ${selectedGrade}`}`;
+
+        if (!finalDataset.id || finalDataset.id.startsWith('default-')) {
+          finalDataset.id = `ppct-k${selectedGrade}-${Date.now()}`;
         }
 
         onAddDataset(finalDataset);
@@ -163,20 +184,22 @@ export const UploadPpctModal: React.FC<UploadPpctModalProps> = ({
     let sample: PpctDataset;
     switch (selectedGrade) {
       case '6':
-        sample = { ...defaultPpctDataset6, id: `sample-k6-${Date.now()}` };
+        sample = { ...defaultPpctDataset6, id: `ppct-k6-${Date.now()}` };
         break;
       case '7':
-        sample = { ...defaultPpctDataset7, id: `sample-k7-${Date.now()}` };
+        sample = { ...defaultPpctDataset7, id: `ppct-k7-${Date.now()}` };
         break;
       case '8':
-        sample = { ...defaultPpctDataset8, id: `sample-k8-${Date.now()}` };
+        sample = { ...defaultPpctDataset8, id: `ppct-k8-${Date.now()}` };
         break;
       case '9':
       default:
-        sample = { ...defaultPpctDataset9, id: `sample-k9-${Date.now()}` };
+        sample = { ...defaultPpctDataset9, id: `ppct-k9-${Date.now()}` };
         break;
     }
 
+    sample.grade = selectedGrade;
+    sample.name = `Toán ${selectedGrade} — PPCT TOÁN ${selectedGrade} (140 tiết / 35 tuần)`;
     sample.academicYear = academicYear;
     if (schoolName) sample.school = schoolName;
 

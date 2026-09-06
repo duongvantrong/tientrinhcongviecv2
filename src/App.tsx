@@ -265,9 +265,18 @@ export default function App() {
       user.uid,
       (cloudPayload) => {
         if (cloudPayload && Array.isArray(cloudPayload.datasets) && cloudPayload.datasets.length > 0) {
-          setDatasets(cloudPayload.datasets);
+          setDatasets((localPrev) => {
+            // MERGE strategy: Don't let a cloud snapshot delete newly added local datasets!
+            const cloudIds = new Set(cloudPayload.datasets.map((d) => d.id));
+            const localOnly = localPrev.filter((d) => !cloudIds.has(d.id));
+            if (localOnly.length > 0) {
+              return [...localOnly, ...cloudPayload.datasets];
+            }
+            return cloudPayload.datasets;
+          });
+
           if (cloudPayload.activeDatasetId) {
-            setActiveDatasetId(cloudPayload.activeDatasetId);
+            setActiveDatasetId((prevActive) => prevActive || cloudPayload.activeDatasetId!);
           }
           if (cloudPayload.timeframeConfig) {
             setTimeframeConfig((prev) => ({
@@ -461,25 +470,82 @@ export default function App() {
   };
 
   const handleOpenUploadModal = (grade?: string) => {
-    if (grade) setUploadModalGrade(grade);
+    setUploadModalGrade(grade || activeDataset?.grade || '9');
     setIsUploadModalOpen(true);
   };
 
-  const handleAddDataset = (newDataset: PpctDataset) => {
-    setDatasets((prev) => [newDataset, ...prev]);
+  const handleAddDataset = async (newDataset: PpctDataset) => {
+    // 1. Immediately update React state
+    const updatedDatasets = [newDataset, ...datasets.filter((d) => d.id !== newDataset.id)];
+    setDatasets(updatedDatasets);
     setActiveDatasetId(newDataset.id);
+    setActiveTab('progress');
+
+    // 2. Adjust Matrix tab grade to match newly loaded dataset
     setMatrixConfig((prev) => ({
       ...prev,
       subject: newDataset.subject || prev.subject,
       grade: newDataset.grade || prev.grade,
     }));
+
+    // 3. Immediately persist to localStorage
+    try {
+      localStorage.setItem('ppct_datasets', JSON.stringify(updatedDatasets));
+    } catch (e) {
+      console.warn('localStorage save warning:', e);
+    }
+
+    // 4. Affirmative confirmation notification
+    const totalPeriods =
+      newDataset.lessons?.reduce((sum, l) => sum + (l.soTiet || 1), 0) ||
+      newDataset.totalLessons ||
+      140;
+    setSyncToast(`✅ Đã nạp thành công PPCT Toán Khối ${newDataset.grade || ''} (${newDataset.name}) - ${totalPeriods} tiết!`);
+    setTimeout(() => setSyncToast(null), 6000);
+
+    // 5. Instantly push to Cloud so it is immediately available across devices without delay
+    if (user?.uid && user.email) {
+      setIsSyncing(true);
+      try {
+        await syncPpctDataToCloud(user.uid, user.email, {
+          datasets: updatedDatasets,
+          activeDatasetId: newDataset.id,
+          timeframeConfig,
+          matrixConfig: { ...matrixConfig, grade: newDataset.grade || matrixConfig.grade },
+          matrixRows,
+          sgkBooks,
+        });
+        setLastSyncTime(new Date().toLocaleTimeString('vi-VN'));
+      } catch (err) {
+        console.warn('Sync new dataset to cloud error:', err);
+      } finally {
+        setIsSyncing(false);
+      }
+    }
   };
 
-  const handleDeleteDataset = (id: string) => {
+  const handleDeleteDataset = async (id: string) => {
     const remaining = datasets.filter((d) => d.id !== id);
     setDatasets(remaining);
+    const nextActiveId = remaining[0]?.id || '';
     if (activeDatasetId === id) {
-      setActiveDatasetId(remaining[0]?.id || '');
+      setActiveDatasetId(nextActiveId);
+    }
+    localStorage.setItem('ppct_datasets', JSON.stringify(remaining));
+
+    if (user?.uid && user.email) {
+      try {
+        await syncPpctDataToCloud(user.uid, user.email, {
+          datasets: remaining,
+          activeDatasetId: nextActiveId,
+          timeframeConfig,
+          matrixConfig,
+          matrixRows,
+          sgkBooks,
+        });
+      } catch (err) {
+        console.warn('Sync delete to cloud error:', err);
+      }
     }
   };
 
