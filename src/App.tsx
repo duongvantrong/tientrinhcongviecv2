@@ -45,13 +45,21 @@ export default function App() {
   // Navigation
   const [activeTab, setActiveTab] = useState<TabType>('progress');
 
-  // SGK Books state (Tập 1 & Tập 2)
+  // SGK Books state (Tập 1 & Tập 2) cho các khối 6, 7, 8, 9
   const [sgkBooks, setSgkBooks] = useState<SgkBook[]>(() => {
     const saved = localStorage.getItem('ppct_sgk_books');
     if (saved) {
       try {
         const parsed: SgkBook[] = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
+          // Bổ sung các bộ SGK mặc định các khối nếu chưa có trong bộ nhớ
+          const existingIds = new Set(parsed.map((b) => b.id));
+          const missingDefaults = INITIAL_SGK_BOOKS.filter((b) => !existingIds.has(b.id));
+          if (missingDefaults.length > 0) {
+            const merged = [...parsed, ...missingDefaults];
+            localStorage.setItem('ppct_sgk_books', JSON.stringify(merged));
+            return merged;
+          }
           return parsed;
         }
       } catch (e) {

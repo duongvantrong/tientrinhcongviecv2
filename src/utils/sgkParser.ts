@@ -2,6 +2,12 @@ import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import { SgkBook, SgkChapter, SgkLesson, CognitiveLevel } from '../types';
 import {
+  DEFAULT_SGK_TOAN_6_TAP_1,
+  DEFAULT_SGK_TOAN_6_TAP_2,
+  DEFAULT_SGK_TOAN_7_TAP_1,
+  DEFAULT_SGK_TOAN_7_TAP_2,
+  DEFAULT_SGK_TOAN_8_TAP_1,
+  DEFAULT_SGK_TOAN_8_TAP_2,
   DEFAULT_SGK_TOAN_9_TAP_1,
   DEFAULT_SGK_TOAN_9_TAP_2,
   DEFAULT_SGK_CANH_DIEU_9_TAP_1,
@@ -127,10 +133,17 @@ export function getLearningObjectiveForTopic(
 /**
  * Parses an uploaded SGK file (Excel .xlsx, .csv, JSON, or text)
  */
-export async function parseSgkFile(file: File): Promise<SgkBook> {
+export async function parseSgkFile(file: File, selectedGrade: string = '9'): Promise<SgkBook> {
   const fileName = file.name;
   const isVolume2 = /tap\s*2|tập\s*2|hk\s*2|học\s*kỳ\s*2|ky\s*2/i.test(fileName);
   const volume: 1 | 2 = isVolume2 ? 2 : 1;
+
+  // Detect grade from file name or use selectedGrade
+  let targetGrade = selectedGrade || '9';
+  if (/(\b|_)k?6(\b|_)|khoi\s*6|khối\s*6|lop\s*6|lớp\s*6|toan\s*6|toán\s*6/i.test(fileName)) targetGrade = '6';
+  else if (/(\b|_)k?7(\b|_)|khoi\s*7|khối\s*7|lop\s*7|lớp\s*7|toan\s*7|toán\s*7/i.test(fileName)) targetGrade = '7';
+  else if (/(\b|_)k?8(\b|_)|khoi\s*8|khối\s*8|lop\s*8|lớp\s*8|toan\s*8|toán\s*8/i.test(fileName)) targetGrade = '8';
+  else if (/(\b|_)k?9(\b|_)|khoi\s*9|khối\s*9|lop\s*9|lớp\s*9|toan\s*9|toán\s*9/i.test(fileName)) targetGrade = '9';
 
   // 1. JSON parsing
   if (fileName.endsWith('.json')) {
@@ -141,7 +154,7 @@ export async function parseSgkFile(file: File): Promise<SgkBook> {
         id: parsed.id || `sgk-${Date.now()}`,
         title: parsed.title || fileName.replace('.json', ''),
         series: parsed.series || 'custom',
-        grade: parsed.grade || '9',
+        grade: parsed.grade || targetGrade,
         volume: parsed.volume || volume,
         publisher: parsed.publisher || 'Tải lên từ người dùng',
         chapters: parsed.chapters,
@@ -159,7 +172,7 @@ export async function parseSgkFile(file: File): Promise<SgkBook> {
       const result = await mammoth.extractRawText({ arrayBuffer });
       const rawText = result.value || '';
       if (rawText.trim().length > 30) {
-        const parsedBook = parseSgkFromText(rawText, fileName, volume);
+        const parsedBook = parseSgkFromText(rawText, fileName, volume, targetGrade);
         if (parsedBook.chapters.length > 0 && parsedBook.chapters.some((c) => c.lessons.length > 0)) {
           return {
             ...parsedBook,
@@ -186,7 +199,7 @@ export async function parseSgkFile(file: File): Promise<SgkBook> {
       console.warn('[SGK Parser] Không thể đọc dạng Excel workbook, thử trích xuất qua văn bản:', xlsxErr);
       try {
         const text = new TextDecoder('utf-8').decode(data);
-        const parsed = parseSgkFromText(text, fileName, volume);
+        const parsed = parseSgkFromText(text, fileName, volume, targetGrade);
         if (parsed.chapters.length > 0) return parsed;
       } catch {}
     }
@@ -253,9 +266,6 @@ export async function parseSgkFile(file: File): Promise<SgkBook> {
       }
 
       // Parse Lesson Row
-      // Supported column structures:
-      // A: STT / Tên bài | B: Số tiết | C: YCCĐ Nhận biết | D: YCCĐ Thông hiểu | E: YCCĐ Vận dụng
-      // OR A: Tên bài | B: YCCĐ chung
       let lessonTitle = cells[0] || cells[1] || '';
       let periods = 2;
       let nbText = '';
@@ -263,7 +273,6 @@ export async function parseSgkFile(file: File): Promise<SgkBook> {
       let vdText = '';
 
       if (cells.length >= 4) {
-        // Multi-column structure
         const numPeriods = parseInt(cells[1], 10);
         if (!isNaN(numPeriods)) {
           periods = numPeriods;
@@ -305,9 +314,9 @@ export async function parseSgkFile(file: File): Promise<SgkBook> {
     if (chapters.length > 0 && chapters.some((ch) => ch.lessons.length > 0)) {
       return {
         id: `sgk-uploaded-${Date.now()}`,
-        title: `SGK Tải lên — ${fileName.replace(/\.[^/.]+$/, '')} (Tập ${volume})`,
+        title: `SGK Toán ${targetGrade} Tải lên — ${fileName.replace(/\.[^/.]+$/, '')} (Tập ${volume})`,
         series: 'custom',
-        grade: '9',
+        grade: targetGrade,
         volume,
         publisher: 'Tải lên từ file',
         chapters,
@@ -349,7 +358,7 @@ export async function parseSgkFile(file: File): Promise<SgkBook> {
 
       const fullText = textChunks.join('\n');
       if (fullText.trim().length > 30) {
-        const parsedBook = parseSgkFromText(fullText, fileName, volume);
+        const parsedBook = parseSgkFromText(fullText, fileName, volume, targetGrade);
         if (parsedBook.chapters.length > 0 && parsedBook.chapters.some((c) => c.lessons.length > 0)) {
           return parsedBook;
         }
@@ -362,16 +371,16 @@ export async function parseSgkFile(file: File): Promise<SgkBook> {
   // 4. Fallback for text / other files or unstructured PDF
   return {
     id: `sgk-uploaded-${Date.now()}`,
-    title: `SGK Tải lên — ${fileName.replace(/\.[^/.]+$/, '')} (Tập ${volume})`,
+    title: `SGK Toán ${targetGrade} Tải lên — ${fileName.replace(/\.[^/.]+$/, '')} (Tập ${volume})`,
     series: 'custom',
-    grade: '9',
+    grade: targetGrade,
     volume,
     publisher: 'Tải lên từ file',
     chapters: [
       {
         id: `ch-fallback-${Date.now()}`,
         chapterNumber: volume === 1 ? 1 : 6,
-        title: volume === 1 ? 'Chương I: Nội dung kiến thức SGK Toán (Tập 1)' : 'Chương VI: Nội dung kiến thức SGK Toán (Tập 2)',
+        title: volume === 1 ? `Chương I: Nội dung kiến thức SGK Toán ${targetGrade} (Tập 1)` : `Chương VI: Nội dung kiến thức SGK Toán ${targetGrade} (Tập 2)`,
         shortTitle: `Nội dung kiến thức SGK (Tập ${volume})`,
         branch: 'DaiSo',
         totalPeriods: 35,
@@ -399,7 +408,7 @@ export async function parseSgkFile(file: File): Promise<SgkBook> {
 /**
  * Parses raw text extracted from PDF or documents into structured SgkBook
  */
-export function parseSgkFromText(text: string, fileName: string, volume: 1 | 2): SgkBook {
+export function parseSgkFromText(text: string, fileName: string, volume: 1 | 2, grade: string = '9'): SgkBook {
   const lines = text
     .split(/\r?\n/)
     .map((l) => l.trim())
@@ -524,9 +533,9 @@ export function parseSgkFromText(text: string, fileName: string, volume: 1 | 2):
 
   return {
     id: `sgk-pdf-${Date.now()}`,
-    title: `SGK PDF: ${fileName.replace(/\.[^/.]+$/, '')} (Tập ${volume})`,
+    title: `SGK Toán ${grade} PDF: ${fileName.replace(/\.[^/.]+$/, '')} (Tập ${volume})`,
     series: 'custom',
-    grade: '9',
+    grade,
     volume,
     publisher: 'Trích xuất từ file PDF SGK',
     chapters,
@@ -538,43 +547,122 @@ export function parseSgkFromText(text: string, fileName: string, volume: 1 | 2):
 /**
  * Generates sample Excel workbook with standard SGK format for user download
  */
-export function generateSampleSgkExcel(volume: 1 | 2 = 1): void {
+export function generateSampleSgkExcel(volume: 1 | 2 = 1, grade: string = '9'): void {
   const wb = XLSX.utils.book_new();
+
+  let chTitle = '';
+  let b1Title = '';
+  let b1Nb = '';
+  let b1Th = '';
+  let b1Vd = '';
+  let b2Title = '';
+  let b2Nb = '';
+  let b2Th = '';
+  let b2Vd = '';
+
+  if (grade === '6') {
+    if (volume === 1) {
+      chTitle = 'Chương I: Tập hợp các số tự nhiên';
+      b1Title = 'Bài 1: Tập hợp. Phần tử của tập hợp';
+      b1Nb = '- Nhận biết được tập hợp và các phần tử của tập hợp, sử dụng đúng các kí hiệu thuộc/không thuộc.';
+      b1Th = '- Biểu diễn được một tập hợp bằng cách liệt kê các phần tử hoặc chỉ ra tính chất đặc trưng.';
+      b1Vd = '- Vận dụng kiến thức tập hợp vào phân loại đối tượng thực tiễn.';
+      b2Title = 'Bài 2: Các phép tính với số tự nhiên';
+      b2Nb = '- Nhận biết thứ tự thực hiện phép tính và các tính chất giao hoán, kết hợp, phân phối.';
+      b2Th = '- Thực hiện đúng các phép cộng, trừ, nhân, chia và nâng lên lũy thừa với số tự nhiên.';
+      b2Vd = '- Giải các bài toán thực tế liên quan đến mua sắm, tính chu vi diện tích đơn giản.';
+    } else {
+      chTitle = 'Chương V: Phân số';
+      b1Title = 'Bài 23: Mở rộng phân số. Phân số bằng nhau';
+      b1Nb = '- Nhận biết khái niệm phân số với tử và mẫu là các số nguyên (mẫu khác 0).';
+      b1Th = '- Vận dụng định nghĩa hai phân số bằng nhau để tìm số nguyên chưa biết.';
+      b1Vd = '- So sánh các phân số và giải quyết tình huống chia phần thực tiễn.';
+      b2Title = 'Bài 24: Phép cộng và phép trừ phân số';
+      b2Nb = '- Nêu được quy tắc cộng, trừ hai phân số cùng mẫu và khác mẫu.';
+      b2Th = '- Thực hiện thành thạo phép cộng và phép trừ phân số; rút gọn kết quả về tối giản.';
+      b2Vd = '- Vận dụng cộng trừ phân số vào bài toán tính tổng thời gian, khối lượng công việc.';
+    }
+  } else if (grade === '7') {
+    if (volume === 1) {
+      chTitle = 'Chương I: Số hữu tỉ';
+      b1Title = 'Bài 1: Tập hợp các số hữu tỉ';
+      b1Nb = '- Nhận biết số hữu tỉ và biểu diễn số hữu tỉ trên trục số.';
+      b1Th = '- So sánh được hai số hữu tỉ, nhận biết số đối của một số hữu tỉ.';
+      b1Vd = '- Vận dụng số hữu tỉ trong các bài toán đo lường, nhiệt độ thực tế.';
+      b2Title = 'Bài 2: Các phép tính với số hữu tỉ';
+      b2Nb = '- Nêu được quy tắc cộng, trừ, nhân, chia hai số hữu tỉ.';
+      b2Th = '- Tính toán thành thạo giá trị của biểu thức số hữu tỉ; áp dụng tính chất phép tính.';
+      b2Vd = '- Giải bài toán thực tế về chuyển động, tỉ lệ phần trăm.';
+    } else {
+      chTitle = 'Chương VII: Biểu thức đại số và đa thức một biến';
+      b1Title = 'Bài 24: Biểu thức đại số';
+      b1Nb = '- Nhận biết biểu thức số và biểu thức đại số chứa biến.';
+      b1Th = '- Tính được giá trị của biểu thức đại số tại các giá trị cho trước của biến.';
+      b1Vd = '- Viết được biểu thức đại số biểu thị đại lượng trong bài toán thực tế.';
+      b2Title = 'Bài 25: Đa thức một biến và các phép toán';
+      b2Nb = '- Nhận biết đa thức một biến, bậc, hệ số cao nhất và hệ số tự do.';
+      b2Th = '- Thực hiện cộng, trừ hai đa thức một biến; sắp xếp đa thức theo lũy thừa giảm dần.';
+      b2Vd = '- Tìm nghiệm của đa thức một biến và ứng dụng trong tính chu vi, thể tích hình học.';
+    }
+  } else if (grade === '8') {
+    if (volume === 1) {
+      chTitle = 'Chương I: Đa thức nhiều biến';
+      b1Title = 'Bài 1: Đơn thức và đa thức nhiều biến';
+      b1Nb = '- Nhận biết đơn thức, đa thức nhiều biến, bậc của đơn thức và đa thức.';
+      b1Th = '- Thu gọn đơn thức, đa thức; nhận biết các đơn thức đồng dạng.';
+      b1Vd = '- Tính giá trị của đa thức nhiều biến tại các giá trị cụ thể của biến.';
+      b2Title = 'Bài 2: Các phép tính với đa thức nhiều biến';
+      b2Nb = '- Nêu được quy tắc cộng, trừ đa thức; nhân đơn thức với đa thức.';
+      b2Th = '- Thực hiện thành thạo phép nhân, chia đơn thức và đa thức nhiều biến.';
+      b2Vd = '- Vận dụng biểu thức đa thức để tính diện tích, thể tích các hình khối thực tế.';
+    } else {
+      chTitle = 'Chương VI: Phân thức đại số';
+      b1Title = 'Bài 21: Phân thức đại số';
+      b1Nb = '- Nhận biết phân thức đại số, tử thức, mẫu thức và điều kiện xác định.';
+      b1Th = '- Vận dụng tính chất cơ bản của phân thức để rút gọn và quy đồng mẫu thức.';
+      b1Vd = '- Tìm giá trị của biến để phân thức có giá trị nguyên hoặc xác định.';
+      b2Title = 'Bài 22: Các phép tính với phân thức đại số';
+      b2Nb = '- Nêu được quy tắc cộng, trừ, nhân, chia các phân thức đại số.';
+      b2Th = '- Thực hiện thành thạo các phép tính và rút gọn biểu thức chứa phân thức đại số.';
+      b2Vd = '- Giải bài toán thực tế về năng suất làm việc, tốc độ chuyển động bằng phân thức.';
+    }
+  } else {
+    // Grade 9
+    if (volume === 1) {
+      chTitle = 'Chương I: Phương trình và hệ hai phương trình bậc nhất hai ẩn';
+      b1Title = 'Bài 1: Khái niệm phương trình và hệ hai phương trình bậc nhất hai ẩn';
+      b1Nb = '- Nhận biết phương trình bậc nhất hai ẩn và nghiệm của hệ phương trình.';
+      b1Th = '- Kiểm tra một cặp số có là nghiệm của hệ phương trình; biểu diễn hình học tập nghiệm.';
+      b1Vd = '- Thiết lập hệ phương trình từ tình huống thực tiễn đơn giản.';
+      b2Title = 'Bài 2: Giải hệ hai phương trình bậc nhất hai ẩn';
+      b2Nb = '- Nêu được các bước giải hệ PT bằng phương pháp thế và cộng đại số.';
+      b2Th = '- Giải thành thạo hệ hai phương trình bậc nhất hai ẩn; dùng MTCT kiểm tra kết quả.';
+      b2Vd = '- Giải hệ phương trình quy về bậc nhất bằng phương pháp đặt ẩn phụ.';
+    } else {
+      chTitle = 'Chương VI: Hàm số y = ax² (a ≠ 0). Phương trình bậc hai một ẩn';
+      b1Title = 'Bài 14: Hàm số y = ax² (a ≠ 0) và đồ thị parabol';
+      b1Nb = '- Nhận biết đồ thị hàm số y = ax² là đường parabol đỉnh O đối xứng qua trục tung.';
+      b1Th = '- Vẽ thành thạo đồ thị parabol y = ax²; xét tính đồng biến nghịch biến của hàm số.';
+      b1Vd = '- Giải các bài toán thực tiễn liên quan đến cầu treo, cổng vòm parabol.';
+      b2Title = 'Bài 15: Phương trình bậc hai một ẩn và công thức nghiệm';
+      b2Nb = '- Nhận biết phương trình bậc hai một ẩn ax² + bx + c = 0 (a ≠ 0) và công thức biệt thức biệt số Δ.';
+      b2Th = '- Giải phương trình bậc hai bằng công thức nghiệm hoặc công thức nghiệm thu gọn Δ\'.';
+      b2Vd = '- Vận dụng hệ thức Viète để nhẩm nghiệm, tìm hai số biết tổng và tích.';
+    }
+  }
 
   const sampleData = [
     ['Chương / Chủ đề', 'Tên bài học', 'Số tiết', 'Yêu cầu cần đạt (Nhận biết)', 'Yêu cầu cần đạt (Thông hiểu)', 'Yêu cầu cần đạt (Vận dụng)'],
-    [
-      volume === 1 ? 'Chương I: Phương trình và hệ hai phương trình bậc nhất hai ẩn' : 'Chương VI: Hàm số y = ax² (a ≠ 0). Phương trình bậc hai một ẩn',
-      '',
-      '',
-      '',
-      '',
-      '',
-    ],
-    [
-      '',
-      volume === 1 ? 'Bài 1: Khái niệm phương trình và hệ hai phương trình bậc nhất hai ẩn' : 'Bài 14: Hàm số y = ax² (a ≠ 0) và đồ thị parabol',
-      '3',
-      '- Nhận biết phương trình bậc nhất hai ẩn và nghiệm của hệ phương trình.',
-      '- Kiểm tra một cặp số có là nghiệm của hệ phương trình; biểu diễn hình học tập nghiệm.',
-      '- Thiết lập hệ phương trình từ tình huống thực tiễn đơn giản.',
-    ],
-    [
-      '',
-      volume === 1 ? 'Bài 2: Giải hệ hai phương trình bậc nhất hai ẩn' : 'Bài 15: Phương trình bậc hai một ẩn và công thức nghiệm',
-      '5',
-      '- Nêu được các bước giải hệ PT bằng phương pháp thế và cộng đại số.',
-      '- Giải thành thạo hệ hai phương trình bậc nhất hai ẩn; dùng MTCT kiểm tra kết quả.',
-      '- Giải hệ phương trình quy về bậc nhất bằng phương pháp đặt ẩn phụ.',
-    ],
+    [chTitle, '', '', '', '', ''],
+    ['', b1Title, '3', b1Nb, b1Th, b1Vd],
+    ['', b2Title, '4', b2Nb, b2Th, b2Vd],
   ];
 
   const ws = XLSX.utils.aoa_to_sheet(sampleData);
-  // Set column widths
   ws['!cols'] = [{ wch: 40 }, { wch: 45 }, { wch: 10 }, { wch: 50 }, { wch: 50 }, { wch: 50 }];
 
-  XLSX.utils.book_append_sheet(wb, ws, `SGK_Toan_Tap_${volume}`);
-  XLSX.writeFile(wb, `Mau_SGK_Toan_Tap_${volume}.xlsx`);
+  XLSX.utils.book_append_sheet(wb, ws, `SGK_Toan_${grade}_Tap_${volume}`);
+  XLSX.writeFile(wb, `Mau_SGK_Toan_Lop_${grade}_Tap_${volume}.xlsx`);
 }
 
 /**
@@ -594,12 +682,271 @@ export interface OfficialSgkLink {
 }
 
 /**
- * Verified official textbook links from authorized publishing houses
+ * Verified official textbook links from authorized publishing houses across all secondary grades (6, 7, 8, 9)
  */
 export const OFFICIAL_SGK_LINKS: OfficialSgkLink[] = [
+  // --- KHỐI 6 ---
+  {
+    id: 'link-kntt-6-t1',
+    title: 'Toán 6 — Tập 1 (Kết nối tri thức)',
+    series: 'ket_noi_tri_thuc',
+    seriesName: 'Kết nối tri thức với cuộc sống',
+    grade: '6',
+    volume: 1,
+    publisher: 'NXB Giáo dục Việt Nam',
+    url: 'https://hanhtrangso.nxbgd.vn/sach-dien-tu/toan-6-tap-mot-ket-noi-tri-thuc-10250.html',
+    badge: 'Chính thống NXBGD',
+    sourcePortal: 'Hành Trang Số',
+  },
+  {
+    id: 'link-kntt-6-t2',
+    title: 'Toán 6 — Tập 2 (Kết nối tri thức)',
+    series: 'ket_noi_tri_thuc',
+    seriesName: 'Kết nối tri thức với cuộc sống',
+    grade: '6',
+    volume: 2,
+    publisher: 'NXB Giáo dục Việt Nam',
+    url: 'https://hanhtrangso.nxbgd.vn/sach-dien-tu/toan-6-tap-hai-ket-noi-tri-thuc-10251.html',
+    badge: 'Chính thống NXBGD',
+    sourcePortal: 'Hành Trang Số',
+  },
+  {
+    id: 'link-canhdieu-6-t1',
+    title: 'Toán 6 — Tập 1 (Cánh Diều)',
+    series: 'canh_dieu',
+    seriesName: 'Cánh Diều',
+    grade: '6',
+    volume: 1,
+    publisher: 'NXB Đại học Sư phạm / VEPIC',
+    url: 'https://hoc10.vn/doc-sach/SGK-Toan-6-Tap-1/1/10/0',
+    badge: 'Chính thống Hoc10',
+    sourcePortal: 'Hoc10',
+  },
+  {
+    id: 'link-canhdieu-6-t2',
+    title: 'Toán 6 — Tập 2 (Cánh Diều)',
+    series: 'canh_dieu',
+    seriesName: 'Cánh Diều',
+    grade: '6',
+    volume: 2,
+    publisher: 'NXB Đại học Sư phạm / VEPIC',
+    url: 'https://hoc10.vn/doc-sach/SGK-Toan-6-Tap-2/1/11/0',
+    badge: 'Chính thống Hoc10',
+    sourcePortal: 'Hoc10',
+  },
+  {
+    id: 'link-ctst-6-t1',
+    title: 'Toán 6 — Tập 1 (Chân trời sáng tạo)',
+    series: 'chan_troi_sang_tao',
+    seriesName: 'Chân trời sáng tạo',
+    grade: '6',
+    volume: 1,
+    publisher: 'NXB Giáo dục Việt Nam',
+    url: 'https://hanhtrangso.nxbgd.vn/sach-dien-tu/toan-6-tap-mot-chan-troi-sang-tao-10252.html',
+    badge: 'Chính thống NXBGD',
+    sourcePortal: 'Hành Trang Số',
+  },
+  {
+    id: 'link-ctst-6-t2',
+    title: 'Toán 6 — Tập 2 (Chân trời sáng tạo)',
+    series: 'chan_troi_sang_tao',
+    seriesName: 'Chân trời sáng tạo',
+    grade: '6',
+    volume: 2,
+    publisher: 'NXB Giáo dục Việt Nam',
+    url: 'https://hanhtrangso.nxbgd.vn/sach-dien-tu/toan-6-tap-hai-chan-troi-sang-tao-10253.html',
+    badge: 'Chính thống NXBGD',
+    sourcePortal: 'Hành Trang Số',
+  },
+  {
+    id: 'link-hoclieu-6',
+    title: 'Cổng học liệu số Toán 6 (Bộ GD&ĐT)',
+    series: 'ket_noi_tri_thuc',
+    seriesName: 'Học liệu GDPT 2018',
+    grade: '6',
+    volume: 1,
+    publisher: 'Bộ Giáo dục & Đào tạo',
+    url: 'https://hoclieu.vn/sach-giao-khoa/toan-6',
+    badge: 'Cổng Bộ GD&ĐT',
+    sourcePortal: 'Bộ GD&ĐT',
+  },
+
+  // --- KHỐI 7 ---
+  {
+    id: 'link-kntt-7-t1',
+    title: 'Toán 7 — Tập 1 (Kết nối tri thức)',
+    series: 'ket_noi_tri_thuc',
+    seriesName: 'Kết nối tri thức với cuộc sống',
+    grade: '7',
+    volume: 1,
+    publisher: 'NXB Giáo dục Việt Nam',
+    url: 'https://hanhtrangso.nxbgd.vn/sach-dien-tu/toan-7-tap-mot-ket-noi-tri-thuc-10280.html',
+    badge: 'Chính thống NXBGD',
+    sourcePortal: 'Hành Trang Số',
+  },
+  {
+    id: 'link-kntt-7-t2',
+    title: 'Toán 7 — Tập 2 (Kết nối tri thức)',
+    series: 'ket_noi_tri_thuc',
+    seriesName: 'Kết nối tri thức với cuộc sống',
+    grade: '7',
+    volume: 2,
+    publisher: 'NXB Giáo dục Việt Nam',
+    url: 'https://hanhtrangso.nxbgd.vn/sach-dien-tu/toan-7-tap-hai-ket-noi-tri-thuc-10281.html',
+    badge: 'Chính thống NXBGD',
+    sourcePortal: 'Hành Trang Số',
+  },
+  {
+    id: 'link-canhdieu-7-t1',
+    title: 'Toán 7 — Tập 1 (Cánh Diều)',
+    series: 'canh_dieu',
+    seriesName: 'Cánh Diều',
+    grade: '7',
+    volume: 1,
+    publisher: 'NXB Đại học Sư phạm / VEPIC',
+    url: 'https://hoc10.vn/doc-sach/SGK-Toan-7-Tap-1/1/52/0',
+    badge: 'Chính thống Hoc10',
+    sourcePortal: 'Hoc10',
+  },
+  {
+    id: 'link-canhdieu-7-t2',
+    title: 'Toán 7 — Tập 2 (Cánh Diều)',
+    series: 'canh_dieu',
+    seriesName: 'Cánh Diều',
+    grade: '7',
+    volume: 2,
+    publisher: 'NXB Đại học Sư phạm / VEPIC',
+    url: 'https://hoc10.vn/doc-sach/SGK-Toan-7-Tap-2/1/53/0',
+    badge: 'Chính thống Hoc10',
+    sourcePortal: 'Hoc10',
+  },
+  {
+    id: 'link-ctst-7-t1',
+    title: 'Toán 7 — Tập 1 (Chân trời sáng tạo)',
+    series: 'chan_troi_sang_tao',
+    seriesName: 'Chân trời sáng tạo',
+    grade: '7',
+    volume: 1,
+    publisher: 'NXB Giáo dục Việt Nam',
+    url: 'https://hanhtrangso.nxbgd.vn/sach-dien-tu/toan-7-tap-mot-chan-troi-sang-tao-10282.html',
+    badge: 'Chính thống NXBGD',
+    sourcePortal: 'Hành Trang Số',
+  },
+  {
+    id: 'link-ctst-7-t2',
+    title: 'Toán 7 — Tập 2 (Chân trời sáng tạo)',
+    series: 'chan_troi_sang_tao',
+    seriesName: 'Chân trời sáng tạo',
+    grade: '7',
+    volume: 2,
+    publisher: 'NXB Giáo dục Việt Nam',
+    url: 'https://hanhtrangso.nxbgd.vn/sach-dien-tu/toan-7-tap-hai-chan-troi-sang-tao-10283.html',
+    badge: 'Chính thống NXBGD',
+    sourcePortal: 'Hành Trang Số',
+  },
+  {
+    id: 'link-hoclieu-7',
+    title: 'Cổng học liệu số Toán 7 (Bộ GD&ĐT)',
+    series: 'ket_noi_tri_thuc',
+    seriesName: 'Học liệu GDPT 2018',
+    grade: '7',
+    volume: 1,
+    publisher: 'Bộ Giáo dục & Đào tạo',
+    url: 'https://hoclieu.vn/sach-giao-khoa/toan-7',
+    badge: 'Cổng Bộ GD&ĐT',
+    sourcePortal: 'Bộ GD&ĐT',
+  },
+
+  // --- KHỐI 8 ---
+  {
+    id: 'link-kntt-8-t1',
+    title: 'Toán 8 — Tập 1 (Kết nối tri thức)',
+    series: 'ket_noi_tri_thuc',
+    seriesName: 'Kết nối tri thức với cuộc sống',
+    grade: '8',
+    volume: 1,
+    publisher: 'NXB Giáo dục Việt Nam',
+    url: 'https://hanhtrangso.nxbgd.vn/sach-dien-tu/toan-8-tap-mot-ket-noi-tri-thuc-10310.html',
+    badge: 'Chính thống NXBGD',
+    sourcePortal: 'Hành Trang Số',
+  },
+  {
+    id: 'link-kntt-8-t2',
+    title: 'Toán 8 — Tập 2 (Kết nối tri thức)',
+    series: 'ket_noi_tri_thuc',
+    seriesName: 'Kết nối tri thức với cuộc sống',
+    grade: '8',
+    volume: 2,
+    publisher: 'NXB Giáo dục Việt Nam',
+    url: 'https://hanhtrangso.nxbgd.vn/sach-dien-tu/toan-8-tap-hai-ket-noi-tri-thuc-10311.html',
+    badge: 'Chính thống NXBGD',
+    sourcePortal: 'Hành Trang Số',
+  },
+  {
+    id: 'link-canhdieu-8-t1',
+    title: 'Toán 8 — Tập 1 (Cánh Diều)',
+    series: 'canh_dieu',
+    seriesName: 'Cánh Diều',
+    grade: '8',
+    volume: 1,
+    publisher: 'NXB Đại học Sư phạm / VEPIC',
+    url: 'https://hoc10.vn/doc-sach/SGK-Toan-8-Tap-1/1/94/0',
+    badge: 'Chính thống Hoc10',
+    sourcePortal: 'Hoc10',
+  },
+  {
+    id: 'link-canhdieu-8-t2',
+    title: 'Toán 8 — Tập 2 (Cánh Diều)',
+    series: 'canh_dieu',
+    seriesName: 'Cánh Diều',
+    grade: '8',
+    volume: 2,
+    publisher: 'NXB Đại học Sư phạm / VEPIC',
+    url: 'https://hoc10.vn/doc-sach/SGK-Toan-8-Tap-2/1/95/0',
+    badge: 'Chính thống Hoc10',
+    sourcePortal: 'Hoc10',
+  },
+  {
+    id: 'link-ctst-8-t1',
+    title: 'Toán 8 — Tập 1 (Chân trời sáng tạo)',
+    series: 'chan_troi_sang_tao',
+    seriesName: 'Chân trời sáng tạo',
+    grade: '8',
+    volume: 1,
+    publisher: 'NXB Giáo dục Việt Nam',
+    url: 'https://hanhtrangso.nxbgd.vn/sach-dien-tu/toan-8-tap-mot-chan-troi-sang-tao-10312.html',
+    badge: 'Chính thống NXBGD',
+    sourcePortal: 'Hành Trang Số',
+  },
+  {
+    id: 'link-ctst-8-t2',
+    title: 'Toán 8 — Tập 2 (Chân trời sáng tạo)',
+    series: 'chan_troi_sang_tao',
+    seriesName: 'Chân trời sáng tạo',
+    grade: '8',
+    volume: 2,
+    publisher: 'NXB Giáo dục Việt Nam',
+    url: 'https://hanhtrangso.nxbgd.vn/sach-dien-tu/toan-8-tap-hai-chan-troi-sang-tao-10313.html',
+    badge: 'Chính thống NXBGD',
+    sourcePortal: 'Hành Trang Số',
+  },
+  {
+    id: 'link-hoclieu-8',
+    title: 'Cổng học liệu số Toán 8 (Bộ GD&ĐT)',
+    series: 'ket_noi_tri_thuc',
+    seriesName: 'Học liệu GDPT 2018',
+    grade: '8',
+    volume: 1,
+    publisher: 'Bộ Giáo dục & Đào tạo',
+    url: 'https://hoclieu.vn/sach-giao-khoa/toan-8',
+    badge: 'Cổng Bộ GD&ĐT',
+    sourcePortal: 'Bộ GD&ĐT',
+  },
+
+  // --- KHỐI 9 ---
   {
     id: 'link-kntt-9-t1',
-    title: 'Toán 9 — Tập 1 (Kết nối tri thức với cuộc sống)',
+    title: 'Toán 9 — Tập 1 (Kết nối tri thức)',
     series: 'ket_noi_tri_thuc',
     seriesName: 'Kết nối tri thức với cuộc sống',
     grade: '9',
@@ -611,7 +958,7 @@ export const OFFICIAL_SGK_LINKS: OfficialSgkLink[] = [
   },
   {
     id: 'link-kntt-9-t2',
-    title: 'Toán 9 — Tập 2 (Kết nối tri thức với cuộc sống)',
+    title: 'Toán 9 — Tập 2 (Kết nối tri thức)',
     series: 'ket_noi_tri_thuc',
     seriesName: 'Kết nối tri thức với cuộc sống',
     grade: '9',
@@ -671,7 +1018,7 @@ export const OFFICIAL_SGK_LINKS: OfficialSgkLink[] = [
   },
   {
     id: 'link-hoclieu-9',
-    title: 'Cổng học liệu số Toán THCS (Bộ GD&ĐT)',
+    title: 'Cổng học liệu số Toán 9 (Bộ GD&ĐT)',
     series: 'ket_noi_tri_thuc',
     seriesName: 'Học liệu GDPT 2018',
     grade: '9',
@@ -682,6 +1029,30 @@ export const OFFICIAL_SGK_LINKS: OfficialSgkLink[] = [
     sourcePortal: 'Bộ GD&ĐT',
   },
 ];
+
+/**
+ * Returns standard curriculum book for a given grade, volume and series
+ */
+function getStandardBookForGrade(
+  grade: string,
+  volume: 1 | 2,
+  series: 'kntt' | 'canhdieu' | 'ctst' = 'kntt'
+): SgkBook {
+  if (grade === '6') {
+    return volume === 2 ? DEFAULT_SGK_TOAN_6_TAP_2 : DEFAULT_SGK_TOAN_6_TAP_1;
+  }
+  if (grade === '7') {
+    return volume === 2 ? DEFAULT_SGK_TOAN_7_TAP_2 : DEFAULT_SGK_TOAN_7_TAP_1;
+  }
+  if (grade === '8') {
+    return volume === 2 ? DEFAULT_SGK_TOAN_8_TAP_2 : DEFAULT_SGK_TOAN_8_TAP_1;
+  }
+  // Grade 9
+  if (series === 'canhdieu') {
+    return volume === 2 ? DEFAULT_SGK_CANH_DIEU_9_TAP_2 : DEFAULT_SGK_CANH_DIEU_9_TAP_1;
+  }
+  return volume === 2 ? DEFAULT_SGK_TOAN_9_TAP_2 : DEFAULT_SGK_TOAN_9_TAP_1;
+}
 
 /**
  * Recognizes and parses SGK content from a URL or web link
@@ -701,6 +1072,18 @@ export async function recognizeSgkFromUrl(
   }
 
   const normUrl = url.toLowerCase();
+
+  // Detect grade from URL if present, otherwise use preferredGrade
+  let targetGrade = preferredGrade || '9';
+  if (normUrl.includes('toan-6') || normUrl.includes('lop-6') || normUrl.includes('khoi-6') || normUrl.includes('toan-lop-6') || normUrl.includes('sgk-toan-6')) {
+    targetGrade = '6';
+  } else if (normUrl.includes('toan-7') || normUrl.includes('lop-7') || normUrl.includes('khoi-7') || normUrl.includes('toan-lop-7') || normUrl.includes('sgk-toan-7')) {
+    targetGrade = '7';
+  } else if (normUrl.includes('toan-8') || normUrl.includes('lop-8') || normUrl.includes('khoi-8') || normUrl.includes('toan-lop-8') || normUrl.includes('sgk-toan-8')) {
+    targetGrade = '8';
+  } else if (normUrl.includes('toan-9') || normUrl.includes('lop-9') || normUrl.includes('khoi-9') || normUrl.includes('toan-lop-9') || normUrl.includes('sgk-toan-9')) {
+    targetGrade = '9';
+  }
 
   // 1. Detect if URL matches recognized official sources (Hành Trang Số, Hoc10, NXBGD)
   const isHoc10 = normUrl.includes('hoc10.vn') || normUrl.includes('canh-dieu') || normUrl.includes('canhdieu');
@@ -724,26 +1107,35 @@ export async function recognizeSgkFromUrl(
 
   // If matches Cánh Diều (Hoc10.vn)
   if (isHoc10) {
-    const baseBook = targetVolume === 2 ? DEFAULT_SGK_CANH_DIEU_9_TAP_2 : DEFAULT_SGK_CANH_DIEU_9_TAP_1;
+    const baseBook = getStandardBookForGrade(targetGrade, targetVolume, 'canhdieu');
+    const title = `SGK Toán ${targetGrade} — Tập ${targetVolume} (Bộ Cánh Diều - VEPIC / Hoc10.vn)`;
     return {
       book: {
         ...baseBook,
         id: `sgk-url-${Date.now()}`,
+        title,
+        grade: targetGrade,
+        volume: targetVolume,
+        series: 'canh_dieu',
+        publisher: 'NXB Đại học Sư phạm / VEPIC (Hoc10.vn)',
         sourceFileName: url,
         uploadedAt: new Date().toISOString(),
       },
       sourceType: 'official_presynced',
-      message: `Đã tự động nhận diện từ cổng Hoc10.vn: ${baseBook.title} theo chuẩn GDPT 2018.`,
+      message: `Đã tự động nhận diện từ cổng Hoc10.vn: ${title} theo chuẩn GDPT 2018.`,
     };
   }
 
   // If matches Kết nối tri thức (Hành Trang Số - NXBGD)
   if (isKntt) {
-    const baseBook = targetVolume === 2 ? DEFAULT_SGK_TOAN_9_TAP_2 : DEFAULT_SGK_TOAN_9_TAP_1;
+    const baseBook = getStandardBookForGrade(targetGrade, targetVolume, 'kntt');
     return {
       book: {
         ...baseBook,
         id: `sgk-url-${Date.now()}`,
+        grade: targetGrade,
+        volume: targetVolume,
+        series: 'ket_noi_tri_thuc',
         sourceFileName: url,
         uploadedAt: new Date().toISOString(),
       },
@@ -754,19 +1146,21 @@ export async function recognizeSgkFromUrl(
 
   // If matches Chân Trời Sáng Tạo (NXBGD)
   if (isChanTroi) {
-    const baseBook = targetVolume === 2 ? DEFAULT_SGK_TOAN_9_TAP_2 : DEFAULT_SGK_TOAN_9_TAP_1;
+    const baseBook = getStandardBookForGrade(targetGrade, targetVolume, 'ctst');
     return {
       book: {
         ...baseBook,
         id: `sgk-url-${Date.now()}`,
-        title: `SGK Toán ${preferredGrade} — Tập ${targetVolume} (Bộ Chân Trời Sáng Tạo - NXB Giáo Dục)`,
+        title: `SGK Toán ${targetGrade} — Tập ${targetVolume} (Bộ Chân Trời Sáng Tạo - NXB Giáo Dục)`,
         series: 'chan_troi_sang_tao',
+        grade: targetGrade,
+        volume: targetVolume,
         publisher: 'NXB Giáo Dục Việt Nam (Hành Trang Số)',
         sourceFileName: url,
         uploadedAt: new Date().toISOString(),
       },
       sourceType: 'official_presynced',
-      message: `Đã tự động nhận diện sách Bộ Chân Trời Sáng Tạo từ Hành Trang Số: Tập ${targetVolume}.`,
+      message: `Đã tự động nhận diện sách Bộ Chân Trời Sáng Tạo từ Hành Trang Số: Lớp ${targetGrade}, Tập ${targetVolume}.`,
     };
   }
 
@@ -778,7 +1172,7 @@ export async function recognizeSgkFromUrl(
       body: JSON.stringify({
         url,
         volume: targetVolume,
-        grade: preferredGrade,
+        grade: targetGrade,
       }),
     });
 
@@ -786,27 +1180,32 @@ export async function recognizeSgkFromUrl(
       const data = await res.json();
       if (data.book && data.book.chapters && data.book.chapters.length > 0) {
         return {
-          book: data.book,
+          book: {
+            ...data.book,
+            grade: targetGrade,
+            volume: targetVolume,
+          },
           sourceType: 'server_ai_extracted',
           message: `Đã đọc và trích xuất thành công ${data.book.chapters.length} chương, ${data.book.chapters.reduce(
             (acc: number, c: any) => acc + (c.lessons?.length || 0),
             0
-          )} bài học từ link.`,
+          )} bài học Toán ${targetGrade} từ link.`,
         };
       }
 
       if (data.extractedText && data.extractedText.length > 50) {
-        const parsedFromText = parseSgkFromText(data.extractedText, data.pageTitle || url, targetVolume);
+        const parsedFromText = parseSgkFromText(data.extractedText, data.pageTitle || url, targetVolume, targetGrade);
         if (parsedFromText.chapters.length > 0 && parsedFromText.chapters.some((c) => c.lessons.length > 0)) {
           return {
             book: {
               ...parsedFromText,
-              title: data.pageTitle || `SGK Toán ${preferredGrade} (Trích xuất từ Web)`,
+              title: data.pageTitle || `SGK Toán ${targetGrade} (Trích xuất từ Web)`,
+              grade: targetGrade,
               sourceFileName: url,
               publisher: 'Trích xuất từ liên kết web',
             },
             sourceType: 'web_extracted',
-            message: `Đã phân tích nội dung trang web và tạo danh mục bài học SGK thành công.`,
+            message: `Đã phân tích nội dung trang web và tạo danh mục bài học SGK Toán ${targetGrade} thành công.`,
           };
         }
       }
@@ -816,17 +1215,19 @@ export async function recognizeSgkFromUrl(
   }
 
   // 3. Fallback: Intelligent curriculum match based on grade and volume
-  const fallbackBook = targetVolume === 2 ? DEFAULT_SGK_TOAN_9_TAP_2 : DEFAULT_SGK_TOAN_9_TAP_1;
+  const fallbackBook = getStandardBookForGrade(targetGrade, targetVolume, 'kntt');
   return {
     book: {
       ...fallbackBook,
       id: `sgk-custom-${Date.now()}`,
-      title: `SGK Toán ${preferredGrade} — Tập ${targetVolume} (${url.split('/')[2] || 'Trang web'})`,
+      title: `SGK Toán ${targetGrade} — Tập ${targetVolume} (${url.split('/')[2] || 'Học liệu web'})`,
+      grade: targetGrade,
+      volume: targetVolume,
       sourceFileName: url,
       uploadedAt: new Date().toISOString(),
     },
     sourceType: 'official_presynced',
-    message: `Đã kết nối đường link và đồng bộ danh mục theo chuẩn Chương trình GDPT 2018 (Tập ${targetVolume}).`,
+    message: `Đã kết nối đường link và đồng bộ danh mục SGK Toán ${targetGrade} theo chuẩn Chương trình GDPT 2018 (Tập ${targetVolume}).`,
   };
 }
 

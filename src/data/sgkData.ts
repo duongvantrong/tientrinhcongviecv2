@@ -1,4 +1,16 @@
 import { SgkBook, SgkChapter, SgkLesson } from '../types';
+import { DEFAULT_SGK_TOAN_6_TAP_1, DEFAULT_SGK_TOAN_6_TAP_2 } from './sgkGrade6Data';
+import { DEFAULT_SGK_TOAN_7_TAP_1, DEFAULT_SGK_TOAN_7_TAP_2 } from './sgkGrade7Data';
+import { DEFAULT_SGK_TOAN_8_TAP_1, DEFAULT_SGK_TOAN_8_TAP_2 } from './sgkGrade8Data';
+
+export {
+  DEFAULT_SGK_TOAN_6_TAP_1,
+  DEFAULT_SGK_TOAN_6_TAP_2,
+  DEFAULT_SGK_TOAN_7_TAP_1,
+  DEFAULT_SGK_TOAN_7_TAP_2,
+  DEFAULT_SGK_TOAN_8_TAP_1,
+  DEFAULT_SGK_TOAN_8_TAP_2,
+};
 
 export const DEFAULT_SGK_TOAN_9_TAP_1: SgkBook = {
   id: 'sgk-toan-9-tap-1',
@@ -865,6 +877,12 @@ export const DEFAULT_SGK_CANH_DIEU_9_TAP_2: SgkBook = {
 };
 
 export const INITIAL_SGK_BOOKS: SgkBook[] = [
+  DEFAULT_SGK_TOAN_6_TAP_1,
+  DEFAULT_SGK_TOAN_6_TAP_2,
+  DEFAULT_SGK_TOAN_7_TAP_1,
+  DEFAULT_SGK_TOAN_7_TAP_2,
+  DEFAULT_SGK_TOAN_8_TAP_1,
+  DEFAULT_SGK_TOAN_8_TAP_2,
   DEFAULT_SGK_TOAN_9_TAP_1,
   DEFAULT_SGK_TOAN_9_TAP_2,
   DEFAULT_SGK_CANH_DIEU_9_TAP_1,
