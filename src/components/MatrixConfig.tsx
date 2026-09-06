@@ -18,13 +18,24 @@ import {
   BookOpen,
   BookMarked,
   ListOrdered,
+  Filter,
+  ShieldCheck,
+  AlertTriangle,
+  XCircle,
 } from 'lucide-react';
 import { MatrixConfig, ExamEvent, PpctDataset, PpctLesson, SgkBook } from '../types';
+import { checkNonTestableContent, cleanLessonTopic } from '../utils/dateCalculations';
 
 interface MatrixConfigProps {
   config: MatrixConfig;
   exams: ExamEvent[];
   activePpct: PpctDataset;
+  datasets?: PpctDataset[];
+  matchingPpct?: PpctDataset | null;
+  hasMatchingPpct?: boolean;
+  onGradeOrClassChange?: (grade: string, className?: string) => void;
+  onOpenUploadModal?: (grade?: string) => void;
+  onLoadSampleGrade?: (grade: string) => void;
   sgkBooks?: SgkBook[];
   onChange: (updated: Partial<MatrixConfig>) => void;
   onGenerateFromPpct: () => void;
@@ -37,6 +48,12 @@ export const MatrixConfigSection: React.FC<MatrixConfigProps> = ({
   config,
   exams,
   activePpct,
+  datasets = [],
+  matchingPpct,
+  hasMatchingPpct = true,
+  onGradeOrClassChange,
+  onOpenUploadModal,
+  onLoadSampleGrade,
   sgkBooks = [],
   onChange,
   onGenerateFromPpct,
@@ -46,9 +63,11 @@ export const MatrixConfigSection: React.FC<MatrixConfigProps> = ({
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [showLessonSelector, setShowLessonSelector] = useState(false);
+  const [lessonFilterTab, setLessonFilterTab] = useState<'testable' | 'all' | 'excluded'>('testable');
 
   const weekFrom = config.limitWeekFrom || 1;
   const weekTo = config.limitWeekTo || 9;
+  const excludeNonTestable = config.excludeNonTestable !== false;
 
   // Determine active SGK Book based on config or term
   const activeVolume = weekFrom >= 19 ? 2 : (weekTo <= 18 ? 1 : 'all');
@@ -67,36 +86,73 @@ export const MatrixConfigSection: React.FC<MatrixConfigProps> = ({
   };
 
   // Extract all lessons in the range [weekFrom, weekTo] and optionally limitPeriodTo
-  const lessonsInWeekRange = activePpct.lessons.filter((l) => {
-    if (l.tuan < weekFrom || l.tuan > weekTo) return false;
-    if (config.limitPeriodTo && l.tietPPCT && l.tietPPCT > config.limitPeriodTo) return false;
-    return true;
-  });
+  // Only extract lessons if matching PPCT exists for the selected grade/class
+  const lessonsInWeekRange = (hasMatchingPpct && activePpct?.lessons)
+    ? activePpct.lessons.filter((l) => {
+        if (l.tuan < weekFrom || l.tuan > weekTo) return false;
+        if (config.limitPeriodTo && l.tietPPCT && l.tietPPCT > config.limitPeriodTo) return false;
+        return true;
+      })
+    : [];
 
-  // Calculate distinct topics / units in range
-  const lessonKeysInRange = Array.from(
+  // Calculate distinct topics / units in range with cleaned topic name
+  const lessonKeysInRange: string[] = Array.from(
     new Set(
-      lessonsInWeekRange.map((l) => `${l.chuong}:::${l.baiHoc.replace(/\(t\d+\)/g, '').trim()}`)
+      lessonsInWeekRange.map((l) => {
+        const cleaned = cleanLessonTopic(l.baiHoc);
+        return `${l.chuong}:::${cleaned}`;
+      })
     )
   );
 
-  // Filter based on selectedLessonKeys if user customized
-  const activeSelectedKeys = config.selectedLessonKeys ?? lessonKeysInRange;
+  // Distinguish testable knowledge topics from non-testable content (Kiểm tra, Trả bài, Trải nghiệm, Phần mềm, Ôn tập kiểm tra...)
+  const testableKeysInRange: string[] = lessonKeysInRange.filter((key) => {
+    const [chapter, topic] = key.split(':::');
+    return !checkNonTestableContent(topic, chapter).isNonTestable;
+  });
+
+  const nonTestableKeysInRange: string[] = lessonKeysInRange.filter((key) => {
+    const [chapter, topic] = key.split(':::');
+    return checkNonTestableContent(topic, chapter).isNonTestable;
+  });
+
+  // Calculate non-testable lesson periods count and reasons
+  const nonTestableLessons = lessonsInWeekRange.filter((l) => {
+    const check = checkNonTestableContent(l.baiHoc, l.chuong);
+    return check.isNonTestable;
+  });
+  const excludedPeriodsCount = nonTestableLessons.reduce((sum, l) => sum + (l.soTiet || 1), 0);
+
+  // Active selected keys: default to testableKeysInRange when excludeNonTestable is active
+  const defaultKeys = excludeNonTestable ? testableKeysInRange : lessonKeysInRange;
+  const activeSelectedKeys = config.selectedLessonKeys ?? defaultKeys;
   
   const effectiveLessons = lessonsInWeekRange.filter((l) => {
-    const key = `${l.chuong}:::${l.baiHoc.replace(/\(t\d+\)/g, '').trim()}`;
-    return activeSelectedKeys.includes(key);
+    const cleaned = cleanLessonTopic(l.baiHoc);
+    const key = `${l.chuong}:::${cleaned}`;
+    const rawKey = `${l.chuong}:::${l.baiHoc.replace(/\(t\d+\)/g, '').trim()}`;
+    return activeSelectedKeys.includes(key) || activeSelectedKeys.includes(rawKey);
   });
 
   const totalPeriodsInScope = effectiveLessons.reduce((sum, l) => sum + (l.soTiet || 1), 0);
 
   // Group lessons by Chapter for the lesson selector modal/accordion
-  const chapterGroups = new Map<string, { key: string; topic: string; lessonList: PpctLesson[]; periods: number }[]>();
+  interface TopicGroupItem {
+    key: string;
+    topic: string;
+    rawTopic: string;
+    lessonList: PpctLesson[];
+    periods: number;
+    check: ReturnType<typeof checkNonTestableContent>;
+  }
+
+  const chapterGroups = new Map<string, TopicGroupItem[]>();
   
   lessonsInWeekRange.forEach((l) => {
-    const topicName = l.baiHoc.replace(/\(t\d+\)/g, '').trim();
-    const key = `${l.chuong}:::${topicName}`;
+    const cleanedTopic = cleanLessonTopic(l.baiHoc);
+    const key = `${l.chuong}:::${cleanedTopic}`;
     const chapterName = l.chuong;
+    const check = checkNonTestableContent(l.baiHoc, l.chuong);
 
     const list = chapterGroups.get(chapterName) || [];
     const existing = list.find((item) => item.key === key);
@@ -106,9 +162,11 @@ export const MatrixConfigSection: React.FC<MatrixConfigProps> = ({
     } else {
       list.push({
         key,
-        topic: topicName,
+        topic: cleanedTopic,
+        rawTopic: l.baiHoc,
         lessonList: [l],
         periods: (l.soTiet || 1),
+        check,
       });
       chapterGroups.set(chapterName, list);
     }
@@ -128,8 +186,28 @@ export const MatrixConfigSection: React.FC<MatrixConfigProps> = ({
     onChange({ selectedLessonKeys: lessonKeysInRange });
   };
 
+  const handleSelectOnlyTestableLessons = () => {
+    onChange({ selectedLessonKeys: testableKeysInRange, excludeNonTestable: true });
+  };
+
   const handleDeselectAllLessons = () => {
     onChange({ selectedLessonKeys: [] });
+  };
+
+  const handleToggleExcludeNonTestable = (enabled: boolean) => {
+    if (enabled) {
+      // Switch ON: filter out non-testable keys
+      onChange({
+        excludeNonTestable: true,
+        selectedLessonKeys: testableKeysInRange,
+      });
+    } else {
+      // Switch OFF: include all keys
+      onChange({
+        excludeNonTestable: false,
+        selectedLessonKeys: lessonKeysInRange,
+      });
+    }
   };
 
   const ratioPresets = [
@@ -211,13 +289,34 @@ export const MatrixConfigSection: React.FC<MatrixConfigProps> = ({
 
         {/* Grade & Subject Auto-Sync Indicator & SGK Integration Badge */}
         <div className="flex flex-wrap items-center gap-2">
-          <div className="flex items-center gap-2 bg-emerald-50/80 border border-emerald-200 rounded-lg px-3 py-1.5 text-xs text-emerald-900">
-            <Bookmark className="w-3.5 h-3.5 text-emerald-700" />
-            <span>PPCT:</span>
-            <strong className="font-semibold text-emerald-950">
-              Môn {activePpct.subject} — Khối {activePpct.grade}
-            </strong>
-          </div>
+          {hasMatchingPpct ? (
+            <div className="flex items-center gap-2 bg-emerald-50/90 border border-emerald-300 rounded-lg px-3 py-1.5 text-xs text-emerald-900 shadow-2xs">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700" />
+              <span>PPCT:</span>
+              <strong className="font-semibold text-emerald-950">
+                Môn {activePpct.subject} — Khối {config.grade}{config.className ? ` (Lớp ${config.className})` : ''}
+              </strong>
+              <span className="text-[10px] bg-emerald-200/80 text-emerald-900 font-bold px-1.5 py-0.2 rounded">
+                {activePpct.totalLessons || 140} tiết
+              </span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 bg-amber-50 border border-amber-300 rounded-lg px-3 py-1.5 text-xs text-amber-950 shadow-2xs">
+              <AlertTriangle className="w-3.5 h-3.5 text-amber-600 animate-pulse" />
+              <span className="font-bold text-amber-900">
+                Chưa tải lên PPCT Khối {config.grade}{config.className ? ` (${config.className})` : ''}
+              </span>
+              {onOpenUploadModal && (
+                <button
+                  type="button"
+                  onClick={() => onOpenUploadModal(config.grade)}
+                  className="px-2 py-0.5 bg-amber-700 hover:bg-amber-800 text-white rounded text-[11px] font-bold transition-colors"
+                >
+                  Tải lên
+                </button>
+              )}
+            </div>
+          )}
 
           {onOpenFullPpct && (
             <button
@@ -240,22 +339,70 @@ export const MatrixConfigSection: React.FC<MatrixConfigProps> = ({
             <BookMarked className="w-3.5 h-3.5 text-teal-700 group-hover:scale-110 transition-transform" />
             <span>SGK bám sát:</span>
             <strong className="font-bold text-teal-900 underline decoration-teal-400">
-              {matchedSgkBook ? `${matchedSgkBook.title} (Tập ${matchedSgkBook.volume})` : 'Toán 9 (Tập 1 & 2)'}
+              {matchedSgkBook ? `${matchedSgkBook.title} (Tập ${matchedSgkBook.volume})` : `Toán ${config.grade} (Tập 1 & 2)`}
             </strong>
           </button>
         </div>
       </div>
 
-      {/* Row 1: Thông tin hành chính (Trường, Môn, Khối, Năm học, Đợt kiểm tra, Thời gian) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3 mb-4 text-xs">
+      {/* Warning Notice Banner if Matching PPCT is Missing */}
+      {!hasMatchingPpct && (
+        <div className="bg-gradient-to-r from-amber-50 via-orange-50/70 to-amber-50 border-2 border-amber-300 rounded-xl p-4 mb-4 text-amber-950 shadow-xs">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+            <div className="flex items-start gap-3">
+              <div className="p-2.5 bg-amber-100 border border-amber-300 rounded-xl text-amber-800 shrink-0 mt-0.5">
+                <AlertTriangle className="w-5 h-5 text-amber-700" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-amber-950 flex items-center gap-2">
+                  <span>Chưa tải lên PPCT phù hợp cho Khối {config.grade}{config.className ? ` (Lớp ${config.className})` : ''}</span>
+                  <span className="text-[10px] font-bold bg-amber-200 text-amber-900 px-2 py-0.5 rounded-full border border-amber-300">
+                    Cần tải lên PPCT
+                  </span>
+                </h3>
+                <p className="text-xs text-amber-900/90 mt-1 max-w-2xl leading-relaxed">
+                  Hệ thống chưa tìm thấy Phân phối chương trình môn {config.subject || 'Toán'} cho Khối {config.grade}{config.className ? ` (Lớp ${config.className})` : ''}. Để thiết lập ma trận và bảng đặc tả đề kiểm tra bám sát đúng tiến độ và nội dung bài học, thầy cô vui lòng tải lên file PPCT (Word .docx hoặc Excel .xlsx) hoặc nạp dữ liệu chuẩn của khối này.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
+              {onOpenUploadModal && (
+                <button
+                  type="button"
+                  onClick={() => onOpenUploadModal(config.grade)}
+                  className="px-3.5 py-2 bg-emerald-800 hover:bg-emerald-900 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs hover:shadow"
+                >
+                  <Upload className="w-3.5 h-3.5 text-emerald-200" />
+                  <span>Tải lên PPCT Khối {config.grade}</span>
+                </button>
+              )}
+              {['6', '7', '8', '9'].includes(String(config.grade).replace(/\D/g, '')) && onLoadSampleGrade && (
+                <button
+                  type="button"
+                  onClick={() => onLoadSampleGrade(config.grade)}
+                  className="px-3.5 py-2 bg-white hover:bg-amber-100/80 text-amber-950 border border-amber-400 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors shadow-2xs"
+                  title="Nạp nhanh bộ PPCT chuẩn Bộ GD&ĐT (140 tiết) để sử dụng ngay"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+                  <span>Nạp mẫu chuẩn BGD Khối {config.grade}</span>
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Row 1: Thông tin hành chính (Trường, Môn, Khối, Lớp, Năm học, Giáo viên, Đợt kiểm tra, Thời gian) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-2.5 mb-4 text-xs">
         <div>
           <label className="block font-medium text-slate-700 mb-1">Trường học</label>
           <input
             type="text"
             value={config.schoolName}
             onChange={(e) => onChange({ schoolName: e.target.value })}
-            placeholder="TRƯỜNG THCS ..."
-            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-800 focus:bg-white focus:ring-1 focus:ring-emerald-600 focus:outline-none"
+            placeholder="TRƯỜNG THCS VÀ THPT PHÚ THÀNH"
+            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 text-slate-800 focus:bg-white focus:ring-1 focus:ring-emerald-600 focus:outline-none"
           />
         </div>
 
@@ -266,7 +413,7 @@ export const MatrixConfigSection: React.FC<MatrixConfigProps> = ({
             value={config.department}
             onChange={(e) => onChange({ department: e.target.value })}
             placeholder="Tổ Toán - Tin"
-            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-800 focus:bg-white focus:ring-1 focus:ring-emerald-600 focus:outline-none"
+            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 text-slate-800 focus:bg-white focus:ring-1 focus:ring-emerald-600 focus:outline-none"
           />
         </div>
 
@@ -277,42 +424,118 @@ export const MatrixConfigSection: React.FC<MatrixConfigProps> = ({
             value={config.subject}
             onChange={(e) => onChange({ subject: e.target.value })}
             placeholder="Toán"
-            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-800 focus:bg-white focus:ring-1 focus:ring-emerald-600 focus:outline-none font-medium"
+            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 text-slate-800 focus:bg-white focus:ring-1 focus:ring-emerald-600 focus:outline-none font-medium"
           />
         </div>
 
+        {/* Khối với chọn nhanh và phát hiện PPCT động */}
         <div>
-          <label className="block font-medium text-slate-700 mb-1">Khối / Lớp</label>
+          <div className="flex items-center justify-between mb-1">
+            <label className="font-medium text-slate-700">Khối</label>
+            <div className="flex items-center gap-1">
+              {['6', '7', '8', '9'].map((k) => (
+                <button
+                  key={k}
+                  type="button"
+                  onClick={() => {
+                    if (onGradeOrClassChange) {
+                      onGradeOrClassChange(k, config.className);
+                    } else {
+                      onChange({ grade: k });
+                    }
+                  }}
+                  className={`px-1 py-0.2 text-[10px] font-bold rounded ${
+                    String(config.grade).replace(/\D/g, '') === k
+                      ? 'bg-emerald-800 text-white'
+                      : 'bg-slate-200 hover:bg-emerald-100 text-slate-700'
+                  }`}
+                  title={`Chuyển sang Khối ${k}`}
+                >
+                  K{k}
+                </button>
+              ))}
+            </div>
+          </div>
+          <select
+            value={config.grade}
+            onChange={(e) => {
+              const newGrade = e.target.value;
+              if (onGradeOrClassChange) {
+                onGradeOrClassChange(newGrade, config.className);
+              } else {
+                onChange({ grade: newGrade });
+              }
+            }}
+            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 text-slate-800 focus:bg-white focus:ring-1 focus:ring-emerald-600 focus:outline-none font-bold text-xs"
+          >
+            <option value="6">Khối 6 (Lớp 6)</option>
+            <option value="7">Khối 7 (Lớp 7)</option>
+            <option value="8">Khối 8 (Lớp 8)</option>
+            <option value="9">Khối 9 (Lớp 9)</option>
+            <option value="10">Khối 10 (Lớp 10)</option>
+            <option value="11">Khối 11 (Lớp 11)</option>
+            <option value="12">Khối 12 (Lớp 12)</option>
+          </select>
+        </div>
+
+        {/* Lớp của khối */}
+        <div>
+          <label className="block font-medium text-slate-700 mb-1 flex items-center justify-between">
+            <span>Lớp của khối</span>
+            <span className="text-[10px] text-slate-400 font-normal">Tùy chọn</span>
+          </label>
           <input
             type="text"
-            value={config.grade}
-            onChange={(e) => onChange({ grade: e.target.value })}
-            placeholder="9"
-            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-800 focus:bg-white focus:ring-1 focus:ring-emerald-600 focus:outline-none font-medium"
+            value={config.className || ''}
+            onChange={(e) => {
+              const newClass = e.target.value;
+              if (onGradeOrClassChange) {
+                onGradeOrClassChange(config.grade, newClass);
+              } else {
+                onChange({ className: newClass });
+              }
+            }}
+            placeholder={`VD: ${config.grade || 9}A1, ${config.grade || 9}A...`}
+            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 text-slate-800 focus:bg-white focus:ring-1 focus:ring-emerald-600 focus:outline-none font-medium"
           />
         </div>
 
         <div>
           <label className="block font-medium text-slate-700 mb-1 flex items-center justify-between">
             <span>Năm học</span>
-            <span className="text-[10px] text-emerald-700 font-semibold">Tùy chỉnh</span>
+            <span className="text-[10px] text-emerald-700 font-semibold">2026-2027</span>
           </label>
           <div className="relative">
             <input
               type="text"
-              value={config.academicYear || '2025 - 2026'}
+              value={config.academicYear || '2026 - 2027'}
               onChange={(e) => onChange({ academicYear: e.target.value })}
-              placeholder="2025 - 2026"
+              placeholder="2026 - 2027"
               list="academic-year-presets"
-              className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-800 focus:bg-white focus:ring-1 focus:ring-emerald-600 focus:outline-none font-medium"
+              className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 text-slate-800 focus:bg-white focus:ring-1 focus:ring-emerald-600 focus:outline-none font-medium"
             />
             <datalist id="academic-year-presets">
-              <option value="2024 - 2025" />
-              <option value="2025 - 2026" />
               <option value="2026 - 2027" />
               <option value="2027 - 2028" />
+              <option value="2028 - 2029" />
+              <option value="2029 - 2030" />
+              <option value="2030 - 2031" />
             </datalist>
           </div>
+        </div>
+
+        <div>
+          <label className="block font-medium text-slate-700 mb-1 flex items-center justify-between">
+            <span>Người lập / GV</span>
+            <span className="text-[10px] text-slate-400 font-normal">Ký tên</span>
+          </label>
+          <input
+            type="text"
+            value={config.teacherName || 'Dương Văn Trong'}
+            onChange={(e) => onChange({ teacherName: e.target.value })}
+            placeholder="Dương Văn Trong"
+            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 text-slate-800 focus:bg-white focus:ring-1 focus:ring-emerald-600 focus:outline-none font-medium"
+          />
         </div>
 
         <div>
@@ -322,7 +545,7 @@ export const MatrixConfigSection: React.FC<MatrixConfigProps> = ({
             value={config.examDuration}
             onChange={(e) => onChange({ examDuration: e.target.value })}
             placeholder="90 phút"
-            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-800 focus:bg-white focus:ring-1 focus:ring-emerald-600 focus:outline-none"
+            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 text-slate-800 focus:bg-white focus:ring-1 focus:ring-emerald-600 focus:outline-none"
           />
         </div>
       </div>
@@ -565,6 +788,71 @@ export const MatrixConfigSection: React.FC<MatrixConfigProps> = ({
         </div>
       </div>
 
+      {/* Row 2.5: TÙY CHỈNH NỘI DUNG RA ĐỀ (LOẠI TRỪ NỘI DUNG KHÔNG CẦN THIẾT) */}
+      <div className="mb-4 bg-gradient-to-r from-teal-50/90 via-emerald-50/70 to-slate-50 border border-teal-200/80 rounded-xl p-3.5 text-xs shadow-2xs">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <div className="flex items-start gap-2.5">
+            <div className={`p-2 rounded-lg mt-0.5 ${excludeNonTestable ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-600'}`}>
+              <ShieldCheck className="w-4 h-4" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-bold text-slate-800 text-sm">
+                  Tự động loại bỏ nội dung không cần thiết ra đề
+                </span>
+                <span className={`px-2 py-0.5 rounded-full text-[10.5px] font-semibold flex items-center gap-1 ${
+                  excludeNonTestable
+                    ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                    : 'bg-slate-200 text-slate-700'
+                }`}>
+                  {excludeNonTestable ? 'ĐANG BẬT (Khuyến nghị)' : 'ĐANG TẮT'}
+                </span>
+              </div>
+              <p className="text-[11.5px] text-slate-600 mt-0.5 leading-relaxed">
+                Không thiết lập vào ma trận các tiết: <strong>Kiểm tra định kỳ/thường xuyên</strong>, <strong>Trả bài kiểm tra</strong>, <strong>Hoạt động thực hành & trải nghiệm</strong>, <strong>Thực hành phần mềm</strong>, <strong>Ôn tập kiểm tra chung</strong>.
+              </p>
+              {excludeNonTestable && nonTestableKeysInRange.length > 0 && (
+                <div className="mt-1.5 flex items-center gap-1.5 text-[11px] text-emerald-900 font-medium">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
+                  <span>
+                    Đã tự động loại trừ <strong>{nonTestableKeysInRange.length} nội dung</strong> ({excludedPeriodsCount} tiết) khỏi ma trận đề thi.
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 flex-shrink-0 self-end md:self-center">
+            <button
+              type="button"
+              onClick={() => handleToggleExcludeNonTestable(!excludeNonTestable)}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:ring-offset-1 ${
+                excludeNonTestable ? 'bg-emerald-700' : 'bg-slate-300'
+              }`}
+              title={excludeNonTestable ? 'Nhấn để tắt lọc tự động' : 'Nhấn để bật lọc tự động'}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                  excludeNonTestable ? 'translate-x-6' : 'translate-x-1'
+                }`}
+              />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setShowLessonSelector(true);
+                setLessonFilterTab('testable');
+              }}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-emerald-50 text-emerald-900 border border-emerald-300 rounded-lg text-xs font-semibold transition-colors shadow-2xs"
+            >
+              <ListFilter className="w-3.5 h-3.5 text-emerald-700" />
+              <span>Xem & Tùy chọn bài học ({activeSelectedKeys.length}/{lessonKeysInRange.length})</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
       {/* COLLAPSIBLE LESSON SELECTOR: CHO PHÉP CHỌN / LỌC TỪNG BÀI HỌC CỤ THỂ TRONG PHẠM VI TUẦN */}
       {showLessonSelector && (
         <div className="mb-4 bg-emerald-50/40 border border-emerald-200 rounded-xl p-4 text-xs animate-in fade-in duration-150">
@@ -575,11 +863,20 @@ export const MatrixConfigSection: React.FC<MatrixConfigProps> = ({
                 <span>Danh sách bài học trong phạm vi (Tuần {weekFrom} đến {weekTo})</span>
               </h3>
               <p className="text-[11px] text-slate-500">
-                Tích chọn hoặc bỏ chọn từng bài học để điều chỉnh chính xác theo tình hình thực tế lớp học (giảm tải, chưa dạy kịp, v.v.)
+                Tích chọn hoặc bỏ chọn từng bài học để điều chỉnh chính xác theo tình hình thực tế lớp học.
               </p>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                type="button"
+                onClick={handleSelectOnlyTestableLessons}
+                className="flex items-center gap-1 px-2.5 py-1 bg-emerald-700 hover:bg-emerald-800 text-white rounded text-[11px] font-semibold transition-colors shadow-2xs"
+                title="Chỉ chọn những bài học có kiến thức trọng tâm để ra đề thi"
+              >
+                <CheckSquare className="w-3 h-3" />
+                <span>Chỉ chọn nội dung ra đề ({testableKeysInRange.length})</span>
+              </button>
               <button
                 type="button"
                 onClick={handleSelectAllLessons}
@@ -599,54 +896,156 @@ export const MatrixConfigSection: React.FC<MatrixConfigProps> = ({
             </div>
           </div>
 
-          {/* Chapters and lessons accordion grid */}
-          <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
-            {Array.from(chapterGroups.entries()).map(([chapterName, topics]) => (
-              <div key={chapterName} className="bg-white rounded-lg border border-slate-200 p-3 shadow-2xs">
-                <h4 className="font-semibold text-emerald-950 text-xs mb-2 pb-1 border-b border-slate-100 flex items-center justify-between">
-                  <span>{chapterName}</span>
-                  <span className="text-[10px] text-slate-400 font-normal">
-                    {topics.reduce((sum, t) => sum + t.periods, 0)} tiết
-                  </span>
-                </h4>
+          {/* Filter Tabs for Lesson Selector */}
+          <div className="flex items-center gap-2 mb-3 pb-2 border-b border-emerald-200/60">
+            <span className="text-[11px] text-slate-500 font-medium mr-1">Bộ lọc hiển thị:</span>
+            <button
+              type="button"
+              onClick={() => setLessonFilterTab('testable')}
+              className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-colors flex items-center gap-1.5 ${
+                lessonFilterTab === 'testable'
+                  ? 'bg-emerald-700 text-white shadow-2xs'
+                  : 'bg-white text-slate-700 hover:bg-emerald-50 border border-slate-200'
+              }`}
+            >
+              <span>🎯 Trọng tâm ra đề</span>
+              <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
+                lessonFilterTab === 'testable' ? 'bg-emerald-800 text-emerald-100' : 'bg-slate-100 text-slate-600'
+              }`}>
+                {testableKeysInRange.length}
+              </span>
+            </button>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                  {topics.map((topicItem) => {
-                    const isChecked = activeSelectedKeys.includes(topicItem.key);
-                    const weekNumbers = Array.from(new Set(topicItem.lessonList.map((l) => l.tuan))).join(', ');
-                    return (
-                      <label
-                        key={topicItem.key}
-                        onClick={() => handleToggleLessonKey(topicItem.key)}
-                        className={`flex items-start gap-2.5 p-2 rounded-lg border cursor-pointer transition-colors ${
-                          isChecked
-                            ? 'bg-emerald-50/80 border-emerald-300 text-emerald-950'
-                            : 'bg-slate-50/50 border-slate-200 text-slate-400 opacity-70'
-                        }`}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={isChecked}
-                          onChange={() => {}} // handled by label
-                          className="mt-0.5 accent-emerald-700 rounded"
-                        />
-                        <div className="flex-1 min-w-0">
-                          <span className="font-medium text-xs block leading-snug">
-                            {topicItem.topic}
-                          </span>
-                          <div className="flex items-center gap-2 mt-0.5 text-[10px] text-slate-500">
-                            <span>Tuần: {weekNumbers}</span>
-                            <span>•</span>
-                            <span>Thời lượng: {topicItem.periods} tiết</span>
-                          </div>
-                        </div>
-                      </label>
-                    );
-                  })}
-                </div>
-              </div>
-            ))}
+            <button
+              type="button"
+              onClick={() => setLessonFilterTab('all')}
+              className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-colors flex items-center gap-1.5 ${
+                lessonFilterTab === 'all'
+                  ? 'bg-emerald-700 text-white shadow-2xs'
+                  : 'bg-white text-slate-700 hover:bg-emerald-50 border border-slate-200'
+              }`}
+            >
+              <span>Tất cả bài học</span>
+              <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
+                lessonFilterTab === 'all' ? 'bg-emerald-800 text-emerald-100' : 'bg-slate-100 text-slate-600'
+              }`}>
+                {lessonKeysInRange.length}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setLessonFilterTab('excluded')}
+              className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-colors flex items-center gap-1.5 ${
+                lessonFilterTab === 'excluded'
+                  ? 'bg-amber-700 text-white shadow-2xs'
+                  : 'bg-white text-slate-700 hover:bg-amber-50 border border-slate-200'
+              }`}
+            >
+              <span>🚫 Nội dung loại trừ</span>
+              <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
+                lessonFilterTab === 'excluded' ? 'bg-amber-800 text-amber-100' : 'bg-slate-100 text-slate-600'
+              }`}>
+                {nonTestableKeysInRange.length}
+              </span>
+            </button>
           </div>
+
+          {/* Chapters and lessons accordion grid */}
+          {!hasMatchingPpct || Array.from(chapterGroups.entries()).length === 0 ? (
+            <div className="bg-white rounded-lg border border-amber-200 p-6 text-center text-slate-700 shadow-2xs">
+              <AlertTriangle className="w-8 h-8 text-amber-500 mx-auto mb-2" />
+              <h4 className="font-bold text-slate-800 text-sm">
+                Chưa có dữ liệu bài học PPCT cho Khối {config.grade}{config.className ? ` (Lớp ${config.className})` : ''}
+              </h4>
+              <p className="text-xs text-slate-500 mt-1 mb-3 max-w-md mx-auto">
+                Vui lòng tải lên file Phân phối chương trình môn {config.subject || 'Toán'} hoặc nạp mẫu chuẩn để hệ thống hiển thị danh mục bài học chi tiết.
+              </p>
+              {onOpenUploadModal && (
+                <button
+                  type="button"
+                  onClick={() => onOpenUploadModal(config.grade)}
+                  className="px-3.5 py-1.5 bg-emerald-800 hover:bg-emerald-900 text-white rounded-lg text-xs font-bold inline-flex items-center gap-1.5 shadow-2xs transition-colors"
+                >
+                  <Upload className="w-3.5 h-3.5 text-emerald-200" />
+                  <span>Tải lên PPCT Khối {config.grade}</span>
+                </button>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
+              {Array.from(chapterGroups.entries()).map(([chapterName, topics]) => {
+                const filteredTopics = topics.filter((t) => {
+                  if (lessonFilterTab === 'testable') return !t.check.isNonTestable;
+                  if (lessonFilterTab === 'excluded') return t.check.isNonTestable;
+                  return true;
+                });
+
+                if (filteredTopics.length === 0) return null;
+
+                return (
+                  <div key={chapterName} className="bg-white rounded-lg border border-slate-200 p-3 shadow-2xs">
+                    <h4 className="font-semibold text-emerald-950 text-xs mb-2 pb-1 border-b border-slate-100 flex items-center justify-between">
+                      <span>{chapterName}</span>
+                      <span className="text-[10px] text-slate-400 font-normal">
+                        {filteredTopics.reduce((sum, t) => sum + t.periods, 0)} tiết ({filteredTopics.length} nội dung)
+                      </span>
+                    </h4>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                      {filteredTopics.map((topicItem) => {
+                        const isChecked = activeSelectedKeys.includes(topicItem.key);
+                        const weekNumbers = Array.from(new Set(topicItem.lessonList.map((l) => l.tuan))).join(', ');
+                        const isExcludedType = topicItem.check.isNonTestable;
+
+                        return (
+                          <label
+                            key={topicItem.key}
+                            onClick={() => handleToggleLessonKey(topicItem.key)}
+                            className={`flex items-start gap-2.5 p-2 rounded-lg border cursor-pointer transition-colors ${
+                              isChecked
+                                ? isExcludedType
+                                  ? 'bg-amber-50/70 border-amber-300 text-amber-950'
+                                  : 'bg-emerald-50/80 border-emerald-300 text-emerald-950'
+                                : 'bg-slate-50/50 border-slate-200 text-slate-400 opacity-60'
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={() => {}} // handled by label
+                              className="mt-0.5 accent-emerald-700 rounded"
+                            />
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
+                                <span className="font-medium text-xs leading-snug">
+                                  {topicItem.topic}
+                                </span>
+                                {isExcludedType ? (
+                                  <span className="inline-flex items-center px-1.5 py-0.2 bg-amber-100 text-amber-800 border border-amber-300 rounded text-[9.5px] font-medium">
+                                    🚫 {topicItem.check.reason}
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center px-1.5 py-0.2 bg-emerald-100 text-emerald-800 border border-emerald-200 rounded text-[9.5px] font-medium">
+                                    🎯 Trọng tâm ra đề
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-2 text-[10px] text-slate-500">
+                                <span>Tuần: {weekNumbers}</span>
+                                <span>•</span>
+                                <span>Thời lượng: {topicItem.periods} tiết</span>
+                              </div>
+                            </div>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 
@@ -723,12 +1122,34 @@ export const MatrixConfigSection: React.FC<MatrixConfigProps> = ({
       <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-100">
         <div className="flex flex-wrap items-center gap-2.5">
           <button
-            onClick={onGenerateFromPpct}
-            className="px-4 py-2.5 bg-emerald-800 hover:bg-emerald-900 text-white rounded-lg text-xs font-semibold flex items-center gap-2 transition-all shadow-xs hover:shadow-sm"
-            title="Tự động tính toán số tiết, số điểm và cân bằng số lượng câu hỏi theo PPCT trong phạm vi tuần đã chọn"
+            onClick={() => {
+              if (!hasMatchingPpct && onOpenUploadModal) {
+                onOpenUploadModal(config.grade);
+              } else {
+                onGenerateFromPpct();
+              }
+            }}
+            className={`px-4 py-2.5 rounded-lg text-xs font-semibold flex items-center gap-2 transition-all shadow-xs hover:shadow-sm ${
+              hasMatchingPpct
+                ? 'bg-emerald-800 hover:bg-emerald-900 text-white'
+                : 'bg-amber-700 hover:bg-amber-800 text-white'
+            }`}
+            title={
+              hasMatchingPpct
+                ? `Tự động tính toán số tiết, số điểm và cân bằng số lượng câu hỏi theo PPCT Khối ${config.grade} trong phạm vi tuần đã chọn`
+                : `Chưa có PPCT Khối ${config.grade}. Nhấn để tải lên PPCT phù hợp`
+            }
           >
-            <Sparkles className="w-4 h-4 text-emerald-200 animate-pulse" />
-            <span>Tự động tính & Cân bằng ma trận (Bám sát Tuần {weekFrom}–{weekTo})</span>
+            {hasMatchingPpct ? (
+              <Sparkles className="w-4 h-4 text-emerald-200 animate-pulse" />
+            ) : (
+              <Upload className="w-4 h-4 text-amber-200" />
+            )}
+            <span>
+              {hasMatchingPpct
+                ? `Tự động tính & Cân bằng ma trận (Bám sát Tuần ${weekFrom}–${weekTo})`
+                : `Tải lên PPCT Khối ${config.grade} để cân bằng ma trận`}
+            </span>
           </button>
 
           <input

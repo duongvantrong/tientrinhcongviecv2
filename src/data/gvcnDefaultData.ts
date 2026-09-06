@@ -6,6 +6,7 @@ import {
   GvcnSpecialStudent,
   GvcnParentContact,
   GvcnMonthlyTask,
+  GvcnSeatingChartConfig,
 } from '../types';
 import { getPhuThoYearPlanForGrade } from './gvcnPhuThoPlans';
 
@@ -13,9 +14,9 @@ export const defaultGvcnClassInfo: GvcnClassInfo = {
   className: 'Lớp 9A1',
   grade: '9',
   academicYear: '2026 - 2027',
-  schoolName: 'Trường THCS Lê Quý Đôn',
-  homeroomTeacher: 'Thầy Nguyễn Văn Trọng (GVCN 15 năm kinh nghiệm)',
-  room: 'Phòng 204 — Khu nhà B (Tầng 2)',
+  schoolName: 'TRƯỜNG THCS VÀ THPT PHÚ THÀNH',
+  homeroomTeacher: 'Dương Văn Trong',
+  room: 'Dãy cũ, Tầng trệt, Phòng 4',
   totalStudents: 42,
   maleCount: 20,
   femaleCount: 22,
@@ -32,7 +33,7 @@ export const defaultGvcnClassInfo: GvcnClassInfo = {
     headPhone: '0912.345.678',
     deputy: 'Cô Lê Thị Mai Hoa (Phụ huynh em Hoàng Nam)',
     deputyPhone: '0983.456.789',
-    zaloGroupLink: 'https://zalo.me/g/lop9a1-thcs-lequydon-2026',
+    zaloGroupLink: 'https://zalo.me/g/lop9a1-thcs-thpt-phuthanh-2026',
   },
 };
 
@@ -288,3 +289,65 @@ export const defaultGvcnParentContacts: GvcnParentContact[] = [
 ];
 
 export const defaultGvcnYearTasks: GvcnMonthlyTask[] = getPhuThoYearPlanForGrade(9, '2026 - 2027');
+
+export const defaultGvcnSeatingChart: GvcnSeatingChartConfig = {
+  columns: 4,
+  rows: 6,
+  seatsPerDesk: 2,
+  teacherDeskPosition: 'left',
+  doorPosition: 'right',
+  boardLabel: 'BẢNG LỚP HỌC & MÀN CHIẾU — PHÒNG 4 (DÃY CŨ, TẦNG TRỆT)',
+  updatedAt: new Date().toLocaleDateString('vi-VN'),
+  notes: 'Sơ đồ chỗ ngồi năm học 2026 - 2027 — Lớp 9A1 (GVCN: Dương Văn Trong, Phòng 4 Dãy cũ)',
+  seats: {
+    // Dãy 1 (Tổ 1: 11 HS)
+    '1-1-0': { deskRow: 1, deskCol: 1, seatIndex: 0, studentId: 'hs-01', note: 'Lớp trưởng' },
+    '1-1-1': { deskRow: 1, deskCol: 1, seatIndex: 1, studentId: 'hs-02', note: 'Tổ trưởng T1' },
+    '2-1-0': { deskRow: 2, deskCol: 1, seatIndex: 0, studentId: 'hs-03', note: 'Kèm cặp Toán' },
+    '2-1-1': { deskRow: 2, deskCol: 1, seatIndex: 1, studentId: 'hs-04' },
+    '3-1-0': { deskRow: 3, deskCol: 1, seatIndex: 0, studentId: 'hs-05' },
+    '3-1-1': { deskRow: 3, deskCol: 1, seatIndex: 1, studentId: 'hs-06' },
+    '4-1-0': { deskRow: 4, deskCol: 1, seatIndex: 0, studentId: 'hs-07', note: 'Hoàn cảnh khó khăn' },
+    '4-1-1': { deskRow: 4, deskCol: 1, seatIndex: 1, studentId: 'hs-08', note: 'HSG Văn' },
+    '5-1-0': { deskRow: 5, deskCol: 1, seatIndex: 0, studentId: 'hs-09' },
+    '5-1-1': { deskRow: 5, deskCol: 1, seatIndex: 1, studentId: 'hs-10' },
+    '6-1-0': { deskRow: 6, deskCol: 1, seatIndex: 0, studentId: 'hs-11' },
+
+    // Dãy 2 (Tổ 2: 10 HS)
+    '1-2-0': { deskRow: 1, deskCol: 2, seatIndex: 0, studentId: 'hs-12', note: 'Lớp phó HT' },
+    '1-2-1': { deskRow: 1, deskCol: 2, seatIndex: 1, studentId: 'hs-13', note: 'Tổ trưởng T2' },
+    '2-2-0': { deskRow: 2, deskCol: 2, seatIndex: 0, studentId: 'hs-14', note: 'Bàn đầu kèm nề nếp' },
+    '2-2-1': { deskRow: 2, deskCol: 2, seatIndex: 1, studentId: 'hs-15', note: 'Quản ca' },
+    '3-2-0': { deskRow: 3, deskCol: 2, seatIndex: 0, studentId: 'hs-16' },
+    '3-2-1': { deskRow: 3, deskCol: 2, seatIndex: 1, studentId: 'hs-17' },
+    '4-2-0': { deskRow: 4, deskCol: 2, seatIndex: 0, studentId: 'hs-18' },
+    '4-2-1': { deskRow: 4, deskCol: 2, seatIndex: 1, studentId: 'hs-19', note: 'Vẽ báo tường' },
+    '5-2-0': { deskRow: 5, deskCol: 2, seatIndex: 0, studentId: 'hs-20' },
+    '5-2-1': { deskRow: 5, deskCol: 2, seatIndex: 1, studentId: 'hs-21' },
+
+    // Dãy 3 (Tổ 3: 11 HS)
+    '1-3-0': { deskRow: 1, deskCol: 3, seatIndex: 0, studentId: 'hs-22', note: 'Lớp phó KL' },
+    '1-3-1': { deskRow: 1, deskCol: 3, seatIndex: 1, studentId: 'hs-23', note: 'Tổ trưởng T3' },
+    '2-3-0': { deskRow: 2, deskCol: 3, seatIndex: 0, studentId: 'hs-24', note: 'Thủ quỹ' },
+    '2-3-1': { deskRow: 2, deskCol: 3, seatIndex: 1, studentId: 'hs-25', note: 'Đôi bạn cùng tiến' },
+    '3-3-0': { deskRow: 3, deskCol: 3, seatIndex: 0, studentId: 'hs-26' },
+    '3-3-1': { deskRow: 3, deskCol: 3, seatIndex: 1, studentId: 'hs-27', note: 'Cờ vua' },
+    '4-3-0': { deskRow: 4, deskCol: 3, seatIndex: 0, studentId: 'hs-28' },
+    '4-3-1': { deskRow: 4, deskCol: 3, seatIndex: 1, studentId: 'hs-29' },
+    '5-3-0': { deskRow: 5, deskCol: 3, seatIndex: 0, studentId: 'hs-30' },
+    '5-3-1': { deskRow: 5, deskCol: 3, seatIndex: 1, studentId: 'hs-31' },
+    '6-3-0': { deskRow: 6, deskCol: 3, seatIndex: 0, studentId: 'hs-32' },
+
+    // Dãy 4 (Tổ 4: 10 HS)
+    '1-4-0': { deskRow: 1, deskCol: 4, seatIndex: 0, studentId: 'hs-33', note: 'Bí thư Chi đội' },
+    '1-4-1': { deskRow: 1, deskCol: 4, seatIndex: 1, studentId: 'hs-34', note: 'Tổ trưởng T4' },
+    '2-4-0': { deskRow: 2, deskCol: 4, seatIndex: 0, studentId: 'hs-35' },
+    '2-4-1': { deskRow: 2, deskCol: 4, seatIndex: 1, studentId: 'hs-36' },
+    '3-4-0': { deskRow: 3, deskCol: 4, seatIndex: 0, studentId: 'hs-37' },
+    '3-4-1': { deskRow: 3, deskCol: 4, seatIndex: 1, studentId: 'hs-38' },
+    '4-4-0': { deskRow: 4, deskCol: 4, seatIndex: 0, studentId: 'hs-39', note: 'HSG Toán & Tin' },
+    '4-4-1': { deskRow: 4, deskCol: 4, seatIndex: 1, studentId: 'hs-40' },
+    '5-4-0': { deskRow: 5, deskCol: 4, seatIndex: 0, studentId: 'hs-41' },
+    '5-4-1': { deskRow: 5, deskCol: 4, seatIndex: 1, studentId: 'hs-42' },
+  },
+};

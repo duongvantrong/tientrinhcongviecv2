@@ -570,7 +570,7 @@ export const defaultDatasets: PpctDataset[] = [
 ];
 
 export const defaultMatrixConfig: MatrixConfig = {
-  schoolName: 'TRƯỜNG THCS NGUYỄN DU',
+  schoolName: 'TRƯỜNG THCS VÀ THPT PHÚ THÀNH',
   department: 'TỔ TOÁN - TIN',
   subject: 'Toán',
   grade: '9',
@@ -586,7 +586,8 @@ export const defaultMatrixConfig: MatrixConfig = {
   scorePerTn2: 1.0,
   scorePerTn3: 0.5,
   scorePerTl: 1.0,
-  academicYear: '2025 - 2026',
+  academicYear: '2026 - 2027',
+  teacherName: 'Dương Văn Trong',
   targetTotalScore: 10,
   cognitiveLevelRatios: {
     nhanBiet: 30,

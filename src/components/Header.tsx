@@ -1,6 +1,7 @@
 import React from 'react';
-import { GraduationCap, Calendar, Clock, RotateCcw, Radio } from 'lucide-react';
+import { GraduationCap, Calendar, Clock, RotateCcw, Radio, Cloud, CloudCheck, RefreshCw } from 'lucide-react';
 import { formatDateVN, formatTimeVN, getDayOfWeekVN, parseDate } from '../utils/dateCalculations';
+import { User } from 'firebase/auth';
 
 interface HeaderProps {
   currentDateStr: string;
@@ -13,6 +14,10 @@ interface HeaderProps {
   onDateChange: (newDate: string) => void;
   onSyncRealTime: () => void;
   onResetDate?: () => void;
+  user?: User | null;
+  isSyncing?: boolean;
+  lastSyncTime?: string | null;
+  onOpenCloudSync?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -26,6 +31,10 @@ export const Header: React.FC<HeaderProps> = ({
   onDateChange,
   onSyncRealTime,
   onResetDate,
+  user,
+  isSyncing,
+  lastSyncTime,
+  onOpenCloudSync,
 }) => {
   const currentDate = parseDate(currentDateStr);
   const startDate = parseDate(startDateWeek1Str);
@@ -35,20 +44,22 @@ export const Header: React.FC<HeaderProps> = ({
 
   return (
     <header className="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-xs">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-        <div className="flex items-center gap-3.5">
-          <div className="w-11 h-11 rounded-full bg-emerald-800 text-white flex items-center justify-center shadow-xs flex-shrink-0">
-            <GraduationCap className="w-6 h-6" />
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 py-2.5 sm:py-3 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-emerald-800 text-white flex items-center justify-center shadow-xs flex-shrink-0">
+            <GraduationCap className="w-5 h-5 sm:w-6 sm:h-6" />
           </div>
           <div>
-            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 leading-tight">
-              Tiến độ PPCT & Ma trận đề kiểm tra
-            </h1>
-            <div className="text-xs sm:text-sm text-slate-600 flex items-center gap-2 flex-wrap mt-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="text-lg sm:text-2xl font-bold tracking-tight text-slate-900 leading-tight">
+                Tiến độ PPCT & Ma trận đề kiểm tra
+              </h1>
+            </div>
+            <div className="text-xs sm:text-sm text-slate-600 flex items-center gap-1.5 sm:gap-2 flex-wrap mt-0.5 sm:mt-1">
               {isRealTime ? (
                 <>
                   {/* Pulsing Live indicator */}
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-2xs">
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-2xs">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse" />
                     <span>Thời gian thực</span>
                   </span>
@@ -57,14 +68,14 @@ export const Header: React.FC<HeaderProps> = ({
                     {getDayOfWeekVN(liveTime)}, {formatDateVN(liveTime)}
                   </span>
 
-                  <span className="font-mono text-xs font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 shadow-2xs">
+                  <span className="font-mono text-[11px] sm:text-xs font-bold text-emerald-800 bg-emerald-50 px-1.5 sm:px-2 py-0.5 rounded border border-emerald-200 shadow-2xs">
                     {formatTimeVN(liveTime)}
                   </span>
                 </>
               ) : (
                 <>
                   {/* Simulation indicator */}
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
                     <Clock className="w-3 h-3 text-amber-700" />
                     <span>Đang mô phỏng</span>
                   </span>
@@ -81,53 +92,84 @@ export const Header: React.FC<HeaderProps> = ({
                 đang ở <strong>{weekText}</strong> ({termText}),
               </span>
 
-              <span className="text-slate-500 text-xs">
+              <span className="text-slate-500 text-xs hidden md:inline">
                 tuần 1 bắt đầu <strong>{formatDateVN(startDate)}</strong>
               </span>
             </div>
           </div>
         </div>
 
-        {/* Date Controls: Real-time vs Simulation */}
-        <div className="flex items-center gap-2 self-start md:self-auto">
-          {isRealTime ? (
-            <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-700">
-              <Clock className="w-3.5 h-3.5 text-slate-500" />
-              <span className="font-medium text-slate-600 hidden sm:inline">Mô phỏng ngày:</span>
-              <input
-                type="date"
-                value={currentDateStr}
-                onChange={(e) => onDateChange(e.target.value)}
-                className="bg-white border border-slate-300 rounded px-2 py-0.5 text-xs focus:ring-1 focus:ring-emerald-600 focus:outline-none cursor-pointer"
-                title="Chọn ngày khác để kiểm tra tiến độ của tuần học đó"
-              />
-              <button
-                onClick={onSyncRealTime}
-                className="text-emerald-700 hover:text-emerald-900 p-1 hover:bg-emerald-50 rounded transition-colors"
-                title="Làm mới đồng bộ thời gian thực"
-              >
-                <RotateCcw className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          ) : (
-            <div className="flex items-center gap-2 bg-amber-50/90 border border-amber-300 rounded-lg px-2.5 py-1.5 text-xs">
-              <span className="font-medium text-amber-900 hidden sm:inline">Mô phỏng:</span>
-              <input
-                type="date"
-                value={currentDateStr}
-                onChange={(e) => onDateChange(e.target.value)}
-                className="bg-white border border-amber-300 rounded px-2 py-0.5 text-xs focus:ring-1 focus:ring-emerald-600 focus:outline-none text-slate-800 cursor-pointer"
-              />
-              <button
-                onClick={onSyncRealTime}
-                className="flex items-center gap-1 px-2.5 py-1 bg-emerald-700 hover:bg-emerald-800 text-white rounded-md text-xs font-bold transition-all shadow-xs"
-                title="Quay lại thời gian thực tế ngay bây giờ"
-              >
-                <Radio className="w-3 h-3 text-emerald-200 animate-pulse" />
-                <span>Về thời gian thực</span>
-              </button>
-            </div>
+        {/* Right side: Cloud Sync Pill & Simulation Date Controls */}
+        <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap justify-between md:justify-end">
+          {/* Cloud Sync Status Button */}
+          {onOpenCloudSync && (
+            <button
+              onClick={onOpenCloudSync}
+              className="flex items-center gap-2 px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100/90 text-emerald-900 border border-emerald-300/90 rounded-xl text-xs font-semibold transition-all shadow-2xs cursor-pointer min-h-[38px]"
+              title={`Đồng bộ đám mây: ${user?.email || 'dvtrong.spdt09@gmail.com'}`}
+            >
+              <div className="relative flex items-center justify-center">
+                <Cloud className="w-4 h-4 text-emerald-700" />
+                {isSyncing ? (
+                  <RefreshCw className="w-2.5 h-2.5 text-emerald-600 animate-spin absolute -top-1 -right-1" />
+                ) : (
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 absolute -top-0.5 -right-0.5 ring-2 ring-white" />
+                )}
+              </div>
+              <div className="flex flex-col text-left">
+                <div className="flex items-center gap-1">
+                  <span className="text-[11px] font-bold text-emerald-950">
+                    {isSyncing ? 'Đang đồng bộ...' : 'Đồng bộ Gmail'}
+                  </span>
+                </div>
+                <span className="text-[10px] text-emerald-700 max-w-[130px] sm:max-w-[160px] truncate font-mono">
+                  {user?.email || 'dvtrong.spdt09@gmail.com'}
+                </span>
+              </div>
+            </button>
           )}
+
+          {/* Date Controls: Real-time vs Simulation */}
+          <div className="flex items-center gap-2">
+            {isRealTime ? (
+              <div className="flex items-center gap-1.5 sm:gap-2 bg-slate-50 border border-slate-200 rounded-xl px-2 sm:px-2.5 py-1 text-xs text-slate-700">
+                <Clock className="w-3.5 h-3.5 text-slate-500 hidden sm:inline" />
+                <span className="font-medium text-slate-600 hidden sm:inline">Mô phỏng:</span>
+                <input
+                  type="date"
+                  value={currentDateStr}
+                  onChange={(e) => onDateChange(e.target.value)}
+                  className="bg-white border border-slate-300 rounded-lg px-2 py-1 text-xs focus:ring-1 focus:ring-emerald-600 focus:outline-none cursor-pointer"
+                  title="Chọn ngày khác để kiểm tra tiến độ của tuần học đó"
+                />
+                <button
+                  onClick={onSyncRealTime}
+                  className="text-emerald-700 hover:text-emerald-900 p-1 hover:bg-emerald-50 rounded-lg transition-colors cursor-pointer"
+                  title="Làm mới đồng bộ thời gian thực"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-1.5 sm:gap-2 bg-amber-50/90 border border-amber-300 rounded-xl px-2 sm:px-2.5 py-1 text-xs">
+                <span className="font-medium text-amber-900 hidden sm:inline">Mô phỏng:</span>
+                <input
+                  type="date"
+                  value={currentDateStr}
+                  onChange={(e) => onDateChange(e.target.value)}
+                  className="bg-white border border-amber-300 rounded-lg px-2 py-1 text-xs focus:ring-1 focus:ring-emerald-600 focus:outline-none text-slate-800 cursor-pointer"
+                />
+                <button
+                  onClick={onSyncRealTime}
+                  className="flex items-center gap-1 px-2.5 py-1 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-xs font-bold transition-all shadow-xs cursor-pointer"
+                  title="Quay lại thời gian thực tế ngay bây giờ"
+                >
+                  <Radio className="w-3 h-3 text-emerald-200 animate-pulse" />
+                  <span>Về thực tế</span>
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </header>

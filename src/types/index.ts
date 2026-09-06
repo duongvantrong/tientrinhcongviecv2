@@ -72,6 +72,7 @@ export interface PpctDataset {
   validation?: PpctValidationResult;
   sgkVolume1Id?: string; // ID của SGK Tập 1 gắn với PPCT này
   sgkVolume2Id?: string; // ID của SGK Tập 2 gắn với PPCT này
+  className?: string; // Tên lớp cụ thể (ví dụ "9A1", "9A", "6B"...)
 }
 
 export interface SgkLearningObjective {
@@ -213,6 +214,7 @@ export interface MatrixConfig {
   department: string;
   subject: string;
   grade: string;
+  className?: string; // Lớp cụ thể của khối (ví dụ "9A", "9A1", "6B"...)
   examPeriod: string; // e.g. "Kiểm tra giữa học kỳ I"
   examDuration: string; // e.g. "90 phút"
   
@@ -221,6 +223,9 @@ export interface MatrixConfig {
   limitWeekTo: number; // e.g. 9
   limitPeriodTo?: number; // e.g. tiết 35
   selectedLessonKeys?: string[]; // Danh sách bài học/chủ đề cụ thể được chọn trong phạm vi
+  
+  // Tùy chỉnh loại trừ nội dung không cần thiết ra đề (kiểm tra, trả bài, trải nghiệm, phần mềm...)
+  excludeNonTestable?: boolean; // Mặc định true
   
   // Tỉ lệ % Trắc nghiệm / Tự luận (mặc định 70% TN, 30% TL)
   ratioTn: number; // 70 (%)
@@ -236,6 +241,7 @@ export interface MatrixConfig {
   scorePerTl: number; // e.g. 1.0 (Tự luận)
   
   academicYear: string; // e.g. "2026 - 2027"
+  teacherName?: string; // Người lập đề / GVBM / GVCN: e.g. "Dương Văn Trong"
   targetTotalScore: number; // 10
   cognitiveLevelRatios: {
     nhanBiet: number; // e.g. 40 (%)
@@ -461,6 +467,26 @@ export interface GvcnMonthlyTask {
     completed: boolean;
     note?: string;
   }[];
+}
+
+export interface GvcnSeatPosition {
+  deskRow: number; // Hàng bàn (1 -> 6, 1 là gần bảng nhất)
+  deskCol: number; // Dãy bàn (1 -> 4 hoặc 1 -> 3)
+  seatIndex: number; // Vị trí trong bàn: 0 (bên trái), 1 (bên phải), hoặc 2 (ở giữa nếu bàn 3)
+  studentId?: string; // ID học sinh ngồi vị trí này
+  note?: string; // Ghi chú riêng cho vị trí (vd: "Cận thị", "Cán sự", "Chiều cao khiêm tốn")
+}
+
+export interface GvcnSeatingChartConfig {
+  columns: number; // Số dãy (mặc định 4 dãy tương ứng 4 tổ)
+  rows: number; // Số hàng bàn (mặc định 5 hoặc 6 hàng)
+  seatsPerDesk: number; // 2 chỗ / bàn
+  teacherDeskPosition: 'left' | 'right'; // Vị trí bàn giáo viên (nhìn từ dưới lên bảng)
+  doorPosition: 'left' | 'right'; // Cửa ra vào lớp
+  boardLabel?: string; // "BẢNG LỚP HỌC & MÀN CHIẾU"
+  seats: Record<string, GvcnSeatPosition>; // key: `${deskRow}-${deskCol}-${seatIndex}`
+  updatedAt?: string;
+  notes?: string;
 }
 
 // ==========================================

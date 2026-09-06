@@ -22,6 +22,7 @@ import {
   UserPlus,
   RefreshCw,
   Cloud,
+  LayoutGrid,
 } from 'lucide-react';
 import {
   GvcnClassInfo,
@@ -32,6 +33,7 @@ import {
   GvcnParentContact,
   GvcnMonthlyTask,
   GvcnLogEntry,
+  GvcnSeatingChartConfig,
 } from '../../types';
 import {
   defaultGvcnClassInfo,
@@ -41,6 +43,7 @@ import {
   defaultGvcnSpecialStudents,
   defaultGvcnParentContacts,
   defaultGvcnYearTasks,
+  defaultGvcnSeatingChart,
 } from '../../data/gvcnDefaultData';
 import {
   getGradeFromClassInfo,
@@ -53,6 +56,7 @@ import { GvcnSpecialStudentsSection } from './GvcnSpecialStudentsSection';
 import { GvcnYearPlanSection } from './GvcnYearPlanSection';
 import { GvcnStudentGradesSection } from './GvcnStudentGradesSection';
 import { GvcnTT22EvaluationSection } from './GvcnTT22EvaluationSection';
+import { GvcnSeatingChartSection } from './GvcnSeatingChartSection';
 import { GvcnStudentListModal } from './GvcnStudentListModal';
 import { GvcnQuickLogModal } from './GvcnQuickLogModal';
 import { GvcnClassSettingsModal } from './GvcnClassSettingsModal';
@@ -63,6 +67,7 @@ import { subscribeToGvcnData, syncGvcnDataToCloud } from '../../lib/firebase';
 
 export type GvcnSubTab =
   | 'students_grades'
+  | 'seating_chart'
   | 'tt22'
   | 'records'
   | 'rules'
@@ -74,7 +79,27 @@ export const GvcnDashboardTab: React.FC = () => {
   // Load persisted data or default
   const [classInfo, setClassInfo] = useState<GvcnClassInfo>(() => {
     const saved = localStorage.getItem('gvcn_class_info');
-    return saved ? JSON.parse(saved) : defaultGvcnClassInfo;
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (!parsed.schoolName || parsed.schoolName.includes('Lê Quý Đôn') || parsed.schoolName.includes('NGUYỄN DU')) {
+          parsed.schoolName = 'TRƯỜNG THCS VÀ THPT PHÚ THÀNH';
+        }
+        if (!parsed.homeroomTeacher || parsed.homeroomTeacher.includes('Nguyễn Văn Trọng')) {
+          parsed.homeroomTeacher = 'Dương Văn Trong';
+        }
+        if (!parsed.room || parsed.room.includes('204')) {
+          parsed.room = 'Dãy cũ, Tầng trệt, Phòng 4';
+        }
+        if (parsed.academicYear && parsed.academicYear.includes('2025')) {
+          parsed.academicYear = '2026 - 2027';
+        }
+        return parsed;
+      } catch (e) {
+        console.error(e);
+      }
+    }
+    return defaultGvcnClassInfo;
   });
 
   const [rules, setRules] = useState<GvcnClassRule[]>(() => {
@@ -107,6 +132,11 @@ export const GvcnDashboardTab: React.FC = () => {
     return saved ? JSON.parse(saved) : defaultGvcnYearTasks;
   });
 
+  const [seatingChart, setSeatingChart] = useState<GvcnSeatingChartConfig>(() => {
+    const saved = localStorage.getItem('gvcn_seating_chart');
+    return saved ? JSON.parse(saved) : defaultGvcnSeatingChart;
+  });
+
   // Local storage persistence
   useEffect(() => {
     localStorage.setItem('gvcn_class_info', JSON.stringify(classInfo));
@@ -136,6 +166,10 @@ export const GvcnDashboardTab: React.FC = () => {
     localStorage.setItem('gvcn_monthly_tasks', JSON.stringify(monthlyTasks));
   }, [monthlyTasks]);
 
+  useEffect(() => {
+    localStorage.setItem('gvcn_seating_chart', JSON.stringify(seatingChart));
+  }, [seatingChart]);
+
   // Active subtab
   const [activeSubTab, setActiveSubTab] = useState<GvcnSubTab>('students_grades');
   const [activeWeek, setActiveWeek] = useState<number>(1);
@@ -157,6 +191,10 @@ export const GvcnDashboardTab: React.FC = () => {
           if (cloudPayload.classInfo) setClassInfo(cloudPayload.classInfo);
           if (cloudPayload.weeklyRecords) setWeeklyRecords(cloudPayload.weeklyRecords);
           if (cloudPayload.rules) setRules(cloudPayload.rules);
+          if (cloudPayload.seatingChart) setSeatingChart(cloudPayload.seatingChart);
+          if (cloudPayload.specialStudents) setSpecialStudents(cloudPayload.specialStudents);
+          if (cloudPayload.parentContacts) setParentContacts(cloudPayload.parentContacts);
+          if (cloudPayload.monthlyTasks) setMonthlyTasks(cloudPayload.monthlyTasks);
           setLastCloudSyncTime(new Date().toLocaleTimeString('vi-VN'));
         }
       },
@@ -165,6 +203,31 @@ export const GvcnDashboardTab: React.FC = () => {
 
     return () => unsubscribe();
   }, [user?.uid]);
+
+  // Debounced auto-sync to Cloud whenever GVCN data changes
+  useEffect(() => {
+    if (!user?.uid || !user.email) return;
+
+    const timeout = setTimeout(async () => {
+      try {
+        await syncGvcnDataToCloud(user.uid, user.email || '', {
+          classInfo,
+          students,
+          weeklyRecords,
+          rules,
+          seatingChart,
+          specialStudents,
+          parentContacts,
+          monthlyTasks,
+        });
+        setLastCloudSyncTime(new Date().toLocaleTimeString('vi-VN'));
+      } catch (e) {
+        console.warn('Auto sync GVCN warning:', e);
+      }
+    }, 1500);
+
+    return () => clearTimeout(timeout);
+  }, [user?.uid, user?.email, classInfo, students, weeklyRecords, rules, seatingChart, specialStudents, parentContacts, monthlyTasks]);
 
   // Trigger manual or automatic cloud save
   const handleManualCloudSync = async () => {
@@ -179,6 +242,10 @@ export const GvcnDashboardTab: React.FC = () => {
         students,
         weeklyRecords,
         rules,
+        seatingChart,
+        specialStudents,
+        parentContacts,
+        monthlyTasks,
       });
       setLastCloudSyncTime(new Date().toLocaleTimeString('vi-VN'));
     } catch (err: any) {
@@ -262,6 +329,20 @@ export const GvcnDashboardTab: React.FC = () => {
         students,
         weeklyRecords,
         rules,
+        seatingChart,
+      }).catch(console.error);
+    }
+  };
+
+  const handleUpdateSeatingChart = (newChart: GvcnSeatingChartConfig) => {
+    setSeatingChart(newChart);
+    if (user?.uid && user.email) {
+      syncGvcnDataToCloud(user.uid, user.email, {
+        classInfo,
+        students,
+        weeklyRecords,
+        rules,
+        seatingChart: newChart,
       }).catch(console.error);
     }
   };
@@ -646,6 +727,27 @@ export const GvcnDashboardTab: React.FC = () => {
         </button>
 
         <button
+          onClick={() => setActiveSubTab('seating_chart')}
+          className={`px-4 py-2.5 text-xs font-bold rounded-xl whitespace-nowrap transition-all flex items-center gap-2 ${
+            activeSubTab === 'seating_chart'
+              ? 'bg-emerald-800 text-white shadow-xs'
+              : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+          }`}
+        >
+          <LayoutGrid className="w-4 h-4" />
+          <span>Sơ Đồ Vị Trí Lớp & Chỗ Ngồi</span>
+          <span
+            className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+              activeSubTab === 'seating_chart'
+                ? 'bg-emerald-700 text-white'
+                : 'bg-slate-100 text-slate-700'
+            }`}
+          >
+            Phòng 4
+          </span>
+        </button>
+
+        <button
           onClick={() => setActiveSubTab('tt22')}
           className={`px-4 py-2.5 text-xs font-bold rounded-xl whitespace-nowrap transition-all flex items-center gap-2 ${
             activeSubTab === 'tt22'
@@ -781,6 +883,15 @@ export const GvcnDashboardTab: React.FC = () => {
             onUpdateStudents={handleUpdateStudents}
             onSelectStudent={handleSelectStudent}
             onOpenAddStudent={() => setShowAddStudentModal(true)}
+          />
+        )}
+
+        {activeSubTab === 'seating_chart' && (
+          <GvcnSeatingChartSection
+            classInfo={classInfo}
+            students={students}
+            seatingChart={seatingChart}
+            onUpdateSeatingChart={handleUpdateSeatingChart}
           />
         )}
 

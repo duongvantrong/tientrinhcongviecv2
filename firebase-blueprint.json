@@ -16,7 +16,7 @@
     },
     "GvcnClassData": {
       "title": "GVCN Class Data",
-      "description": "Class info, students list, and evaluation data for a teacher",
+      "description": "Class info, students list, seating chart, and evaluation data for a teacher",
       "type": "object",
       "properties": {
         "ownerId": { "type": "string" },
@@ -25,7 +25,29 @@
         "classInfo": { "type": "object" },
         "students": { "type": "array" },
         "weeklyRecords": { "type": "array" },
-        "rules": { "type": "array" }
+        "rules": { "type": "array" },
+        "seatingChart": { "type": "object" },
+        "specialStudents": { "type": "array" },
+        "parentContacts": { "type": "array" },
+        "monthlyTasks": { "type": "array" }
+      },
+      "required": ["ownerId", "updatedAt"]
+    },
+    "TeacherAppData": {
+      "title": "Teacher App Data",
+      "description": "Synchronized teaching materials, uploaded PPCT datasets, textbook links, timeframe, and exam matrices across devices",
+      "type": "object",
+      "properties": {
+        "ownerId": { "type": "string" },
+        "ownerEmail": { "type": "string" },
+        "updatedAt": { "type": "string" },
+        "datasets": { "type": "array" },
+        "activeDatasetId": { "type": "string" },
+        "timeframeConfig": { "type": "object" },
+        "matrixConfig": { "type": "object" },
+        "matrixRows": { "type": "array" },
+        "sgkBooks": { "type": "array" },
+        "sourceDevice": { "type": "string" }
       },
       "required": ["ownerId", "updatedAt"]
     },
@@ -51,6 +73,10 @@
     "/users/{userId}/gvcn_data/{docId}": {
       "schema": "GvcnClassData",
       "description": "Teacher synchronized class data"
+    },
+    "/users/{userId}/ppct_data/{docId}": {
+      "schema": "TeacherAppData",
+      "description": "Teacher synchronized curriculum datasets, PPCT materials, and matrix data"
     },
     "/whitelist_users/{emailId}": {
       "schema": "WhitelistUser",

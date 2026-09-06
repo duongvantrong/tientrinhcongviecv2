@@ -30,6 +30,11 @@ service cloud.firestore {
       match /gvcn_data/{docId} {
         allow read, write: if isOwner(userId) || isSuperAdmin();
       }
+
+      // Synchronized Teaching Materials, PPCT Datasets & Exam Matrices
+      match /ppct_data/{docId} {
+        allow read, write: if isOwner(userId) || isSuperAdmin();
+      }
     }
 
     // Whitelist collection for authorized emails

@@ -123,7 +123,7 @@ export const GvcnClassSettingsModal: React.FC<GvcnClassSettingsModalProps> = ({
                   required
                   value={formData.homeroomTeacher}
                   onChange={(e) => setFormData({ ...formData, homeroomTeacher: e.target.value })}
-                  placeholder="ví dụ: Thầy Nguyễn Văn Trọng..."
+                  placeholder="ví dụ: Dương Văn Trong..."
                   className="w-full px-3.5 py-2 text-sm bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-hidden font-semibold text-emerald-900"
                 />
               </div>
@@ -150,7 +150,7 @@ export const GvcnClassSettingsModal: React.FC<GvcnClassSettingsModalProps> = ({
                   type="text"
                   value={formData.schoolName}
                   onChange={(e) => setFormData({ ...formData, schoolName: e.target.value })}
-                  placeholder="ví dụ: Trường THCS Lê Quý Đôn"
+                  placeholder="ví dụ: TRƯỜNG THCS VÀ THPT PHÚ THÀNH"
                   className="w-full px-3.5 py-2 text-sm bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-hidden"
                 />
               </div>
@@ -163,7 +163,7 @@ export const GvcnClassSettingsModal: React.FC<GvcnClassSettingsModalProps> = ({
                   type="text"
                   value={formData.room}
                   onChange={(e) => setFormData({ ...formData, room: e.target.value })}
-                  placeholder="ví dụ: Phòng 204 — Khu nhà B (Tầng 2)"
+                  placeholder="ví dụ: Dãy cũ, Tầng trệt, Phòng 4"
                   className="w-full px-3.5 py-2 text-sm bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-hidden"
                 />
               </div>

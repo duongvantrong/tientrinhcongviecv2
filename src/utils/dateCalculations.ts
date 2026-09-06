@@ -336,10 +336,123 @@ export function generateExamSchedule(
   });
 }
 
+export interface NonTestableCheckResult {
+  isNonTestable: boolean;
+  reason?: string;
+  category?: 'exam' | 'return_paper' | 'activity' | 'software' | 'review_exam' | 'admin';
+  cleanedTopic: string;
+}
+
+/**
+ * Làm sạch tên bài học để lấy phần nội dung kiến thức cốt lõi (bỏ ghi chú tiết, KTTX đi kèm)
+ */
+export function cleanLessonTopic(rawTopic: string): string {
+  return (rawTopic || '')
+    .replace(/\(t\d+.*?\)/gi, '')
+    .replace(/\(tiết\s*\d+.*?\)/gi, '')
+    .replace(/\s*&?\s*kiểm tra thường xuyên\s*\d*.*$/i, '')
+    .replace(/\s*&?\s*kttx\s*\d*.*$/i, '')
+    .replace(/\s*&?\s*kt\s*15\s*phút.*$/i, '')
+    .trim();
+}
+
+/**
+ * Kiểm tra xem một bài học/chủ đề có phải là nội dung không cần thiết ra đề hay không
+ * (Tiết kiểm tra, trả bài, hoạt động trải nghiệm, phần mềm, ôn tập kiểm tra chung, v.v.)
+ */
+export function checkNonTestableContent(rawTopic: string, rawChapter: string = ''): NonTestableCheckResult {
+  const cleanedTopic = cleanLessonTopic(rawTopic);
+  const lowerTopic = cleanedTopic.toLowerCase();
+  const lowerChapter = (rawChapter || '').toLowerCase();
+
+  // 1. Tiết kiểm tra / đánh giá định kỳ hoặc thường xuyên (khi bài học là kiểm tra)
+  const isExam =
+    /^(kiểm tra|đánh giá|thi học k[ỳì]|kttx|khảo sát|bài kiểm tra)/i.test(lowerTopic) ||
+    /kiểm tra (giữa|cuối|định|thường|học k[ỳì]|15 ph|1 tiết|45 ph)|thi học k[ỳì]|khảo sát (đầu năm|chất lượng)/i.test(lowerTopic) ||
+    (lowerChapter.includes('kiểm tra cuối học kỳ') && !lowerTopic.includes('bài'));
+
+  if (isExam) {
+    return {
+      isNonTestable: true,
+      reason: 'Tiết kiểm tra / Đánh giá',
+      category: 'exam',
+      cleanedTopic,
+    };
+  }
+
+  // 2. Tiết trả bài / chữa bài kiểm tra / rút kinh nghiệm
+  const isReturnPaper =
+    /trả bài|chữa bài|sửa bài|rút kinh nghiệm|sơ kết đánh giá|tổng kết và đánh giá kết quả/i.test(lowerTopic);
+  if (isReturnPaper) {
+    return {
+      isNonTestable: true,
+      reason: 'Tiết trả bài / Sửa bài',
+      category: 'return_paper',
+      cleanedTopic,
+    };
+  }
+
+  // 3. Hoạt động thực hành và trải nghiệm, dự án học tập, tham quan, thực địa
+  const isActivity =
+    /hoạt động thực hành|thực hành và trải nghiệm|thực hành trải nghiệm|hoạt động trải nghiệm|dự án học tập|thực địa|ngoài trời|tham quan/i.test(lowerTopic) ||
+    /thực hành trải nghiệm|hoạt động trải nghiệm/i.test(lowerChapter);
+  if (isActivity) {
+    return {
+      isNonTestable: true,
+      reason: 'Hoạt động trải nghiệm / Thực hành',
+      category: 'activity',
+      cleanedTopic,
+    };
+  }
+
+  // 4. Thực hành phần mềm / Máy tính cầm tay
+  const isSoftware =
+    /thực hành phần mềm|geogebra|geonext|sử dụng máy tính cầm tay|phần mềm vẽ hình/i.test(lowerTopic);
+  if (isSoftware) {
+    return {
+      isNonTestable: true,
+      reason: 'Thực hành phần mềm / Máy tính cầm tay',
+      category: 'software',
+      cleanedTopic,
+    };
+  }
+
+  // 5. Tiết ôn tập định kỳ / ôn tập kiểm tra chung
+  const isReviewExam =
+    /ôn tập (kiểm tra|giữa k[ỳì]|cuối k[ỳì]|thi|tổng kết|chuyên đề: rèn kĩ năng)/i.test(lowerTopic) ||
+    /ôn tập & kiểm tra|ôn tập cuối học kỳ|tổng kết năm học|ôn tập tổng kết/i.test(lowerChapter);
+  if (isReviewExam) {
+    return {
+      isNonTestable: true,
+      reason: 'Tiết ôn tập định kỳ / Tổng kết',
+      category: 'review_exam',
+      cleanedTopic,
+    };
+  }
+
+  // 6. Hướng dẫn học tập, giới thiệu môn học, đọc thêm
+  const isAdmin =
+    /hướng dẫn học tập|hướng dẫn sử dụng sách|giới thiệu môn học|hướng dẫn ôn hè|sinh hoạt lớp|đọc thêm|em có biết|tự học có hướng dẫn/i.test(lowerTopic);
+  if (isAdmin) {
+    return {
+      isNonTestable: true,
+      reason: 'Hướng dẫn học tập / Đọc thêm',
+      category: 'admin',
+      cleanedTopic,
+    };
+  }
+
+  return {
+    isNonTestable: false,
+    cleanedTopic,
+  };
+}
+
 /**
  * Automatically generates a balanced Exam Matrix from PPCT up to the target exam week
  * Supports:
  * - Limiting content to specific week (e.g. up to Week 9)
+ * - Filtering out non-testable content (Kiểm tra, Trả bài, Hoạt động trải nghiệm, Ôn tập...)
  * - Configurable TN / TL ratio (e.g. 70% TN / 30% TL)
  * - MOET 2025 New Structure (Phần I: 4 lựa chọn, Phần II: Đúng/Sai, Phần III: Trả lời ngắn, Phần IV: Tự luận)
  * - Standard 2018 Structure (TNKQ & TL theo 4 mức độ)
@@ -353,6 +466,7 @@ export function generateMatrixFromPpct(
     limitWeekTo?: number;
     limitPeriodTo?: number;
     selectedLessonKeys?: string[];
+    excludeNonTestable?: boolean;
     ratioTn?: number;
     ratioTl?: number;
     structureType?: 'moet_2025_new' | 'standard_2018';
@@ -374,6 +488,7 @@ export function generateMatrixFromPpct(
     limitWeekTo: options,
     limitPeriodTo: undefined as number | undefined,
     selectedLessonKeys: undefined as string[] | undefined,
+    excludeNonTestable: true,
     ratioTn: 70,
     ratioTl: 30,
     structureType: 'moet_2025_new' as const,
@@ -389,6 +504,7 @@ export function generateMatrixFromPpct(
     limitWeekTo: Math.max(options.limitWeekFrom ?? 1, options.limitWeekTo ?? options.targetWeek ?? 9),
     limitPeriodTo: options.limitPeriodTo,
     selectedLessonKeys: options.selectedLessonKeys,
+    excludeNonTestable: options.excludeNonTestable !== false,
     ratioTn: options.ratioTn ?? 70,
     ratioTl: options.ratioTl ?? 30,
     structureType: options.structureType ?? 'moet_2025_new',
@@ -412,22 +528,28 @@ export function generateMatrixFromPpct(
   // If specific lesson keys are provided, filter by those
   if (config.selectedLessonKeys && config.selectedLessonKeys.length > 0) {
     lessons = lessons.filter((l) => {
-      const key = `${l.chuong}:::${l.baiHoc.replace(/\(t\d+\)/g, '').trim()}`;
-      return config.selectedLessonKeys!.includes(key);
+      const cleaned = cleanLessonTopic(l.baiHoc);
+      const key = `${l.chuong}:::${cleaned}`;
+      const rawKey = `${l.chuong}:::${l.baiHoc.replace(/\(t\d+\)/g, '').trim()}`;
+      return config.selectedLessonKeys!.includes(key) || config.selectedLessonKeys!.includes(rawKey);
     });
   }
 
   if (lessons.length === 0) return [];
 
-  // 2. Group by chapter & unique lesson / subtopics
+  // 2. Group by chapter & unique lesson / subtopics, automatically excluding non-testable content if configured
   const unitMap = new Map<string, { chapter: string; topic: string; periods: number }>();
 
   lessons.forEach((l) => {
-    // Clean topic name
-    const cleanedTopic = l.baiHoc.replace(/\(t\d+\)/g, '').trim();
-    // Exclude purely administrative review rows if needed or keep as study unit
-    const isExamOnly = /kiểm tra|thi học kỳ/i.test(cleanedTopic) && !/ôn tập/i.test(cleanedTopic);
-    if (isExamOnly) return;
+    const check = checkNonTestableContent(l.baiHoc, l.chuong);
+
+    // If user enabled non-testable exclusion, skip non-testable rows completely
+    if (config.excludeNonTestable && check.isNonTestable) {
+      return;
+    }
+
+    const cleanedTopic = check.cleanedTopic || l.baiHoc.replace(/\(t\d+\)/g, '').trim();
+    if (!cleanedTopic) return;
 
     const key = `${l.chuong}:::${cleanedTopic}`;
     const existing = unitMap.get(key);

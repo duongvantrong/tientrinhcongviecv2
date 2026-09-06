@@ -16,7 +16,11 @@ import {
   Minus,
 } from 'lucide-react';
 import { MatrixConfig, MatrixRow } from '../types';
-import { calculateTopicPointSummary, getMatrixRow19Values } from '../utils/dateCalculations';
+import {
+  calculateTopicPointSummary,
+  getMatrixRow19Values,
+  checkNonTestableContent,
+} from '../utils/dateCalculations';
 import {
   calculateMatrixTotals,
   rebalanceMatrixWhenCellEdited,
@@ -76,6 +80,23 @@ export const MatrixTable: React.FC<MatrixTableProps> = ({
   });
 
   const totalTaughtPeriods = rows.reduce((sum, r) => sum + (r.soTiet || 1), 0);
+
+  // Check if any current matrix rows are non-testable content (kiểm tra, trả bài, trải nghiệm, phần mềm...)
+  const nonTestableRows = rows.filter((r) => checkNonTestableContent(r.noiDung, r.chuong).isNonTestable);
+
+  const handleRemoveNonTestableRows = () => {
+    const filtered = rows.filter((r) => !checkNonTestableContent(r.noiDung, r.chuong).isNonTestable);
+    if (filtered.length === 0) return;
+    const totalPer = filtered.reduce((sum, r) => sum + (r.soTiet || 1), 0) || 1;
+    const reIndexed = filtered.map((r, idx) => ({
+      ...r,
+      tt: idx + 1,
+      tiLeThoiLuong: Math.round(((r.soTiet || 1) / totalPer) * 100),
+    }));
+    if (onBulkUpdateRows) {
+      onBulkUpdateRows(reIndexed);
+    }
+  };
 
   // Comprehensive matrix format and cognitive statistics
   const stats = calculateMatrixTotals(rows);
@@ -263,11 +284,22 @@ export const MatrixTable: React.FC<MatrixTableProps> = ({
             </span>
           </div>
           <p className="text-xs text-slate-500 mt-0.5">
-            Môn: <strong>{config.subject} {config.grade}</strong> | Phạm vi: <strong>Tuần {config.limitWeekFrom || 1} – Tuần {config.limitWeekTo}</strong> | Số tiết: <strong>{totalTaughtPeriods} tiết</strong>
+            Môn: <strong>{config.subject} Khối {config.grade}{config.className ? ` (Lớp ${config.className})` : ''}</strong> | Phạm vi: <strong>Tuần {config.limitWeekFrom || 1} – Tuần {config.limitWeekTo}</strong> | Số tiết: <strong>{totalTaughtPeriods} tiết</strong>
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          {nonTestableRows.length > 0 && (
+            <button
+              onClick={handleRemoveNonTestableRows}
+              className="px-3 py-1.5 bg-amber-100 hover:bg-amber-200 border border-amber-300 text-amber-900 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-2xs"
+              title="Loại bỏ các dòng kiểm tra, trả bài, trải nghiệm khỏi ma trận"
+            >
+              <Trash2 className="w-3.5 h-3.5 text-amber-700" />
+              <span>Loại bỏ {nonTestableRows.length} dòng không cần thiết</span>
+            </button>
+          )}
+
           <button
             onClick={onAddRow}
             className="px-3 py-1.5 bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors shadow-2xs"
@@ -302,6 +334,31 @@ export const MatrixTable: React.FC<MatrixTableProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Banner cảnh báo nếu có dòng kiểm tra / trả bài / trải nghiệm chưa được lọc */}
+      {nonTestableRows.length > 0 && (
+        <div className="m-4 p-3 bg-amber-50 border border-amber-300 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-amber-950 shadow-2xs">
+          <div className="flex items-start gap-2.5">
+            <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+            <div>
+              <span className="font-bold block">
+                Phát hiện {nonTestableRows.length} nội dung không cần thiết ra đề trong ma trận:
+              </span>
+              <span className="text-amber-800 text-[11.5px] block mt-0.5">
+                {nonTestableRows.map((r) => `"${r.noiDung}"`).join(', ')} — các tiết kiểm tra, trả bài, hoạt động trải nghiệm không được dùng để thiết lập câu hỏi thi.
+              </span>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={handleRemoveNonTestableRows}
+            className="whitespace-nowrap px-3 py-1.5 bg-amber-700 hover:bg-amber-800 text-white font-semibold rounded-lg text-xs transition-colors flex items-center gap-1.5 shadow-2xs self-end sm:self-center"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            <span>Loại bỏ {nonTestableRows.length} dòng này</span>
+          </button>
+        </div>
+      )}
 
       {/* Official Header Banner Phụ lục I */}
       <div className="bg-slate-50 border-b border-slate-200 p-4 text-center">

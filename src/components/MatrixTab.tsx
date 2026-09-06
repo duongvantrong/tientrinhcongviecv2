@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { MatrixConfig, MatrixRow, ExamEvent, PpctDataset, SpecificationRow, SgkBook } from '../types';
 import { MatrixConfigSection } from './MatrixConfig';
 import { MatrixTable } from './MatrixTable';
@@ -11,14 +11,24 @@ import {
 } from '../utils/docxExport';
 import { exportMatrixToExcel } from '../utils/excelExport';
 import { generateMatrixFromPpct, generateSpecificationFromMatrix } from '../utils/dateCalculations';
+import {
+  defaultPpctDataset6,
+  defaultPpctDataset7,
+  defaultPpctDataset8,
+  defaultPpctDataset9,
+} from '../data/defaultData';
 import * as XLSX from 'xlsx';
-import { Table as TableIcon, FileText, Layers, Sparkles, BookMarked } from 'lucide-react';
+import { Table as TableIcon, FileText, Layers, Sparkles, BookMarked, AlertTriangle, Upload } from 'lucide-react';
 
 interface MatrixTabProps {
   config: MatrixConfig;
   rows: MatrixRow[];
   exams: ExamEvent[];
   activePpct: PpctDataset;
+  datasets?: PpctDataset[];
+  onSelectDataset?: (id: string) => void;
+  onAddDataset?: (dataset: PpctDataset) => void;
+  onOpenUploadModal?: (grade?: string) => void;
   sgkBooks?: SgkBook[];
   onUpdateConfig: (updated: Partial<MatrixConfig>) => void;
   onUpdateRows: (rows: MatrixRow[]) => void;
@@ -32,6 +42,10 @@ export const MatrixTab: React.FC<MatrixTabProps> = ({
   rows,
   exams,
   activePpct,
+  datasets = [],
+  onSelectDataset,
+  onAddDataset,
+  onOpenUploadModal,
   sgkBooks = [],
   onUpdateConfig,
   onUpdateRows,
@@ -41,6 +55,136 @@ export const MatrixTab: React.FC<MatrixTabProps> = ({
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<'matrix' | 'spec' | 'all'>('matrix');
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
+
+  // Normalize grade string (e.g., "Khối 9", "9", "K9" -> "9")
+  const currentGradeNorm = String(config.grade || '').replace(/\D/g, '') || String(config.grade || '').trim();
+  const currentClassLower = config.className ? config.className.toLowerCase().trim() : '';
+
+  // Find best matching PPCT dataset from uploaded datasets for current grade and class
+  const matchingPpct = useMemo(() => {
+    if (!datasets || datasets.length === 0) return null;
+
+    // 1. If class is specified (e.g. 9A1), look for dataset matching both grade and class
+    if (currentClassLower) {
+      const matchBoth = datasets.find((d) => {
+        const dGradeNorm = String(d.grade || '').replace(/\D/g, '') || String(d.grade || '').trim();
+        if (currentGradeNorm && dGradeNorm !== currentGradeNorm) return false;
+        return (
+          (d.className && d.className.toLowerCase().trim() === currentClassLower) ||
+          (d.name && d.name.toLowerCase().includes(currentClassLower))
+        );
+      });
+      if (matchBoth) return matchBoth;
+    }
+
+    // 2. Look for dataset matching grade
+    if (currentGradeNorm) {
+      const matchGrade = datasets.find((d) => {
+        const dGradeNorm = String(d.grade || '').replace(/\D/g, '') || String(d.grade || '').trim();
+        return dGradeNorm === currentGradeNorm;
+      });
+      if (matchGrade) return matchGrade;
+    }
+
+    return null;
+  }, [datasets, currentGradeNorm, currentClassLower]);
+
+  const hasMatchingPpct = Boolean(matchingPpct);
+
+  // When grade or class changes, handle auto-updating PPCT and matrix
+  const handleGradeOrClassChange = (newGrade: string, newClassName?: string) => {
+    const targetGrade = newGrade;
+    const targetClassName = newClassName !== undefined ? newClassName : config.className;
+    const normGrade = String(targetGrade || '').replace(/\D/g, '') || String(targetGrade || '').trim();
+    const targetClassLower = targetClassName ? targetClassName.toLowerCase().trim() : '';
+
+    // Search in datasets for matching PPCT
+    let found: PpctDataset | undefined;
+    if (datasets && datasets.length > 0) {
+      if (targetClassLower) {
+        found = datasets.find((d) => {
+          const dGradeNorm = String(d.grade || '').replace(/\D/g, '') || String(d.grade || '').trim();
+          if (normGrade && dGradeNorm !== normGrade) return false;
+          return (
+            (d.className && d.className.toLowerCase().trim() === targetClassLower) ||
+            (d.name && d.name.toLowerCase().includes(targetClassLower))
+          );
+        });
+      }
+      if (!found && normGrade) {
+        found = datasets.find((d) => {
+          const dGradeNorm = String(d.grade || '').replace(/\D/g, '') || String(d.grade || '').trim();
+          return dGradeNorm === normGrade;
+        });
+      }
+    }
+
+    if (found) {
+      // Found matching PPCT -> switch active dataset & update matrix
+      onUpdateConfig({
+        grade: targetGrade,
+        className: targetClassName,
+        subject: found.subject || config.subject,
+        selectedLessonKeys: undefined, // Reset lesson keys to adapt to new grade
+        sampleLoadedName: `Đã tự động cập nhật PPCT ${found.subject} Khối ${found.grade}${targetClassName ? ` (Lớp ${targetClassName})` : ''} — ${found.name}`,
+      });
+
+      if (onSelectDataset && found.id !== activePpct?.id) {
+        onSelectDataset(found.id);
+      }
+
+      // Re-generate matrix rows based on newly matched PPCT
+      const weekFrom = config.limitWeekFrom || 1;
+      const weekTo = config.limitWeekTo || 9;
+      const generated = generateMatrixFromPpct(found, {
+        limitWeekFrom: weekFrom,
+        limitWeekTo: weekTo,
+        targetWeek: weekTo,
+        limitPeriodTo: config.limitPeriodTo,
+        selectedLessonKeys: undefined,
+        excludeNonTestable: config.excludeNonTestable !== false,
+        ratioTn: config.ratioTn || 70,
+        ratioTl: config.ratioTl || 30,
+        structureType: config.structureType || 'moet_2025_new',
+        scorePerTn: config.scorePerTn || 0.25,
+        scorePerTn1: config.scorePerTn1 || 0.25,
+        scorePerTn2: config.scorePerTn2 || 1.0,
+        scorePerTn3: config.scorePerTn3 || 0.5,
+        scorePerTl: config.scorePerTl || 1.0,
+        targetScore: 10,
+      });
+
+      if (generated.length > 0) {
+        onUpdateRows(generated);
+      }
+    } else {
+      // No matching PPCT for this grade / class
+      onUpdateConfig({
+        grade: targetGrade,
+        className: targetClassName,
+        selectedLessonKeys: undefined,
+        sampleLoadedName: `Chưa tải lên PPCT phù hợp cho Khối ${targetGrade}${targetClassName ? ` (Lớp ${targetClassName})` : ''}. Vui lòng tải lên PPCT để thiết lập ma trận.`,
+      });
+    }
+  };
+
+  // Quick load standard sample data for grades 6, 7, 8, 9
+  const handleLoadSampleGrade = (gradeToLoad: string) => {
+    const norm = String(gradeToLoad).replace(/\D/g, '');
+    let sample: PpctDataset | undefined;
+    if (norm === '6') sample = { ...defaultPpctDataset6, id: `sample-k6-${Date.now()}` };
+    else if (norm === '7') sample = { ...defaultPpctDataset7, id: `sample-k7-${Date.now()}` };
+    else if (norm === '8') sample = { ...defaultPpctDataset8, id: `sample-k8-${Date.now()}` };
+    else if (norm === '9') sample = { ...defaultPpctDataset9, id: `sample-k9-${Date.now()}` };
+
+    if (sample && onAddDataset) {
+      onAddDataset(sample);
+      handleGradeOrClassChange(gradeToLoad);
+    }
+  };
+
+  // Fallback effective PPCT to use for rendering
+  const effectivePpct = matchingPpct || activePpct;
 
   const activeVolume = (config.limitWeekFrom || 1) >= 19 ? 2 : ((config.limitWeekTo || 9) <= 18 ? 1 : 'all');
 
@@ -111,6 +255,7 @@ export const MatrixTab: React.FC<MatrixTabProps> = ({
       targetWeek: weekTo,
       limitPeriodTo: config.limitPeriodTo,
       selectedLessonKeys: config.selectedLessonKeys,
+      excludeNonTestable: config.excludeNonTestable !== false,
       ratioTn: config.ratioTn || 70,
       ratioTl: config.ratioTl || 30,
       structureType: config.structureType || 'moet_2025_new',
@@ -222,7 +367,13 @@ export const MatrixTab: React.FC<MatrixTabProps> = ({
       <MatrixConfigSection
         config={config}
         exams={exams}
-        activePpct={activePpct}
+        activePpct={effectivePpct}
+        datasets={datasets}
+        matchingPpct={matchingPpct}
+        hasMatchingPpct={hasMatchingPpct}
+        onGradeOrClassChange={handleGradeOrClassChange}
+        onOpenUploadModal={onOpenUploadModal}
+        onLoadSampleGrade={handleLoadSampleGrade}
         sgkBooks={sgkBooks}
         onChange={onUpdateConfig}
         onGenerateFromPpct={handleGenerateFromPpct}

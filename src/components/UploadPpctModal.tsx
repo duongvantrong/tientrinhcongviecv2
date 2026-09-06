@@ -39,8 +39,9 @@ export const UploadPpctModal: React.FC<UploadPpctModalProps> = ({
   initialGrade = '9',
 }) => {
   const [selectedGrade, setSelectedGrade] = useState<string>(initialGrade);
-  const [academicYear, setAcademicYear] = useState<string>('2025 - 2026');
-  const [schoolName, setSchoolName] = useState<string>('TRƯỜNG THCS NGUYỄN DU');
+  const [className, setClassName] = useState<string>('');
+  const [academicYear, setAcademicYear] = useState<string>('2026 - 2027');
+  const [schoolName, setSchoolName] = useState<string>('TRƯỜNG THCS VÀ THPT PHÚ THÀNH');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isParsingPreview, setIsParsingPreview] = useState(false);
@@ -133,12 +134,18 @@ export const UploadPpctModal: React.FC<UploadPpctModalProps> = ({
 
       if (finalDataset) {
         finalDataset.grade = selectedGrade;
+        finalDataset.className = className.trim() || undefined;
         finalDataset.academicYear = academicYear;
         finalDataset.school = schoolName;
+
+        if (className.trim()) {
+          finalDataset.name = `Toán ${selectedGrade} (${className.trim()}) — ${finalDataset.fileName?.replace(/\.[^/.]+$/, '') || 'PPCT'}`;
+        }
 
         onAddDataset(finalDataset);
         setSelectedFile(null);
         setParsedPreview(null);
+        setClassName('');
         if (fileInputRef.current) fileInputRef.current.value = '';
         onClose();
       }
@@ -264,7 +271,7 @@ export const UploadPpctModal: React.FC<UploadPpctModalProps> = ({
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-2 border-t border-slate-200/80">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-2 border-t border-slate-200/80">
               <div>
                 <label className="block text-[11px] font-medium text-slate-600 mb-1 flex items-center gap-1">
                   <Calendar className="w-3.5 h-3.5 text-slate-500" />
@@ -274,7 +281,7 @@ export const UploadPpctModal: React.FC<UploadPpctModalProps> = ({
                   type="text"
                   value={academicYear}
                   onChange={(e) => setAcademicYear(e.target.value)}
-                  placeholder="2025 - 2026"
+                  placeholder="2026 - 2027"
                   className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 font-medium focus:ring-1 focus:ring-emerald-600 focus:outline-none"
                 />
               </div>
@@ -288,7 +295,21 @@ export const UploadPpctModal: React.FC<UploadPpctModalProps> = ({
                   type="text"
                   value={schoolName}
                   onChange={(e) => setSchoolName(e.target.value)}
-                  placeholder="TRƯỜNG THCS NGUYỄN DU"
+                  placeholder="TRƯỜNG THCS VÀ THPT PHÚ THÀNH"
+                  className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 font-medium focus:ring-1 focus:ring-emerald-600 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-medium text-slate-600 mb-1 flex items-center justify-between">
+                  <span>Lớp của khối</span>
+                  <span className="text-[10px] text-slate-400">Tùy chọn</span>
+                </label>
+                <input
+                  type="text"
+                  value={className}
+                  onChange={(e) => setClassName(e.target.value)}
+                  placeholder={`VD: ${selectedGrade}A1, ${selectedGrade}A...`}
                   className="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 font-medium focus:ring-1 focus:ring-emerald-600 focus:outline-none"
                 />
               </div>
