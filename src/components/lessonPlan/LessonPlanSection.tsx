@@ -90,15 +90,23 @@ export const LessonPlanSection: React.FC<LessonPlanSectionProps> = ({
   };
 
   const handleSaveBatchPlans = (batchPlans: LessonPlan[]) => {
+    const currentGrade = String(activeDataset?.grade || '9').trim();
+    const taggedBatch = batchPlans.map((p) => ({
+      ...p,
+      grade: p.grade || currentGrade,
+    }));
+
     setPlans((prev) => {
       const map = new Map<string, LessonPlan>();
       // Keep existing plans
       prev.forEach((p) => {
-        map.set(p.lessonTitle.toLowerCase().trim(), p);
+        const key = `${p.grade || '9'}_${p.lessonTitle.toLowerCase().trim()}`;
+        map.set(key, p);
       });
       // Merge batch plans (overwrite or add)
-      batchPlans.forEach((p) => {
-        map.set(p.lessonTitle.toLowerCase().trim(), p);
+      taggedBatch.forEach((p) => {
+        const key = `${p.grade || currentGrade}_${p.lessonTitle.toLowerCase().trim()}`;
+        map.set(key, p);
       });
       // Sort by week then period
       return Array.from(map.values()).sort(
@@ -136,50 +144,58 @@ export const LessonPlanSection: React.FC<LessonPlanSectionProps> = ({
     setIsBatchTermModalOpen(true);
   };
 
-  // Tìm link tổng của Tập 1 nếu có
+  // Grade hiện tại được chọn (Chỉ hiển thị KHBD của đúng khối đó)
+  const currentGrade = String(activeDataset?.grade || '9').trim();
+
+  // Danh sách kế hoạch bài dạy chỉ thuộc riêng khối lớp này
+  const gradePlans = useMemo(() => {
+    return plans.filter((p) => String(p.grade || '9').trim() === currentGrade);
+  }, [plans, currentGrade]);
+
+  // Tìm link tổng của Tập 1 nếu có trong khối này
   const masterTerm1Link = useMemo(() => {
-    const pWithMaster = plans.find(
+    const pWithMaster = gradePlans.find(
       (p) =>
         (p.term === 1 || p.volume === 1 || (p.weekNumber && p.weekNumber <= 18)) &&
         (p.masterTermLink || (p.sourceType === 'external_link' && p.externalLink))
     );
     return pWithMaster?.masterTermLink || pWithMaster?.externalLink || '';
-  }, [plans]);
+  }, [gradePlans]);
 
-  // Tìm link tổng của Tập 2 nếu có
+  // Tìm link tổng của Tập 2 nếu có trong khối này
   const masterTerm2Link = useMemo(() => {
-    const pWithMaster = plans.find(
+    const pWithMaster = gradePlans.find(
       (p) =>
         (p.term === 2 || p.volume === 2 || (p.weekNumber && p.weekNumber > 18)) &&
         (p.masterTermLink || (p.sourceType === 'external_link' && p.externalLink))
     );
     return pWithMaster?.masterTermLink || pWithMaster?.externalLink || '';
-  }, [plans]);
+  }, [gradePlans]);
 
-  // Thống kê số lượng bài theo Tập
+  // Thống kê số lượng bài theo Tập của riêng khối lớp này
   const term1Count = useMemo(() => {
-    return plans.filter(
+    return gradePlans.filter(
       (p) => p.term === 1 || p.volume === 1 || (p.weekNumber !== undefined && p.weekNumber <= 18)
     ).length;
-  }, [plans]);
+  }, [gradePlans]);
 
   const term2Count = useMemo(() => {
-    return plans.filter(
+    return gradePlans.filter(
       (p) => p.term === 2 || p.volume === 2 || (p.weekNumber !== undefined && p.weekNumber > 18)
     ).length;
-  }, [plans]);
+  }, [gradePlans]);
 
-  // Danh sách các chương duy nhất để làm bộ lọc
+  // Danh sách các chương duy nhất để làm bộ lọc cho khối này
   const uniqueChapters = useMemo(() => {
-    const chaps = plans
+    const chaps = gradePlans
       .map((p) => p.chapterName)
       .filter((c): c is string => Boolean(c && c.trim().length > 0));
     return Array.from(new Set(chaps));
-  }, [plans]);
+  }, [gradePlans]);
 
-  // Lọc danh sách KHBD
+  // Lọc danh sách KHBD thuộc khối đang chọn
   const filteredPlans = useMemo(() => {
-    return plans.filter((p) => {
+    return gradePlans.filter((p) => {
       const matchSearch =
         (p.lessonTitle || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
         (p.chapterName || '').toLowerCase().includes(searchQuery.toLowerCase());
@@ -203,7 +219,7 @@ export const LessonPlanSection: React.FC<LessonPlanSectionProps> = ({
 
       return matchSearch && matchTerm && matchChapter && matchType;
     });
-  }, [plans, searchQuery, termFilter, chapterFilter, filterType]);
+  }, [gradePlans, searchQuery, termFilter, chapterFilter, filterType]);
 
   // Gom nhóm danh sách bài theo chương (phục vụ View theo Chương)
   const groupedByChapter = useMemo(() => {
@@ -224,10 +240,10 @@ export const LessonPlanSection: React.FC<LessonPlanSectionProps> = ({
     return Array.from(map.values());
   }, [filteredPlans]);
 
-  // Tìm KHBD của tuần hiện tại (hoặc bài đầu tiên)
+  // Tìm KHBD của tuần hiện tại (hoặc bài đầu tiên) của khối này
   const currentWeekPlan =
-    plans.find((p) => p.weekNumber === currentWeek) ||
-    plans[0] ||
+    gradePlans.find((p) => p.weekNumber === currentWeek) ||
+    gradePlans[0] ||
     null;
 
   return (

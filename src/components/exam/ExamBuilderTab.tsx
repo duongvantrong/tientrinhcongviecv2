@@ -25,6 +25,7 @@ import {
   PpctDataset,
   SgkBook,
   ExamEvent,
+  BankQuestionTemplate,
 } from '../../types';
 import {
   generateExamPaperFromMatrix,
@@ -36,7 +37,7 @@ import {
 import { ExamPaperView } from './ExamPaperView';
 import { ExamConfigModal } from './ExamConfigModal';
 import { ExamQuestionEditModal } from './ExamQuestionEditModal';
-import { ExamQuestionSuggestionModal } from './ExamQuestionSuggestionModal';
+import { ExamQuestionPickerModal } from './ExamQuestionPickerModal';
 
 interface ExamBuilderTabProps {
   matrixConfig: MatrixConfig;
@@ -76,6 +77,7 @@ export const ExamBuilderTab: React.FC<ExamBuilderTabProps> = ({
 
   const [isConfigModalOpen, setIsConfigModalOpen] = useState<boolean>(false);
   const [editingQuestion, setEditingQuestion] = useState<ExamQuestion | null>(null);
+  const [suggestingQuestion, setSuggestingQuestion] = useState<ExamQuestion | null>(null);
   const [syncToast, setSyncToast] = useState<string | null>(null);
 
   // Auto-generate a default exam paper on first visit if none exists
@@ -87,7 +89,8 @@ export const ExamBuilderTab: React.FC<ExamBuilderTabProps> = ({
         specRows,
         activePpct,
         'giua_ky',
-        '101'
+        '101',
+        sgkBooks
       );
       setExamPaper(defaultPaper);
       try {
@@ -108,7 +111,8 @@ export const ExamBuilderTab: React.FC<ExamBuilderTabProps> = ({
         specRows,
         activePpct,
         isFinal ? 'cuoi_ky' : 'giua_ky',
-        examPaper?.config.examCode || '101'
+        examPaper?.config.examCode || '101',
+        sgkBooks
       );
       savePaper(synced);
       setSyncToast(`Đã đồng bộ thành công đề thi & đáp án theo Ma trận ${matrixConfig.examPeriod}!`);
@@ -141,7 +145,8 @@ export const ExamBuilderTab: React.FC<ExamBuilderTabProps> = ({
       specRows,
       activePpct,
       level,
-      examPaper?.config.examCode || '101'
+      examPaper?.config.examCode || '101',
+      sgkBooks
     );
     savePaper(synced);
     setSyncToast('Đã tái lập và đồng bộ toàn diện Đề thi & Đáp án theo Ma trận hiện tại!');
@@ -179,7 +184,8 @@ export const ExamBuilderTab: React.FC<ExamBuilderTabProps> = ({
         specRows,
         activePpct,
         level,
-        '101'
+        '101',
+        sgkBooks
       );
       savePaper(newPaper);
     }
@@ -196,7 +202,8 @@ export const ExamBuilderTab: React.FC<ExamBuilderTabProps> = ({
           specRows,
           activePpct,
           newConfig.examLevel,
-          newConfig.examCode
+          newConfig.examCode,
+          sgkBooks
         );
         // Cập nhật các thông tin tùy chỉnh như tên trường, thời lượng
         newPaper = {
@@ -242,7 +249,8 @@ export const ExamBuilderTab: React.FC<ExamBuilderTabProps> = ({
   // Đổi câu hỏi tương đương từ ngân hàng
   const handleRegenerateEquivalent = (question: ExamQuestion) => {
     if (!examPaper) return;
-    const replaced = regenerateSingleQuestion(question, examPaper.questions);
+    const currentGrade = examPaper.config.grade || activePpct.grade || '9';
+    const replaced = regenerateSingleQuestion(question, examPaper.questions, currentGrade);
     const updatedQuestions = examPaper.questions.map((q) => (q.id === question.id ? replaced : q));
     savePaper({
       ...examPaper,
@@ -260,6 +268,127 @@ export const ExamBuilderTab: React.FC<ExamBuilderTabProps> = ({
       ...examPaper,
       questions: reIndexed,
     });
+  };
+
+  // Thay thế câu hỏi từ Ngân hàng gợi ý và tự động cập nhật đáp án
+  const handleSelectReplacementTemplate = (selected: BankQuestionTemplate) => {
+    if (!examPaper || !suggestingQuestion) return;
+
+    const newQuestion: ExamQuestion = {
+      id: `q_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+      code: suggestingQuestion.code,
+      section: suggestingQuestion.section,
+      type: selected.type || suggestingQuestion.type,
+      chapter: suggestingQuestion.chapter,
+      lesson: suggestingQuestion.lesson,
+      cognitiveLevel: selected.cognitiveLevel,
+      cognitiveLevelLabel:
+        selected.cognitiveLevel === 'nhanBiet'
+          ? 'Nhận biết'
+          : selected.cognitiveLevel === 'thongHieu'
+          ? 'Thông hiểu'
+          : selected.cognitiveLevel === 'vanDung'
+          ? 'Vận dụng'
+          : 'Vận dụng cao',
+      learningObjective: selected.learningObjective || suggestingQuestion.learningObjective,
+      score: suggestingQuestion.score,
+      prompt: selected.prompt,
+      options: selected.options,
+      correctOption: selected.correctOption,
+      tfStatements: selected.tfStatements,
+      shortAnswerText: selected.shortAnswerText,
+      essayGradingSteps: selected.essayGradingSteps,
+      solutionExplanation: selected.solutionExplanation,
+    };
+
+    const updatedQuestions = examPaper.questions.map((q) =>
+      q.id === suggestingQuestion.id ? newQuestion : q
+    );
+
+    savePaper({
+      ...examPaper,
+      questions: updatedQuestions,
+    });
+
+    setSuggestingQuestion(null);
+    setSyncToast(`Đã thay đổi ${suggestingQuestion.code} và tự động cập nhật đáp án mới!`);
+  };
+
+  // Đổi mới toàn bộ đề và đáp án theo Ma trận hiện tại
+  const handleRegenerateWholeExam = () => {
+    if (!examPaper) return;
+    let newPaper: ExamPaper;
+    if (examPaper.config.mode === 'matrix_aligned') {
+      newPaper = generateExamPaperFromMatrix(
+        matrixConfig,
+        matrixRows,
+        specRows,
+        activePpct,
+        examPaper.config.levelType || 'giua_ky',
+        examPaper.config.examCode || '101',
+        sgkBooks
+      );
+      newPaper = {
+        ...newPaper,
+        config: {
+          ...newPaper.config,
+          title: examPaper.config.title,
+          schoolName: examPaper.config.schoolName,
+          department: examPaper.config.department,
+          durationMinutes: examPaper.config.durationMinutes,
+          examCode: examPaper.config.examCode,
+        },
+      };
+    } else {
+      newPaper = generateCustomExamPaper(examPaper.config, activePpct, sgkBooks);
+    }
+    savePaper(newPaper);
+    setSyncToast('Đã đổi mới toàn bộ đề và cập nhật toàn bộ đáp án chuẩn xác!');
+  };
+
+  // Đổi mới một Phần cụ thể (I, II, III, IV) và cập nhật đáp án tương ứng
+  const handleRegenerateSection = (section: 'part1_mcq' | 'part2_true_false' | 'part3_short_answer' | 'part4_essay') => {
+    if (!examPaper) return;
+    const currentGrade = examPaper.config.grade || activePpct.grade || '9';
+    const currentQuestions = [...examPaper.questions];
+    const updatedQuestions = currentQuestions.map((q) => {
+      if (q.section === section) {
+        return regenerateSingleQuestion(q, currentQuestions, currentGrade);
+      }
+      return q;
+    });
+    savePaper({
+      ...examPaper,
+      questions: updatedQuestions,
+    });
+    const sectionLabel =
+      section === 'part1_mcq'
+        ? 'Phần I'
+        : section === 'part2_true_false'
+        ? 'Phần II'
+        : section === 'part3_short_answer'
+        ? 'Phần III'
+        : 'Phần IV';
+    setSyncToast(`Đã đổi mới tất cả câu hỏi ${sectionLabel} và cập nhật đáp án tương ứng!`);
+  };
+
+  // Đổi mới nhiều câu hỏi được chọn cùng lúc và cập nhật đáp án
+  const handleRegenerateMultipleQuestions = (questionIds: string[]) => {
+    if (!examPaper || questionIds.length === 0) return;
+    const currentGrade = examPaper.config.grade || activePpct.grade || '9';
+    const idSet = new Set(questionIds);
+    const currentQuestions = [...examPaper.questions];
+    const updatedQuestions = currentQuestions.map((q) => {
+      if (idSet.has(q.id)) {
+        return regenerateSingleQuestion(q, currentQuestions, currentGrade);
+      }
+      return q;
+    });
+    savePaper({
+      ...examPaper,
+      questions: updatedQuestions,
+    });
+    setSyncToast(`Đã đổi mới ${questionIds.length} câu hỏi và cập nhật đáp án tương ứng!`);
   };
 
   return (
@@ -450,6 +579,10 @@ export const ExamBuilderTab: React.FC<ExamBuilderTabProps> = ({
           onOpenConfig={() => setIsConfigModalOpen(true)}
           onEditQuestion={(q) => setEditingQuestion(q)}
           onRegenerateEquivalent={handleRegenerateEquivalent}
+          onOpenSuggestions={(q) => setSuggestingQuestion(q)}
+          onRegenerateWholeExam={handleRegenerateWholeExam}
+          onRegenerateSection={handleRegenerateSection}
+          onRegenerateMultipleQuestions={handleRegenerateMultipleQuestions}
         />
       ) : (
         <div className="bg-white rounded-2xl p-12 text-center border border-slate-200 shadow-xs">
@@ -490,6 +623,18 @@ export const ExamBuilderTab: React.FC<ExamBuilderTabProps> = ({
           matrixConfig={matrixConfig}
           ppctDataset={activePpct}
           onApplyConfig={handleApplyConfig}
+        />
+      )}
+
+      {/* Modal Chọn câu hỏi thay thế từ Ngân hàng gợi ý chuẩn YCCĐ */}
+      {suggestingQuestion && (
+        <ExamQuestionPickerModal
+          isOpen={!!suggestingQuestion}
+          question={suggestingQuestion}
+          grade={activePpct.grade}
+          onClose={() => setSuggestingQuestion(null)}
+          onSelectReplacement={handleSelectReplacementTemplate}
+          onRegenerateEquivalent={handleRegenerateEquivalent}
         />
       )}
 

@@ -47,6 +47,7 @@ export const ExamQuestionEditModal: React.FC<ExamQuestionEditModalProps> = ({
   onClose,
   onSave,
   onRegenerateEquivalent,
+  onOpenSuggestions,
   onDelete,
 }) => {
   if (!isOpen || !question) return null;

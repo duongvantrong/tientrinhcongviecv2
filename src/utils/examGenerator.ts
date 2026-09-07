@@ -19,6 +19,7 @@ import {
   GRADE_7_QUESTIONS,
   GRADE_8_QUESTIONS,
 } from '../data/questionBankGrades';
+import { getLearningObjectiveForTopic } from './sgkParser';
 
 // =================================================================
 // NGÂN HÀNG CÂU HỎI MẪU CHUẨN MỰC BỘ GD&ĐT (TOÁN VÀ MÔN HỌC THCS)
@@ -743,7 +744,8 @@ export function generateExamPaperFromMatrix(
   specRows: SpecificationRow[],
   ppctDataset: PpctDataset,
   examLevel: ExamLevelType = 'giua_ky',
-  examCode: string = '101'
+  examCode: string = '101',
+  sgkBooks?: SgkBook[]
 ): ExamPaper {
   const subject = matrixConfig.subject || ppctDataset.subject || 'Toán';
   const grade = matrixConfig.grade || ppctDataset.grade || '9';
@@ -988,6 +990,19 @@ export function generateExamPaperFromMatrix(
       if (specItem && specItem.yeuCauCanDat) {
         matchingObjective = specItem.yeuCauCanDat;
       }
+    }
+
+    // Nếu chưa có YCCĐ từ bảng đặc tả hoặc chuỗi mặc định, tra cứu trực tiếp từ SGK đã nạp
+    if ((!matchingObjective || matchingObjective.includes('kiến thức trọng tâm')) && sgkBooks && sgkBooks.length > 0) {
+      const preferredVol = (matrixConfig.limitWeekFrom || 1) >= 19 ? 2 : ((matrixConfig.limitWeekTo || 9) <= 18 ? 1 : 'all');
+      const sgkObjective = getLearningObjectiveForTopic(slot.cognitiveLevel, slot.lesson, slot.chapter, sgkBooks, preferredVol, grade);
+      if (sgkObjective) {
+        matchingObjective = sgkObjective;
+      }
+    }
+
+    if (!matchingObjective) {
+      matchingObjective = `${cogLabel} kiến thức trọng tâm về ${slot.lesson} thuộc ${slot.chapter} theo chuẩn GDPT 2018.`;
     }
 
     questions.push({

@@ -502,6 +502,10 @@ export default function App() {
             onSelectExamForMatrix={handleSelectExamForMatrix}
             onOpenUploadModal={handleOpenUploadModal}
             onStandardizeDataset={handleStandardizeDataset}
+            sgkBooks={sgkBooks}
+            onUpdateSgkBooks={setSgkBooks}
+            onLinkSgkToPpct={handleLinkSgkToPpct}
+            onApplySgkToMatrix={handleApplySgkToMatrix}
           />
         ) : activeTab === 'matrix' ? (
           <MatrixTab
