@@ -14,7 +14,12 @@ import {
 } from 'docx';
 import { saveAs } from 'file-saver';
 import { MatrixConfig, MatrixRow, SpecificationRow, TopicPointCalc } from '../types';
-import { calculateTopicPointSummary, getMatrixRow19Values } from './dateCalculations';
+import {
+  calculateTopicPointSummary,
+  getMatrixRow19Values,
+  cleanContentWithoutNls,
+  getRowTotalQuestions,
+} from './dateCalculations';
 
 const border = {
   style: BorderStyle.SINGLE,
@@ -76,6 +81,10 @@ function makeCell(
 }
 
 export function buildMatrixDocxElements(config: MatrixConfig, rows: MatrixRow[]) {
+  // Chỉ lấy những dòng có câu hỏi nếu có
+  const rowsWithQuestions = rows.filter((r) => getRowTotalQuestions(r) > 0);
+  const targetRows = rowsWithQuestions.length > 0 ? rowsWithQuestions : rows;
+
   // Aggregate calculations across 19 columns
   let sumNlcBiet = 0;
   let sumNlcHieu = 0;
@@ -95,7 +104,7 @@ export function buildMatrixDocxElements(config: MatrixConfig, rows: MatrixRow[])
 
   let grandScore = 0;
 
-  rows.forEach((r) => {
+  targetRows.forEach((r) => {
     const vals = getMatrixRow19Values(r);
     sumNlcBiet += vals.nlc.biet;
     sumNlcHieu += vals.nlc.hieu;
@@ -147,11 +156,12 @@ export function buildMatrixDocxElements(config: MatrixConfig, rows: MatrixRow[])
 
   // Group rows by chapter
   const groupedByChapter = new Map<string, MatrixRow[]>();
-  rows.forEach((r) => {
-    if (!groupedByChapter.has(r.chuong)) {
-      groupedByChapter.set(r.chuong, []);
+  targetRows.forEach((r) => {
+    const ch = cleanContentWithoutNls(r.chuong || 'Chủ đề chung');
+    if (!groupedByChapter.has(ch)) {
+      groupedByChapter.set(ch, []);
     }
-    groupedByChapter.get(r.chuong)!.push(r);
+    groupedByChapter.get(ch)!.push(r);
   });
 
   // Build matrix table rows
@@ -236,7 +246,7 @@ export function buildMatrixDocxElements(config: MatrixConfig, rows: MatrixRow[])
         );
       }
 
-      cells.push(makeCell(r.noiDung, { align: AlignmentType.LEFT, fontSize: 8 }));
+      cells.push(makeCell(cleanContentWithoutNls(r.noiDung), { align: AlignmentType.LEFT, fontSize: 8 }));
 
       // Nhiều lựa chọn
       cells.push(makeCell(vals.nlc.biet ? vals.nlc.biet.toString() : '', { fontSize: 8 }));
@@ -694,7 +704,7 @@ export function buildSpecificationDocxElements(config: MatrixConfig, specRows: S
           })
         );
         cells.push(
-          makeCell(row.chuong, {
+          makeCell(cleanContentWithoutNls(row.chuong), {
             bold: true,
             rowSpan: totalItems,
             align: AlignmentType.LEFT,
@@ -702,7 +712,7 @@ export function buildSpecificationDocxElements(config: MatrixConfig, specRows: S
           })
         );
         cells.push(
-          makeCell(row.noiDung, {
+          makeCell(cleanContentWithoutNls(row.noiDung), {
             bold: true,
             rowSpan: totalItems,
             align: AlignmentType.LEFT,
@@ -712,7 +722,7 @@ export function buildSpecificationDocxElements(config: MatrixConfig, specRows: S
       }
 
       // Yêu cầu cần đạt
-      const yccContent = `${item.mucDoLabel}:\n${item.yeuCauCanDat}`;
+      const yccContent = `${item.mucDoLabel}:\n${cleanContentWithoutNls(item.yeuCauCanDat)}`;
       cells.push(makeCell(yccContent, { align: AlignmentType.LEFT, fontSize: 8 }));
 
       // 12 question columns

@@ -14,12 +14,15 @@ import {
   RefreshCw,
   AlertTriangle,
   Minus,
+  Filter,
 } from 'lucide-react';
 import { MatrixConfig, MatrixRow } from '../types';
 import {
   calculateTopicPointSummary,
   getMatrixRow19Values,
   checkNonTestableContent,
+  getRowTotalQuestions,
+  cleanContentWithoutNls,
 } from '../utils/dateCalculations';
 import {
   calculateMatrixTotals,
@@ -69,11 +72,16 @@ export const MatrixTable: React.FC<MatrixTableProps> = ({
 }) => {
   const [showTopicCalc, setShowTopicCalc] = useState<boolean>(true);
   const [autoBalance, setAutoBalance] = useState<boolean>(true);
+  const [onlyWithQuestions, setOnlyWithQuestions] = useState<boolean>(true);
+
+  // Chỉ hiển thị các nội dung có câu hỏi nếu người dùng bật lọc (mặc định bật)
+  const rowsWithQuestions = rows.filter((r) => getRowTotalQuestions(r) > 0);
+  const displayedRows = onlyWithQuestions && rowsWithQuestions.length > 0 ? rowsWithQuestions : rows;
 
   // Group rows by chapter
   const chapterGroups = new Map<string, MatrixRow[]>();
-  rows.forEach((r) => {
-    const ch = r.chuong || 'Chủ đề chung';
+  displayedRows.forEach((r) => {
+    const ch = cleanContentWithoutNls(r.chuong || 'Chủ đề chung');
     const list = chapterGroups.get(ch) || [];
     list.push(r);
     chapterGroups.set(ch, list);
@@ -299,6 +307,24 @@ export const MatrixTable: React.FC<MatrixTableProps> = ({
               <span>Loại bỏ {nonTestableRows.length} dòng không cần thiết</span>
             </button>
           )}
+
+          <button
+            type="button"
+            onClick={() => setOnlyWithQuestions(!onlyWithQuestions)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all shadow-2xs ${
+              onlyWithQuestions && rowsWithQuestions.length > 0
+                ? 'bg-emerald-50 text-emerald-800 border border-emerald-300 hover:bg-emerald-100'
+                : 'bg-white text-slate-600 border border-slate-300 hover:bg-slate-50'
+            }`}
+            title="Chỉ hiển thị những nội dung bài học có câu hỏi trong đề kiểm tra"
+          >
+            <Filter className="w-3.5 h-3.5 text-emerald-600" />
+            <span>
+              {onlyWithQuestions && rowsWithQuestions.length > 0
+                ? `Chỉ hiện bài có câu hỏi (${displayedRows.length}/${rows.length})`
+                : `Hiện tất cả (${rows.length} bài)`}
+            </span>
+          </button>
 
           <button
             onClick={onAddRow}
@@ -844,8 +870,8 @@ export const MatrixTable: React.FC<MatrixTableProps> = ({
                     <td className="p-1 border-r border-slate-200">
                       <input
                         type="text"
-                        value={row.noiDung}
-                        onChange={(e) => onUpdateRow(row.id, 'noiDung', e.target.value)}
+                        value={cleanContentWithoutNls(row.noiDung)}
+                        onChange={(e) => onUpdateRow(row.id, 'noiDung', cleanContentWithoutNls(e.target.value))}
                         className="w-full bg-transparent hover:bg-slate-100/60 focus:bg-white border border-transparent hover:border-slate-200 focus:border-emerald-600 rounded px-2 py-1 text-slate-900 focus:outline-none text-xs"
                         placeholder="Nội dung / bài học..."
                       />

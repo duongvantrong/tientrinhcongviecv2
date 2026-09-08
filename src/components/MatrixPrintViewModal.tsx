@@ -1,7 +1,13 @@
 import React, { useRef, useState } from 'react';
 import { X, Printer, Download } from 'lucide-react';
 import { MatrixConfig, MatrixRow } from '../types';
-import { generateSpecificationFromMatrix, calculateTopicPointSummary, getMatrixRow19Values } from '../utils/dateCalculations';
+import {
+  generateSpecificationFromMatrix,
+  calculateTopicPointSummary,
+  getMatrixRow19Values,
+  cleanContentWithoutNls,
+  getRowTotalQuestions,
+} from '../utils/dateCalculations';
 import { calculateMatrixTotals } from '../utils/matrixBalancer';
 
 interface MatrixPrintViewModalProps {
@@ -24,13 +30,17 @@ export const MatrixPrintViewModal: React.FC<MatrixPrintViewModalProps> = ({
 
   if (!isOpen) return null;
 
-  const specRows = generateSpecificationFromMatrix(rows, config.grade, config.subject);
-  const topicSummary = calculateTopicPointSummary(rows, true);
+  // Lọc chỉ các nội dung có câu hỏi nếu có
+  const rowsWithQuestions = rows.filter((r) => getRowTotalQuestions(r) > 0);
+  const targetRows = rowsWithQuestions.length > 0 ? rowsWithQuestions : rows;
+
+  const specRows = generateSpecificationFromMatrix(targetRows, config.grade, config.subject);
+  const topicSummary = calculateTopicPointSummary(targetRows, true);
 
   // Group rows by chapter
   const chapterGroups = new Map<string, MatrixRow[]>();
-  rows.forEach((r) => {
-    const ch = r.chuong || 'Chủ đề chung';
+  targetRows.forEach((r) => {
+    const ch = cleanContentWithoutNls(r.chuong || 'Chủ đề chung');
     const list = chapterGroups.get(ch) || [];
     list.push(r);
     chapterGroups.set(ch, list);
@@ -318,7 +328,7 @@ export const MatrixPrintViewModal: React.FC<MatrixPrintViewModalProps> = ({
                                 {chName}
                               </td>
                             )}
-                            <td className="border border-black p-1 text-left">{r.noiDung}</td>
+                            <td className="border border-black p-1 text-left">{cleanContentWithoutNls(r.noiDung)}</td>
                             {/* Nhiều lựa chọn */}
                             <td className="border border-black p-0.5">{vals.nlc.biet || ''}</td>
                             <td className="border border-black p-0.5">{vals.nlc.hieu || ''}</td>
@@ -471,17 +481,17 @@ export const MatrixPrintViewModal: React.FC<MatrixPrintViewModalProps> = ({
                           )}
                           {itIdx === 0 && (
                             <td rowSpan={totalItems} className="border border-black p-1 font-bold align-top whitespace-pre-line">
-                              {row.chuong}
+                              {cleanContentWithoutNls(row.chuong)}
                             </td>
                           )}
                           {itIdx === 0 && (
                             <td rowSpan={totalItems} className="border border-black p-1 font-medium align-top whitespace-pre-line">
-                              {row.noiDung}
+                              {cleanContentWithoutNls(row.noiDung)}
                             </td>
                           )}
                           <td className="border border-black p-1 align-top text-left">
                             <div className="font-bold">{it.mucDoLabel}:</div>
-                            <div className="whitespace-pre-line text-slate-800">{it.yeuCauCanDat}</div>
+                            <div className="whitespace-pre-line text-slate-800">{cleanContentWithoutNls(it.yeuCauCanDat)}</div>
                           </td>
                           {/* 12 columns */}
                           <td className="border border-black p-0.5 text-center font-medium align-middle">{it.nlc?.biet || ''}</td>

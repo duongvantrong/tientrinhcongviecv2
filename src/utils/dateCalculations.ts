@@ -344,10 +344,33 @@ export interface NonTestableCheckResult {
 }
 
 /**
- * Làm sạch tên bài học để lấy phần nội dung kiến thức cốt lõi (bỏ ghi chú tiết, KTTX đi kèm)
+ * Làm sạch chuỗi nội dung: loại bỏ hoàn toàn phần NLS (Năng lực số),
+ * các ghi chú (NLS: ...), [NLS: ...], v.v., chỉ giữ lại nội dung bài học/yêu cầu cần đạt.
+ */
+export function cleanContentWithoutNls(text: string): string {
+  if (!text) return '';
+  return text
+    // Bỏ các thẻ trong ngoặc đơn hoặc ngoặc vuông chứa NLS hoặc Năng lực số: (NLS...), [NLS...]
+    .replace(/\s*[\(\[]\s*(?:NLS|Năng lực số)[\s\S]*?[\)\]]/gi, '')
+    // Bỏ tiền tố/hậu tố dạng "- NLS: ..." hoặc "; NLS: ..." hoặc "NLS: ..."
+    .replace(/(?:[-+*•–;,]\s*)?(?:NLS|Năng lực số)\s*:[^\n.;,]*(?:[.\n;,]|$)/gi, '')
+    // Bỏ từ khoá NLS / Năng lực số đứng đơn lẻ kèm dấu gạch nối hoặc hai chấm
+    .replace(/\b(?:NLS|Năng lực số)\b[:\s\-–]*/gi, '')
+    // Bỏ các ngoặc rỗng sót lại
+    .replace(/\(\s*\)/g, '')
+    .replace(/\[\s*\]/g, '')
+    // Chuẩn hóa khoảng trắng và dấu câu
+    .replace(/\s{2,}/g, ' ')
+    .replace(/\s+([.,;:])/g, '$1')
+    .trim();
+}
+
+/**
+ * Làm sạch tên bài học để lấy phần nội dung kiến thức cốt lõi (bỏ ghi chú tiết, KTTX đi kèm, bỏ NLS)
  */
 export function cleanLessonTopic(rawTopic: string): string {
-  return (rawTopic || '')
+  const withoutNls = cleanContentWithoutNls(rawTopic || '');
+  return withoutNls
     .replace(/\(t\d+.*?\)/gi, '')
     .replace(/\(tiết\s*\d+.*?\)/gi, '')
     .replace(/\s*&?\s*kiểm tra thường xuyên\s*\d*.*$/i, '')
@@ -714,8 +737,8 @@ export function generateMatrixFromPpct(
       return {
         id: `moet-row-${index + 1}`,
         tt: index + 1,
-        chuong: u.chapter,
-        noiDung: u.topic,
+        chuong: cleanContentWithoutNls(u.chapter),
+        noiDung: cleanContentWithoutNls(u.topic),
         soTiet: u.periods,
         tiLeThoiLuong,
         nhieuLuaChon: {
@@ -837,8 +860,8 @@ export function generateMatrixFromPpct(
       return {
         id: `std-row-${index + 1}`,
         tt: index + 1,
-        chuong: u.chapter,
-        noiDung: u.topic,
+        chuong: cleanContentWithoutNls(u.chapter),
+        noiDung: cleanContentWithoutNls(u.topic),
         soTiet: u.periods,
         tiLeThoiLuong,
         nhanBiet: {
@@ -911,6 +934,14 @@ export function getMatrixRow19Values(r: MatrixRow) {
     score,
     formattedScore,
   };
+}
+
+/**
+ * Tính tổng số câu hỏi được phân bổ cho một dòng ma trận
+ */
+export function getRowTotalQuestions(r: MatrixRow): number {
+  const vals = getMatrixRow19Values(r);
+  return vals.tongBiet + vals.tongHieu + vals.tongVanDung;
 }
 
 /**
@@ -996,10 +1027,14 @@ export function generateSpecificationFromMatrix(
   let currentD3Index = 15; // 15 -> 18 (Trả lời ngắn)
   let currentTLIndex = 19; // 19 -> 21 (Tự luận)
 
+  // Chỉ lấy những nội dung có câu hỏi theo đúng yêu cầu
+  const hasAnyQuestions = rows.some((r) => getRowTotalQuestions(r) > 0);
+  const targetRows = hasAnyQuestions ? rows.filter((r) => getRowTotalQuestions(r) > 0) : rows;
+
   // Group matrix rows by chapter/topic
   const chapterGroups = new Map<string, MatrixRow[]>();
-  rows.forEach((r) => {
-    const ch = r.chuong || 'Chủ đề chung';
+  targetRows.forEach((r) => {
+    const ch = cleanContentWithoutNls(r.chuong || 'Chủ đề chung');
     const list = chapterGroups.get(ch) || [];
     list.push(r);
     chapterGroups.set(ch, list);
@@ -1015,6 +1050,11 @@ export function generateSpecificationFromMatrix(
       const items: SpecificationItem[] = [];
       const v = getMatrixRow19Values(r);
 
+      // Nếu không có câu hỏi ở dòng này thì bỏ qua
+      if (hasAnyQuestions && v.tongBiet + v.tongHieu + v.tongVanDung === 0) {
+        return;
+      }
+
       // Helper to format question list
       const formatQ = (startIdx: number, count: number, prefix: string = 'Câu ') => {
         if (count <= 0) return '';
@@ -1028,9 +1068,9 @@ export function generateSpecificationFromMatrix(
 
       const getObjective = (level: CognitiveLevel) => {
         if (sgkBooks && sgkBooks.length > 0) {
-          return getLearningObjectiveForTopic(level, r.noiDung, r.chuong, sgkBooks, preferredVolume, grade);
+          return cleanContentWithoutNls(getLearningObjectiveForTopic(level, r.noiDung, r.chuong, sgkBooks, preferredVolume, grade));
         }
-        return generateLearningObjective(level, r.noiDung, subject, grade);
+        return cleanContentWithoutNls(generateLearningObjective(level, r.noiDung, subject, grade));
       };
 
       // 1. NHẬN BIẾT
@@ -1170,8 +1210,8 @@ export function generateSpecificationFromMatrix(
         });
       }
 
-      // If no items generated, generate default 3 levels (Nhận biết, Thông hiểu, Vận dụng)
-      if (items.length === 0) {
+      // Nếu chưa có câu hỏi nào trong cả ma trận và không có items thì mới tạo mặc định 3 mức
+      if (items.length === 0 && !hasAnyQuestions) {
         items.push({
           id: `spec-nb-empty-${r.id}`,
           mucDo: 'nhanBiet',
@@ -1204,13 +1244,15 @@ export function generateSpecificationFromMatrix(
         });
       }
 
-      specRows.push({
-        id: `spec-row-${r.id}`,
-        chuong: `Chủ đề ${topicNumber}\n${chapterName}`,
-        soTietChuong: totalChapterPeriods,
-        noiDung: `Nội dung ${topicNumber}\n${r.noiDung}`,
-        items,
-      });
+      if (items.length > 0) {
+        specRows.push({
+          id: `spec-row-${r.id}`,
+          chuong: cleanContentWithoutNls(chapterName),
+          soTietChuong: totalChapterPeriods,
+          noiDung: cleanContentWithoutNls(r.noiDung),
+          items,
+        });
+      }
     });
 
     topicNumber++;

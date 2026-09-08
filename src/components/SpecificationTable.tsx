@@ -12,6 +12,7 @@ import {
   X,
 } from 'lucide-react';
 import { MatrixConfig, MatrixRow, SpecificationRow, SpecificationItem } from '../types';
+import { cleanContentWithoutNls } from '../utils/dateCalculations';
 
 interface SpecificationTableProps {
   config: MatrixConfig;
@@ -334,7 +335,7 @@ export const SpecificationTable: React.FC<SpecificationTableProps> = ({
                           rowSpan={totalItems}
                           className="py-2.5 px-3 font-semibold text-slate-900 border border-slate-300 align-top bg-white whitespace-pre-line"
                         >
-                          {row.chuong}
+                          {cleanContentWithoutNls(row.chuong)}
                         </td>
                       )}
 
@@ -344,7 +345,7 @@ export const SpecificationTable: React.FC<SpecificationTableProps> = ({
                           rowSpan={totalItems}
                           className="py-2.5 px-3 font-medium text-slate-800 border border-slate-300 align-top bg-white whitespace-pre-line"
                         >
-                          <div>{row.noiDung}</div>
+                          <div>{cleanContentWithoutNls(row.noiDung)}</div>
                           <div className="flex gap-1 mt-2.5">
                             <button
                               onClick={() => handleAddItem(row.id, 'nhanBiet')}
@@ -482,7 +483,7 @@ export const SpecificationTable: React.FC<SpecificationTableProps> = ({
                               {item.mucDoLabel}:
                             </div>
                             <div className="whitespace-pre-line text-slate-700 leading-relaxed pl-2">
-                              {item.yeuCauCanDat}
+                              {cleanContentWithoutNls(item.yeuCauCanDat)}
                             </div>
                           </div>
                         )}

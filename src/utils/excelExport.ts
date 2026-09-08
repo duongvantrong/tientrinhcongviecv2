@@ -1,6 +1,7 @@
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import { MatrixConfig, MatrixRow, PpctDataset, ExamEvent } from '../types';
+import { cleanContentWithoutNls, getRowTotalQuestions } from './dateCalculations';
 
 export function exportMatrixToExcel(config: MatrixConfig, rows: MatrixRow[]) {
   const wb = XLSX.utils.book_new();
@@ -40,7 +41,11 @@ export function exportMatrixToExcel(config: MatrixConfig, rows: MatrixRow[]) {
   let totalTnVDC = 0;
   let totalTlVDC = 0;
 
-  rows.forEach((r, idx) => {
+  // Lọc chỉ hiển thị nội dung có câu hỏi nếu có
+  const rowsWithQuestions = rows.filter((r) => getRowTotalQuestions(r) > 0);
+  const targetRows = rowsWithQuestions.length > 0 ? rowsWithQuestions : rows;
+
+  targetRows.forEach((r, idx) => {
     totalTnNB += r.nhanBiet.tn || 0;
     totalTlNB += r.nhanBiet.tl || 0;
     totalTnTH += r.thongHieu.tn || 0;
@@ -68,8 +73,8 @@ export function exportMatrixToExcel(config: MatrixConfig, rows: MatrixRow[]) {
 
     data.push([
       idx + 1,
-      r.chuong,
-      r.noiDung,
+      cleanContentWithoutNls(r.chuong),
+      cleanContentWithoutNls(r.noiDung),
       r.nhanBiet.tn || 0,
       r.nhanBiet.tl || 0,
       r.thongHieu.tn || 0,
