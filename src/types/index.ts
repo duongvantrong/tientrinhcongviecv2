@@ -690,4 +690,60 @@ export interface LessonPlan {
   };
 }
 
+// -------------------------------------------------------------
+// THỜI KHÓA BIỂU & ĐỒNG BỘ PPCT (TIMETABLE & LESSON SCHEDULER)
+// -------------------------------------------------------------
+
+export interface TimetableSlot {
+  id: string;
+  dayOfWeek: number; // 2 = Thứ 2, 3 = Thứ 3, ..., 7 = Thứ 7
+  period: number; // 1 -> 5
+  session?: 'sang' | 'chieu';
+  className: string; // e.g. "9A1", "9A2", "7A1", "7A2"...
+  grade: string; // "6", "7", "8", "9"
+  subject: string; // "Toán", "Đại số", "Hình học"...
+  room?: string;
+  notes?: string;
+}
+
+export interface WeeklyScheduledPeriod {
+  slotId: string;
+  dayOfWeek: number; // 2 -> 7
+  dateStr: string; // YYYY-MM-DD (e.g. 2026-09-08)
+  dateFormatted: string; // "08/09/2026"
+  dayName: string; // "Thứ ba"
+  period: number; // 1 -> 5
+  session: 'sang' | 'chieu';
+  className: string;
+  grade: string;
+  subject: string;
+  room?: string;
+
+  // Nội dung xếp từ PPCT:
+  tietPpctNumber: number; // Tiết số trong PPCT (1 -> 140)
+  lessonId?: string;
+  baiHoc: string; // Tên bài học
+  chuong: string; // Tên chương
+  soTietCuaBai?: number; // Số tiết của bài học
+  tietThuCuaBai?: number; // Tiết thứ mấy trong bài học
+  hocKy: 1 | 2;
+  tuanPpct: number;
+  ghiChu?: string;
+  completed?: boolean;
+}
+
+export interface TeacherTimetableConfig {
+  id: string;
+  teacherName: string;
+  schoolName: string;
+  academicYear: string;
+  appliedDate: string; // e.g. "2026-09-07"
+  appliedWeek: number; // 1
+  slots: TimetableSlot[];
+  completedLessons?: Record<string, boolean>; // key: `${className}_tiet_${tietPpctNumber}` -> boolean
+  lastPhotoUploadedAt?: string;
+  lastPhotoName?: string;
+  sourceImageBase64?: string;
+}
+
 

@@ -22,10 +22,11 @@ import {
   defaultMatrixRows,
 } from './data/defaultData';
 import { INITIAL_SGK_BOOKS } from './data/sgkData';
-import { PpctDataset, PpctLesson, TimeframeConfig, MatrixConfig, MatrixRow, ExamEvent, SgkBook } from './types';
+import { PpctDataset, PpctLesson, TimeframeConfig, MatrixConfig, MatrixRow, ExamEvent, SgkBook, TeacherTimetableConfig } from './types';
 import { calculateCurrentWeek, generateExamSchedule, generateMatrixFromPpct, generateSpecificationFromMatrix, getTodayDateStr } from './utils/dateCalculations';
 import { exportPpctToExcel } from './utils/excelExport';
 import { autoStandardizePpct } from './utils/fileParser';
+import { getDefaultTeacherTimetable } from './utils/timetableScheduler';
 
 export default function App() {
   // Navigation
@@ -182,6 +183,30 @@ export default function App() {
     }
     return defaultMatrixRows;
   });
+
+  // Timetable config for Math teacher (Khối 7 & 9)
+  const [timetableConfig, setTimetableConfig] = useState<TeacherTimetableConfig>(() => {
+    const saved = localStorage.getItem('teacher_timetable_config');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (parsed && Array.isArray(parsed.slots)) {
+          return parsed;
+        }
+      } catch (e) {
+        console.error('Failed to parse saved timetable config', e);
+      }
+    }
+    return getDefaultTeacherTimetable();
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('teacher_timetable_config', JSON.stringify(timetableConfig));
+    } catch (e) {
+      console.error('Failed to save timetable config', e);
+    }
+  }, [timetableConfig]);
 
   // Modal states
   const [isManualEditorOpen, setIsManualEditorOpen] = useState(false);
@@ -506,6 +531,8 @@ export default function App() {
             onUpdateSgkBooks={setSgkBooks}
             onLinkSgkToPpct={handleLinkSgkToPpct}
             onApplySgkToMatrix={handleApplySgkToMatrix}
+            timetableConfig={timetableConfig}
+            onUpdateTimetableConfig={setTimetableConfig}
           />
         ) : activeTab === 'matrix' ? (
           <MatrixTab

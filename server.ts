@@ -20,6 +20,136 @@ async function startServer() {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
   });
 
+  // API endpoint: Parse and recognize Math Timetable (TKB) from uploaded photo/image
+  app.post('/api/parse-tkb-image', async (req, res) => {
+    try {
+      const { imageBase64, mimeType = 'image/jpeg', teacherName, schoolName } = req.body;
+
+      if (!imageBase64 || typeof imageBase64 !== 'string') {
+        return res.status(400).json({ error: 'Hình ảnh không hợp lệ hoặc không có dữ liệu base64.' });
+      }
+
+      console.log(`[TKB OCR] Processing timetable image (${mimeType}, size: ${Math.round(imageBase64.length / 1024)} KB)`);
+
+      // Clean base64 prefix if present (e.g. data:image/png;base64,...)
+      const cleanBase64 = imageBase64.replace(/^data:[^;]+;base64,/, '');
+
+      if (!process.env.GEMINI_API_KEY) {
+        console.log('[TKB OCR] No GEMINI_API_KEY set, returning guided fallback response.');
+        return res.json({
+          success: false,
+          fallback: true,
+          message: 'Chưa cấu hình GEMINI_API_KEY. Vui lòng sử dụng cấu hình TKB mẫu hoặc nhập nhanh.',
+        });
+      }
+
+      const ai = new GoogleGenAI({
+        apiKey: process.env.GEMINI_API_KEY,
+        httpOptions: {
+          headers: {
+            'User-Agent': 'aistudio-build',
+          },
+        },
+      });
+
+      const prompt = `
+Bạn là chuyên gia thẩm định và đọc Thời khóa biểu (TKB) trường THCS/THPT của Bộ Giáo dục và Đào tạo Việt Nam.
+Hãy đọc thật cẩn thận bức ảnh Thời khóa biểu (TKB) đính kèm và trích xuất TOÀN BỘ các tiết học môn TOÁN (hoặc toàn bộ các tiết dạy trong TKB của giáo viên).
+Đặc biệt chú ý nhận diện các lớp thuộc Khối 6, Khối 7, Khối 8, Khối 9 (đặc biệt năm nay giáo viên phụ trách môn Toán khối 7 và khối 9, ví dụ lớp 9A1, 9A2, 7A1, 7A2, 7B, 9B...).
+
+Quy ước:
+- dayOfWeek: Số nguyên từ 2 đến 7 (2 = Thứ Hai, 3 = Thứ Ba, 4 = Thứ Tư, 5 = Thứ Năm, 6 = Thứ Sáu, 7 = Thứ Bảy).
+- period: Số nguyên từ 1 đến 5 (Tiết 1 đến Tiết 5 trong buổi).
+- session: "sang" (buổi sáng) hoặc "chieu" (buổi chiều). Mặc định là "sang" nếu không ghi rõ.
+- className: Tên lớp (Ví dụ: "9A1", "9A", "7A1", "7A2", "7B", "6A", "8C"...).
+- grade: Khối lớp ("6", "7", "8", "9").
+- subject: "Toán" (hoặc "Đại số", "Hình học").
+- room: Phòng học (nếu có ghi trên TKB, ví dụ "P.9A1", "Phòng 12"...).
+
+Yêu cầu trả về DUY NHẤT một chuỗi JSON hợp lệ (không kèm markdown \`\`\`json):
+{
+  "teacherName": "Tên giáo viên nếu thấy trên ảnh TKB (nếu không có thì ghi rỗng)",
+  "schoolName": "Tên trường nếu thấy trên ảnh TKB (nếu không có thì ghi rỗng)",
+  "appliedDate": "2026-09-07",
+  "totalPeriods": 8,
+  "slots": [
+    {
+      "dayOfWeek": 2,
+      "period": 1,
+      "session": "sang",
+      "className": "9A1",
+      "grade": "9",
+      "subject": "Toán",
+      "room": "Phòng 9A1"
+    }
+  ],
+  "summary": "Tóm tắt ngắn gọn phân công chuyên môn đã đọc được"
+}
+`;
+
+      const aiResponse = await ai.models.generateContent({
+        model: 'gemini-3.8-flash',
+        contents: {
+          parts: [
+            {
+              inlineData: {
+                mimeType: mimeType || 'image/jpeg',
+                data: cleanBase64,
+              },
+            },
+            {
+              text: prompt,
+            },
+          ],
+        },
+        config: {
+          responseMimeType: 'application/json',
+        },
+      });
+
+      const responseText = aiResponse.text;
+      if (responseText) {
+        try {
+          const parsed = JSON.parse(responseText.trim());
+          if (parsed && Array.isArray(parsed.slots) && parsed.slots.length > 0) {
+            const formattedSlots = parsed.slots.map((s: any, idx: number) => ({
+              id: `slot-ocr-${Date.now()}-${idx}`,
+              dayOfWeek: Number(s.dayOfWeek) || 2,
+              period: Number(s.period) || 1,
+              session: s.session === 'chieu' ? 'chieu' : 'sang',
+              className: String(s.className || '9A1').trim().toUpperCase(),
+              grade: String(s.grade || s.className?.replace(/\D/g, '') || '9'),
+              subject: String(s.subject || 'Toán').trim(),
+              room: s.room ? String(s.room).trim() : undefined,
+            }));
+
+            return res.json({
+              success: true,
+              teacherName: parsed.teacherName || teacherName || 'Dương Văn Trong',
+              schoolName: parsed.schoolName || schoolName || 'TRƯỜNG THCS VÀ THPT PHÚ THÀNH',
+              appliedDate: parsed.appliedDate || '2026-09-07',
+              slots: formattedSlots,
+              summary: parsed.summary || `Đã trích xuất thành công ${formattedSlots.length} tiết dạy từ ảnh TKB.`,
+            });
+          }
+        } catch (jsonErr) {
+          console.error('[TKB OCR] JSON parsing failed:', jsonErr, responseText);
+        }
+      }
+
+      return res.json({
+        success: false,
+        message: 'Không thể nhận diện các tiết học từ hình ảnh này. Vui lòng kiểm tra lại ảnh chụp hoặc tự động điền TKB mẫu.',
+      });
+    } catch (err: any) {
+      console.error('[TKB OCR] Error processing timetable image:', err);
+      return res.status(500).json({
+        success: false,
+        error: err?.message || 'Lỗi xử lý ảnh Thời khóa biểu.',
+      });
+    }
+  });
+
   // API endpoint: Fetch and recognize SGK content from official URL or web link
   app.post('/api/parse-sgk-link', async (req, res) => {
     try {

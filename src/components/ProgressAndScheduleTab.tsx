@@ -8,7 +8,10 @@ import { UpcomingExams } from './UpcomingExams';
 import { ExamScheduleTable } from './ExamScheduleTable';
 import { LessonPlanSection } from './lessonPlan/LessonPlanSection';
 import { GradeSgkReferenceSection } from './GradeSgkReferenceSection';
+import { WeeklyTimetableSection } from './timetable/WeeklyTimetableSection';
 import { BookOpen, Layers, Upload, CheckCircle2 } from 'lucide-react';
+import { TeacherTimetableConfig } from '../types';
+import { getDefaultTeacherTimetable } from '../utils/timetableScheduler';
 
 interface ProgressAndScheduleTabProps {
   datasets: PpctDataset[];
@@ -38,6 +41,8 @@ interface ProgressAndScheduleTabProps {
   onUpdateSgkBooks?: (books: SgkBook[]) => void;
   onLinkSgkToPpct?: (ppctId: string, volume1Id?: string, volume2Id?: string) => void;
   onApplySgkToMatrix?: (bookId: string, volume: 1 | 2 | 'all') => void;
+  timetableConfig?: TeacherTimetableConfig;
+  onUpdateTimetableConfig?: (newConfig: TeacherTimetableConfig) => void;
 }
 
 export const ProgressAndScheduleTab: React.FC<ProgressAndScheduleTabProps> = ({
@@ -68,7 +73,17 @@ export const ProgressAndScheduleTab: React.FC<ProgressAndScheduleTabProps> = ({
   onUpdateSgkBooks,
   onLinkSgkToPpct,
   onApplySgkToMatrix,
+  timetableConfig: propTimetableConfig,
+  onUpdateTimetableConfig: propOnUpdateTimetableConfig,
 }) => {
+  // Local fallback for timetableConfig if not provided by parent
+  const [localTimetableConfig, setLocalTimetableConfig] = useState<TeacherTimetableConfig>(() => {
+    return propTimetableConfig || getDefaultTeacherTimetable();
+  });
+
+  const timetableConfig = propTimetableConfig || localTimetableConfig;
+  const onUpdateTimetableConfig = propOnUpdateTimetableConfig || setLocalTimetableConfig;
+
   // Khối được chọn hiện tại (Mặc định theo activeDataset.grade hoặc '9')
   const [activeGradeState, setActiveGradeState] = useState<string>(activeDataset?.grade || '9');
 
@@ -163,6 +178,16 @@ export const ProgressAndScheduleTab: React.FC<ProgressAndScheduleTabProps> = ({
           </div>
         </div>
       </div>
+
+      {/* THỜI KHÓA BIỂU MÔN TOÁN & TỰ ĐỘNG XẾP TIẾT PPCT THEO THỜI GIAN THỰC */}
+      <WeeklyTimetableSection
+        currentConfig={timetableConfig}
+        onUpdateConfig={onUpdateTimetableConfig}
+        datasets={datasets}
+        timeframeConfig={timeframeConfig}
+        currentWeek={currentWeek}
+        term={term}
+      />
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* Left Column: Sidebars (Chỉ hiển thị PPCT của khối đã chọn) */}
