@@ -728,6 +728,7 @@ export interface WeeklyScheduledPeriod {
   tietThuCuaBai?: number; // Tiết thứ mấy trong bài học
   hocKy: 1 | 2;
   tuanPpct: number;
+  thietBi?: string; // Thiết bị dạy học, ĐDDH
   ghiChu?: string;
   completed?: boolean;
 }

@@ -23,15 +23,27 @@ async function startServer() {
   // API endpoint: Parse and recognize Math Timetable (TKB) from uploaded photo/image
   app.post('/api/parse-tkb-image', async (req, res) => {
     try {
-      const { imageBase64, mimeType = 'image/jpeg', teacherName, schoolName } = req.body;
+      const { imageBase64, mimeType = 'image/jpeg', teacherName, schoolName, targetTeacherName } = req.body;
 
       if (!imageBase64 || typeof imageBase64 !== 'string') {
-        return res.status(400).json({ error: 'Hình ảnh không hợp lệ hoặc không có dữ liệu base64.' });
+        return res.status(400).json({ error: 'Hình ảnh hoặc tệp PDF không hợp lệ hoặc không có dữ liệu base64.' });
       }
 
-      console.log(`[TKB OCR] Processing timetable image (${mimeType}, size: ${Math.round(imageBase64.length / 1024)} KB)`);
+      // Detect mimeType (image or application/pdf)
+      let detectedMime = mimeType || 'image/jpeg';
+      if (imageBase64.startsWith('data:application/pdf')) {
+        detectedMime = 'application/pdf';
+      } else if (imageBase64.startsWith('data:image/png')) {
+        detectedMime = 'image/png';
+      } else if (imageBase64.startsWith('data:image/jpeg') || imageBase64.startsWith('data:image/jpg')) {
+        detectedMime = 'image/jpeg';
+      } else if (imageBase64.startsWith('data:image/webp')) {
+        detectedMime = 'image/webp';
+      }
 
-      // Clean base64 prefix if present (e.g. data:image/png;base64,...)
+      console.log(`[TKB OCR] Processing timetable document (${detectedMime}, size: ${Math.round(imageBase64.length / 1024)} KB)`);
+
+      // Clean base64 prefix if present (e.g. data:image/png;base64,... or data:application/pdf;base64,...)
       const cleanBase64 = imageBase64.replace(/^data:[^;]+;base64,/, '');
 
       if (!process.env.GEMINI_API_KEY) {
@@ -52,38 +64,68 @@ async function startServer() {
         },
       });
 
-      const prompt = `
-Bạn là chuyên gia thẩm định và đọc Thời khóa biểu (TKB) trường THCS/THPT của Bộ Giáo dục và Đào tạo Việt Nam.
-Hãy đọc thật cẩn thận bức ảnh Thời khóa biểu (TKB) đính kèm và trích xuất TOÀN BỘ các tiết học môn TOÁN (hoặc toàn bộ các tiết dạy trong TKB của giáo viên).
-Đặc biệt chú ý nhận diện các lớp thuộc Khối 6, Khối 7, Khối 8, Khối 9 (đặc biệt năm nay giáo viên phụ trách môn Toán khối 7 và khối 9, ví dụ lớp 9A1, 9A2, 7A1, 7A2, 7B, 9B...).
+      const targetTeacher = (targetTeacherName || teacherName || 'Dương Văn Trong').trim();
 
-Quy ước:
-- dayOfWeek: Số nguyên từ 2 đến 7 (2 = Thứ Hai, 3 = Thứ Ba, 4 = Thứ Tư, 5 = Thứ Năm, 6 = Thứ Sáu, 7 = Thứ Bảy).
-- period: Số nguyên từ 1 đến 5 (Tiết 1 đến Tiết 5 trong buổi).
-- session: "sang" (buổi sáng) hoặc "chieu" (buổi chiều). Mặc định là "sang" nếu không ghi rõ.
-- className: Tên lớp (Ví dụ: "9A1", "9A", "7A1", "7A2", "7B", "6A", "8C"...).
-- grade: Khối lớp ("6", "7", "8", "9").
-- subject: "Toán" (hoặc "Đại số", "Hình học").
-- room: Phòng học (nếu có ghi trên TKB, ví dụ "P.9A1", "Phòng 12"...).
+      const prompt = `
+Bạn là chuyên gia thẩm định và trích xuất Thời khóa biểu (TKB) trường phổ thông Việt Nam từ file ảnh hoặc file PDF.
+Nhiệm vụ tối quan trọng: Tìm và trích xuất CHÍNH XÁC Thời khóa biểu của giáo viên có tên: "${targetTeacher}".
+
+CÁC QUY TẮC NHẬN DIỆN VÀ TRÍCH XUẤT:
+1. ĐÍCH DANH GIÁO VIÊN: "${targetTeacher}" (có thể xuất hiện dưới dạng "Dương Văn Trong", "Dương Văn Trọng", "Trong D.V", "D.V.Trong", "Thầy Trong", viết hoa hoặc thường, có dấu hoặc không dấu).
+   - Nếu file (ảnh hoặc PDF) là Thời khóa biểu toàn trường hoặc danh sách nhiều giáo viên: BẠN BẮT BUỘC PHẢI TÌM ĐÚNG hàng/bảng của giáo viên "${targetTeacher}" và chỉ trích xuất các tiết của giáo viên này. Tuyệt đối không lấy nhầm tiết của giáo viên khác!
+   - Nếu là thời khóa biểu cá nhân của chính giáo viên, hãy trích xuất toàn bộ các tiết dạy trong tuần.
+
+2. CẤU TRÚC BẢNG:
+   - Các cột thường gặp: Giáo Viên | Buổi (S: Sáng / C: Chiều) | Tiết (1, 2, 3, 4, 5) | Thứ 2 | Thứ 3 | Thứ 4 | Thứ 5 | Thứ 6 | Thứ 7.
+   - Dạng ô: thường ghi cú pháp "[Lớp]-[Môn/Nội dung]", ví dụ:
+     + "7A4-Chào cờ" -> className: "7A4", grade: "7", subject: "Chào cờ"
+     + "9A5-Toán" -> className: "9A5", grade: "9", subject: "Toán"
+     + "7A4-Toán" -> className: "7A4", grade: "7", subject: "Toán"
+     + "9A4-Toán" -> className: "9A4", grade: "9", subject: "Toán"
+     + "7A4-SHL" -> className: "7A4", grade: "7", subject: "SHL" (Sinh hoạt lớp)
+   - Ô để trống thì bỏ qua, không đưa vào danh sách slots.
+
+3. QUY ƯỚC DỮ LIỆU JSON TRẢ VỀ:
+   - dayOfWeek: Số nguyên từ 2 đến 7 (2 = Thứ Hai, 3 = Thứ Ba, 4 = Thứ Tư, 5 = Thứ Năm, 6 = Thứ Sáu, 7 = Thứ Bảy).
+   - period: Số nguyên từ 1 đến 5 (Tiết 1 đến Tiết 5 trong buổi).
+   - session: "sang" (buổi sáng nếu cột Buổi là 'S' hoặc tiết 1-5 buổi sáng) hoặc "chieu". Mặc định "sang".
+   - className: Tên lớp (Ví dụ: "7A4", "9A4", "9A5", "9A1", "7A1"...).
+   - grade: Khối lớp ("7", "9", "6", "8").
+   - subject: Tên môn/hoạt động ("Toán", "Chào cờ", "SHL", v.v.).
+   - room: Phòng học nếu có ghi.
+
+4. THÔNG TIN CHUNG:
+   - teacherName: Phải ghi đúng "${targetTeacher}".
+   - appliedDate: Ngày áp dụng ghi trên TKB nếu có (ví dụ "ÁP DỤNG NGÀY 07-09-2026" thì ghi "2026-09-07").
+   - summary: Tóm tắt ngắn gọn các lớp được phân công dạy (Ví dụ: "Giáo viên Dương Văn Trong: Dạy Toán 7A4 (4 tiết), Toán 9A4 (4 tiết), Toán 9A5 (4 tiết), Chào cờ & SHL 7A4 (2 tiết). Tổng cộng 14 tiết/tuần").
 
 Yêu cầu trả về DUY NHẤT một chuỗi JSON hợp lệ (không kèm markdown \`\`\`json):
 {
-  "teacherName": "Tên giáo viên nếu thấy trên ảnh TKB (nếu không có thì ghi rỗng)",
-  "schoolName": "Tên trường nếu thấy trên ảnh TKB (nếu không có thì ghi rỗng)",
+  "teacherName": "${targetTeacher}",
+  "schoolName": "Tên trường nếu có trên ảnh/PDF",
   "appliedDate": "2026-09-07",
-  "totalPeriods": 8,
+  "totalPeriods": 14,
   "slots": [
     {
       "dayOfWeek": 2,
       "period": 1,
       "session": "sang",
-      "className": "9A1",
+      "className": "7A4",
+      "grade": "7",
+      "subject": "Chào cờ",
+      "room": "Sân trường"
+    },
+    {
+      "dayOfWeek": 2,
+      "period": 2,
+      "session": "sang",
+      "className": "9A5",
       "grade": "9",
       "subject": "Toán",
-      "room": "Phòng 9A1"
+      "room": "Phòng 9A5"
     }
   ],
-  "summary": "Tóm tắt ngắn gọn phân công chuyên môn đã đọc được"
+  "summary": "Tóm tắt ngắn gọn các lớp và số tiết dạy trong tuần"
 }
 `;
 
@@ -93,7 +135,7 @@ Yêu cầu trả về DUY NHẤT một chuỗi JSON hợp lệ (không kèm mark
           parts: [
             {
               inlineData: {
-                mimeType: mimeType || 'image/jpeg',
+                mimeType: detectedMime,
                 data: cleanBase64,
               },
             },

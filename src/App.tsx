@@ -191,7 +191,10 @@ export default function App() {
       try {
         const parsed = JSON.parse(saved);
         if (parsed && Array.isArray(parsed.slots)) {
-          return parsed;
+          const has7A4 = parsed.slots.some((s: any) => s.className === '7A4');
+          if (has7A4) {
+            return parsed;
+          }
         }
       } catch (e) {
         console.error('Failed to parse saved timetable config', e);

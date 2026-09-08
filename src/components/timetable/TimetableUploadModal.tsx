@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   X,
   Upload,
@@ -12,6 +12,11 @@ import {
   Layers,
   FileImage,
   RefreshCw,
+  FileText,
+  Clipboard,
+  UserCheck,
+  Zap,
+  ArrowRight,
 } from 'lucide-react';
 import { TeacherTimetableConfig, TimetableSlot } from '../../types';
 import { getDefaultTeacherTimetable } from '../../utils/timetableScheduler';
@@ -21,6 +26,11 @@ interface TimetableUploadModalProps {
   onClose: () => void;
   currentConfig: TeacherTimetableConfig;
   onSaveConfig: (config: TeacherTimetableConfig) => void;
+  initialFile?: {
+    dataUrl: string;
+    fileName: string;
+    isPdf: boolean;
+  } | null;
 }
 
 export const TimetableUploadModal: React.FC<TimetableUploadModalProps> = ({
@@ -28,12 +38,16 @@ export const TimetableUploadModal: React.FC<TimetableUploadModalProps> = ({
   onClose,
   currentConfig,
   onSaveConfig,
+  initialFile,
 }) => {
-  const [selectedImage, setSelectedImage] = useState<string | null>(null);
-  const [imageFileName, setImageFileName] = useState<string>('');
+  const [selectedFileUrl, setSelectedFileUrl] = useState<string | null>(null);
+  const [fileName, setFileName] = useState<string>('');
+  const [isPdf, setIsPdf] = useState<boolean>(false);
+  const [fileSizeText, setFileSizeText] = useState<string>('');
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState<boolean>(false);
 
   // Form states for editable config
   const [teacherName, setTeacherName] = useState<string>(currentConfig.teacherName || 'Dương Văn Trong');
@@ -48,34 +62,131 @@ export const TimetableUploadModal: React.FC<TimetableUploadModalProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
 
+  // Handle initialFile prop if provided when modal opens
+  useEffect(() => {
+    if (initialFile && initialFile.dataUrl) {
+      setSelectedFileUrl(initialFile.dataUrl);
+      setFileName(initialFile.fileName || 'Ảnh từ Clipboard');
+      setIsPdf(initialFile.isPdf || false);
+      setSuccessMsg('Đã nạp ảnh dán từ màn hình (Clipboard). Nhấn "Trích xuất TKB bằng AI" để phân tích!');
+    }
+  }, [initialFile]);
+
+  // Global Ctrl+V clipboard paste listener when modal is open
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handlePaste = (e: ClipboardEvent) => {
+      // Don't intercept if user is typing into an input or textarea
+      const activeTag = document.activeElement?.tagName?.toLowerCase();
+      if (activeTag === 'input' || activeTag === 'textarea') {
+        return;
+      }
+
+      const items = e.clipboardData?.items;
+      if (!items) return;
+
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (item.type.indexOf('image') !== -1) {
+          const file = item.getAsFile();
+          if (file) {
+            processSelectedFile(file, `Ảnh_chụp_màn_hình_${new Date().toLocaleTimeString('vi-VN').replace(/:/g, '-')}.png`);
+            setSuccessMsg('Đã dán ảnh chụp màn hình (Ctrl+V) thành công! Bấm "Trích xuất TKB bằng AI" để tự động đồng bộ.');
+            e.preventDefault();
+            break;
+          }
+        }
+      }
+    };
+
+    window.addEventListener('paste', handlePaste);
+    return () => window.removeEventListener('paste', handlePaste);
+  }, [isOpen]);
+
   if (!isOpen) return null;
+
+  // Process selected file (Image or PDF)
+  const processSelectedFile = (file: File, customName?: string) => {
+    const isFilePdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+    const isImage = file.type.startsWith('image/');
+
+    if (!isFilePdf && !isImage) {
+      setErrorMsg('Vui lòng chọn file hình ảnh (JPG, PNG, WEBP) hoặc tệp PDF Thời khóa biểu.');
+      return;
+    }
+
+    // Format file size
+    const sizeInKb = Math.round(file.size / 1024);
+    setFileSizeText(sizeInKb > 1024 ? `${(sizeInKb / 1024).toFixed(1)} MB` : `${sizeInKb} KB`);
+
+    setErrorMsg(null);
+    setSuccessMsg(null);
+    setFileName(customName || file.name);
+    setIsPdf(isFilePdf);
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const base64 = event.target?.result as string;
+      setSelectedFileUrl(base64);
+    };
+    reader.readAsDataURL(file);
+  };
 
   // Handle local file selection
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    processSelectedFile(file);
+  };
 
-    if (!file.type.startsWith('image/')) {
-      setErrorMsg('Vui lòng chọn file hình ảnh (.jpg, .png, .webp)');
-      return;
+  // Handle Drag and Drop
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) {
+      processSelectedFile(file);
     }
+  };
 
-    setErrorMsg(null);
-    setSuccessMsg(null);
-    setImageFileName(file.name);
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const base64 = event.target?.result as string;
-      setSelectedImage(base64);
-    };
-    reader.readAsDataURL(file);
+  // Clipboard paste button trigger
+  const handleManualPasteClipboard = async () => {
+    try {
+      if (navigator.clipboard && navigator.clipboard.read) {
+        const items = await navigator.clipboard.read();
+        for (const item of items) {
+          const imageType = item.types.find((t) => t.startsWith('image/'));
+          if (imageType) {
+            const blob = await item.getType(imageType);
+            const file = new File([blob], `Ảnh_chụp_màn_hình_${Date.now()}.png`, { type: imageType });
+            processSelectedFile(file);
+            setSuccessMsg('Đã dán ảnh từ Clipboard thành công! Nhấn "Trích xuất TKB bằng AI" để đồng bộ.');
+            return;
+          }
+        }
+      }
+      // If no direct read or blocked by browser permissions, prompt user to press Ctrl+V
+      setErrorMsg('Vui lòng chụp ảnh màn hình (Win + Shift + S hoặc PrtScn), sau đó bấm tổ hợp phím Ctrl + V để dán trực tiếp vào đây.');
+    } catch {
+      setErrorMsg('Vui lòng bấm tổ hợp phím Ctrl + V trên bàn phím để dán trực tiếp ảnh chụp màn hình.');
+    }
   };
 
   // Call AI OCR endpoint on server
   const handleAnalyzeWithAI = async () => {
-    if (!selectedImage) {
-      setErrorMsg('Vui lòng chọn hoặc chụp ảnh Thời khóa biểu trước.');
+    if (!selectedFileUrl) {
+      setErrorMsg('Vui lòng chọn ảnh, tải lên tệp PDF hoặc nhấn Ctrl+V để dán ảnh Thời khóa biểu trước.');
       return;
     }
 
@@ -84,15 +195,18 @@ export const TimetableUploadModal: React.FC<TimetableUploadModalProps> = ({
     setSuccessMsg(null);
 
     try {
+      const mimeType = isPdf ? 'application/pdf' : selectedFileUrl.startsWith('data:image/png') ? 'image/png' : 'image/jpeg';
       const res = await fetch('/api/parse-tkb-image', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          imageBase64: selectedImage,
-          teacherName,
-          schoolName,
+          imageBase64: selectedFileUrl,
+          mimeType,
+          targetTeacherName: teacherName.trim() || 'Dương Văn Trong',
+          teacherName: teacherName.trim(),
+          schoolName: schoolName.trim(),
         }),
       });
 
@@ -103,29 +217,31 @@ export const TimetableUploadModal: React.FC<TimetableUploadModalProps> = ({
         if (data.teacherName) setTeacherName(data.teacherName);
         if (data.schoolName) setSchoolName(data.schoolName);
         if (data.appliedDate) setAppliedDate(data.appliedDate);
-        setSuccessMsg(data.summary || `Đã trích xuất thành công ${data.slots.length} tiết dạy từ ảnh TKB!`);
+        setSuccessMsg(
+          data.summary ||
+            `Đã nhận diện chính xác TKB của giáo viên ${data.teacherName || teacherName} (${data.slots.length} tiết/tuần)! Nhấn nút "Đồng bộ ngay" để cập nhật vào hệ thống.`
+        );
       } else {
-        // Trích xuất chưa đạt hoặc chưa cấu hình API key -> cung cấp hướng dẫn rõ ràng
         setErrorMsg(
           data.message ||
-            'Không đọc được các tiết dạy từ ảnh. Thầy/Cô có thể dùng TKB mẫu Khối 7 & 9 hoặc chỉnh sửa trực tiếp bên dưới.'
+            'Không tìm thấy tiết dạy trong tệp đính kèm. Thầy/Cô có thể dùng TKB mẫu Khối 7 & 9 hoặc chỉnh sửa trực tiếp bên dưới.'
         );
       }
     } catch (err: any) {
-      setErrorMsg('Lỗi kết nối máy chủ phân tích ảnh: ' + (err?.message || 'Thử lại sau.'));
+      setErrorMsg('Lỗi kết nối máy chủ phân tích: ' + (err?.message || 'Thử lại sau.'));
     } finally {
       setIsProcessing(false);
     }
   };
 
-  // Nạp nhanh TKB mẫu Toán 7 & 9 (8 tiết/tuần)
+  // Nạp nhanh TKB mẫu Toán 7 & 9 (theo ảnh TKB năm học 2026-2027)
   const handleLoadDefaultPreset = () => {
     const def = getDefaultTeacherTimetable();
     setSlots(def.slots);
     setTeacherName(def.teacherName);
     setSchoolName(def.schoolName);
     setAppliedDate(def.appliedDate);
-    setSuccessMsg('Đã nạp Thời khóa biểu mẫu chuẩn Toán Khối 7 & Khối 9 (8 tiết/tuần, áp dụng từ 07/09/2026).');
+    setSuccessMsg('Đã nạp Thời khóa biểu chuẩn theo ảnh mẫu TKB 2026-2027 (7A4, 9A4, 9A5) áp dụng từ 07/09/2026.');
     setErrorMsg(null);
   };
 
@@ -136,10 +252,10 @@ export const TimetableUploadModal: React.FC<TimetableUploadModalProps> = ({
       dayOfWeek: 2,
       period: 1,
       session: 'sang',
-      className: '9A1',
-      grade: '9',
+      className: '7A4',
+      grade: '7',
       subject: 'Toán',
-      room: 'Phòng 9A1',
+      room: 'Phòng 7A4',
     };
     setSlots((prev) => [...prev, newSlot]);
   };
@@ -150,7 +266,6 @@ export const TimetableUploadModal: React.FC<TimetableUploadModalProps> = ({
       prev.map((s) => {
         if (s.id !== id) return s;
         const updated = { ...s, ...updates };
-        // Tự động nhận diện Khối từ tên lớp nếu đổi className
         if (updates.className) {
           const num = updates.className.replace(/\D/g, '');
           if (num.startsWith('6') || num.startsWith('7') || num.startsWith('8') || num.startsWith('9')) {
@@ -167,7 +282,7 @@ export const TimetableUploadModal: React.FC<TimetableUploadModalProps> = ({
     setSlots((prev) => prev.filter((s) => s.id !== id));
   };
 
-  // Lưu toàn bộ cấu hình TKB
+  // Lưu toàn bộ cấu hình TKB và đồng bộ vào hệ thống
   const handleSave = () => {
     if (slots.length === 0) {
       setErrorMsg('Vui lòng thêm ít nhất 1 tiết dạy trong thời khóa biểu.');
@@ -181,9 +296,9 @@ export const TimetableUploadModal: React.FC<TimetableUploadModalProps> = ({
       appliedDate: appliedDate || '2026-09-07',
       appliedWeek: 1,
       slots,
-      lastPhotoUploadedAt: selectedImage ? new Date().toISOString() : currentConfig.lastPhotoUploadedAt,
-      lastPhotoName: imageFileName || currentConfig.lastPhotoName,
-      sourceImageBase64: selectedImage || currentConfig.sourceImageBase64,
+      lastPhotoUploadedAt: selectedFileUrl ? new Date().toISOString() : currentConfig.lastPhotoUploadedAt,
+      lastPhotoName: fileName || currentConfig.lastPhotoName,
+      sourceImageBase64: !isPdf ? (selectedFileUrl || currentConfig.sourceImageBase64) : currentConfig.sourceImageBase64,
     };
 
     onSaveConfig(updatedConfig);
@@ -200,18 +315,23 @@ export const TimetableUploadModal: React.FC<TimetableUploadModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto">
-      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto">
+      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-4xl max-h-[92vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
         {/* Modal Header */}
-        <div className="px-6 py-4 bg-gradient-to-r from-emerald-850 to-teal-900 text-white flex items-center justify-between shrink-0">
+        <div className="px-5 sm:px-6 py-4 bg-gradient-to-r from-emerald-850 to-teal-900 text-white flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-white/10 backdrop-blur-xs flex items-center justify-center border border-white/20">
               <Camera className="w-5 h-5 text-emerald-200" />
             </div>
             <div>
-              <h2 className="text-base sm:text-lg font-bold">Chụp ảnh / Tải lên Thời khóa biểu môn Toán</h2>
+              <h2 className="text-base sm:text-lg font-bold flex items-center gap-2">
+                <span>Nạp Thời Khóa Biểu</span>
+                <span className="text-[11px] font-normal bg-emerald-700/80 border border-emerald-500/40 px-2 py-0.5 rounded-full text-emerald-100">
+                  Ảnh • PDF • Dán Ctrl+V
+                </span>
+              </h2>
               <p className="text-xs text-emerald-100">
-                Nhận diện tự động TKB & Trực tiếp xếp nội dung bài học PPCT vào từng buổi dạy
+                Nhận diện chính xác giáo viên <strong>Dương Văn Trong</strong> & tự động đồng bộ xếp bài dạy PPCT
               </p>
             </div>
           </div>
@@ -225,34 +345,45 @@ export const TimetableUploadModal: React.FC<TimetableUploadModalProps> = ({
         </div>
 
         {/* Modal Body */}
-        <div className="p-6 overflow-y-auto space-y-6 flex-1 text-slate-800">
-          {/* Section 1: Upload Photo / Take Camera */}
+        <div className="p-4 sm:p-6 overflow-y-auto space-y-5 flex-1 text-slate-800">
+          {/* Section 1: Upload / Paste Dropzone */}
           <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 sm:p-5 space-y-4">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <FileImage className="w-4 h-4 text-emerald-700" />
                 <span className="text-xs font-bold uppercase tracking-wider text-slate-700">
-                  1. Tải ảnh hoặc Chụp ảnh Thời khóa biểu (TKB)
+                  1. Tải lên tệp PDF, Ảnh TKB hoặc Dán trực tiếp từ màn hình (Ctrl+V)
                 </span>
               </div>
-              <button
-                type="button"
-                onClick={handleLoadDefaultPreset}
-                className="text-xs font-bold text-emerald-800 hover:text-emerald-950 bg-emerald-100/70 hover:bg-emerald-200 px-3 py-1 rounded-lg transition-colors inline-flex items-center gap-1.5"
-              >
-                <RefreshCw className="w-3.5 h-3.5" />
-                Nạp TKB mẫu Toán 7 & 9
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleManualPasteClipboard}
+                  className="text-xs font-bold text-teal-800 hover:text-teal-950 bg-teal-100/80 hover:bg-teal-200 px-3 py-1 rounded-lg transition-colors inline-flex items-center gap-1.5"
+                  title="Dán ảnh chụp màn hình từ bộ nhớ tạm"
+                >
+                  <Clipboard className="w-3.5 h-3.5 text-teal-700" />
+                  Dán ảnh (Ctrl+V)
+                </button>
+                <button
+                  type="button"
+                  onClick={handleLoadDefaultPreset}
+                  className="text-xs font-bold text-emerald-800 hover:text-emerald-950 bg-emerald-100/70 hover:bg-emerald-200 px-3 py-1 rounded-lg transition-colors inline-flex items-center gap-1.5"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  Nạp TKB mẫu 2026-2027
+                </button>
+              </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-stretch">
               {/* Upload Dropzone */}
-              <div className="md:col-span-8">
+              <div className="md:col-span-8 flex flex-col">
                 <input
                   type="file"
                   ref={fileInputRef}
                   onChange={handleFileChange}
-                  accept="image/*"
+                  accept="image/*,application/pdf,.pdf"
                   className="hidden"
                 />
                 <input
@@ -266,50 +397,83 @@ export const TimetableUploadModal: React.FC<TimetableUploadModalProps> = ({
 
                 <div
                   onClick={() => fileInputRef.current?.click()}
-                  className="border-2 border-dashed border-slate-300 hover:border-emerald-500 bg-white hover:bg-emerald-50/40 rounded-xl p-5 text-center cursor-pointer transition-all flex flex-col items-center justify-center gap-2 group"
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
+                  className={`border-2 border-dashed rounded-xl p-5 text-center cursor-pointer transition-all flex flex-col items-center justify-center gap-2 group flex-1 ${
+                    isDragging
+                      ? 'border-emerald-600 bg-emerald-50 scale-[1.01]'
+                      : 'border-slate-300 hover:border-emerald-500 bg-white hover:bg-emerald-50/30'
+                  }`}
                 >
-                  <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-800 group-hover:scale-110 flex items-center justify-center transition-transform">
-                    <Upload className="w-6 h-6" />
+                  <div className="flex items-center gap-2">
+                    <div className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-800 group-hover:scale-110 flex items-center justify-center transition-transform">
+                      <Upload className="w-5 h-5" />
+                    </div>
+                    <div className="w-10 h-10 rounded-full bg-red-100 text-red-700 group-hover:scale-110 flex items-center justify-center transition-transform">
+                      <FileText className="w-5 h-5" />
+                    </div>
+                    <div className="w-10 h-10 rounded-full bg-amber-100 text-amber-800 group-hover:scale-110 flex items-center justify-center transition-transform">
+                      <Clipboard className="w-5 h-5" />
+                    </div>
                   </div>
+
                   <div>
                     <p className="text-xs sm:text-sm font-bold text-slate-800">
-                      Nhấn để tải lên ảnh TKB từ máy tính hoặc điện thoại
+                      Tải lên tệp PDF hoặc Ảnh TKB • Dán ảnh màn hình (Ctrl+V)
                     </p>
                     <p className="text-[11px] text-slate-500 mt-0.5">
-                      Hỗ trợ ảnh chụp JPG, PNG, WEBP, ảnh bảng phân công chuyên môn hoặc TKB tuần
+                      Hỗ trợ tệp <strong>.PDF</strong>, ảnh <strong>JPG, PNG, WEBP</strong> hoặc ảnh vừa chụp bằng <strong>Win + Shift + S</strong>
                     </p>
                   </div>
-                  <div className="flex items-center gap-2 mt-2">
+
+                  <div className="flex flex-wrap items-center justify-center gap-2 mt-1">
                     <button
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
                         cameraInputRef.current?.click();
                       }}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold"
+                      className="inline-flex items-center gap-1 px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-md text-[11px] font-semibold"
                     >
                       <Camera className="w-3.5 h-3.5 text-emerald-700" />
-                      Chụp trực tiếp bằng camera
+                      Chụp camera
                     </button>
-                    <span className="text-xs text-slate-400">hoặc kéo thả ảnh vào đây</span>
+                    <span className="text-[11px] text-emerald-700 bg-emerald-100/60 font-semibold px-2 py-0.5 rounded border border-emerald-300/60">
+                      Phím tắt Ctrl + V dán trực tiếp
+                    </span>
+                    <span className="text-[11px] text-slate-400">hoặc kéo thả tệp vào đây</span>
                   </div>
                 </div>
               </div>
 
-              {/* Preview Thumbnail */}
-              <div className="md:col-span-4 flex flex-col items-center justify-center bg-white border border-slate-200 rounded-xl p-3 min-h-[140px]">
-                {selectedImage ? (
+              {/* Preview Box */}
+              <div className="md:col-span-4 flex flex-col items-center justify-center bg-white border border-slate-200 rounded-xl p-3 min-h-[150px]">
+                {selectedFileUrl ? (
                   <div className="w-full space-y-2 text-center">
-                    <div className="relative max-h-28 overflow-hidden rounded-lg border border-slate-200 mx-auto">
-                      <img
-                        src={selectedImage}
-                        alt="TKB Preview"
-                        className="w-full h-auto object-cover"
-                      />
-                    </div>
+                    {isPdf ? (
+                      <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-center">
+                        <FileText className="w-10 h-10 text-red-600 mx-auto mb-1" />
+                        <span className="inline-block px-2 py-0.5 bg-red-600 text-white rounded text-[10px] font-bold uppercase tracking-wider">
+                          Tệp tài liệu PDF
+                        </span>
+                        <p className="text-xs font-bold text-slate-800 truncate mt-1.5">{fileName}</p>
+                        {fileSizeText && <p className="text-[10px] text-slate-500">{fileSizeText}</p>}
+                      </div>
+                    ) : (
+                      <div className="relative max-h-28 overflow-hidden rounded-lg border border-slate-200 mx-auto bg-slate-100">
+                        <img
+                          src={selectedFileUrl}
+                          alt="TKB Preview"
+                          className="w-full h-auto object-cover max-h-28"
+                        />
+                      </div>
+                    )}
+
                     <p className="text-[11px] font-semibold text-slate-700 truncate max-w-[200px] mx-auto">
-                      {imageFileName || 'Ảnh TKB đã chọn'}
+                      {fileName || 'Tệp TKB đã sẵn sàng'}
                     </p>
+
                     <button
                       type="button"
                       onClick={handleAnalyzeWithAI}
@@ -319,7 +483,7 @@ export const TimetableUploadModal: React.FC<TimetableUploadModalProps> = ({
                       {isProcessing ? (
                         <>
                           <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                          <span>Đang nhận diện AI...</span>
+                          <span>Đang nhận diện TKB Thầy Trong...</span>
                         </>
                       ) : (
                         <>
@@ -332,22 +496,61 @@ export const TimetableUploadModal: React.FC<TimetableUploadModalProps> = ({
                 ) : (
                   <div className="text-center text-slate-400 p-2">
                     <FileImage className="w-8 h-8 mx-auto stroke-1 mb-1 text-slate-300" />
-                    <p className="text-xs">Chưa có ảnh nào được chọn</p>
+                    <p className="text-xs font-medium">Chưa có tệp nào</p>
+                    <p className="text-[10px] text-slate-400 mt-0.5">Tải lên file PDF hoặc nhấn Ctrl+V</p>
                   </div>
                 )}
               </div>
             </div>
 
+            {/* Target Teacher Identification Callout */}
+            <div className="bg-emerald-50/70 border border-emerald-200/80 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-emerald-600 text-white flex items-center justify-center shrink-0">
+                  <UserCheck className="w-4 h-4" />
+                </div>
+                <div>
+                  <div className="text-xs font-bold text-emerald-950 flex items-center gap-1.5">
+                    <span>Đích danh nhận diện: </span>
+                    <input
+                      type="text"
+                      value={teacherName}
+                      onChange={(e) => setTeacherName(e.target.value)}
+                      className="px-2 py-0.5 bg-white border border-emerald-300 rounded font-bold text-emerald-900 text-xs w-44 focus:ring-1 focus:ring-emerald-500"
+                      placeholder="Dương Văn Trong"
+                    />
+                  </div>
+                  <p className="text-[11px] text-emerald-800">
+                    AI sẽ tự động lọc đúng hàng của giáo viên này nếu tệp PDF hoặc ảnh chứa TKB toàn trường.
+                  </p>
+                </div>
+              </div>
+              <span className="text-[10px] font-semibold uppercase text-emerald-800 bg-emerald-100/90 px-2 py-1 rounded border border-emerald-200 shrink-0">
+                Toán 7A4 • 9A4 • 9A5
+              </span>
+            </div>
+
             {/* Notifications */}
             {successMsg && (
-              <div className="flex items-center gap-2 p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-900 font-medium">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                <span>{successMsg}</span>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-emerald-50 border border-emerald-300 rounded-xl text-xs text-emerald-900 font-medium animate-in fade-in">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>{successMsg}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleSave}
+                  className="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-xs font-bold transition-all shadow-xs flex items-center justify-center gap-1 shrink-0"
+                >
+                  <Zap className="w-3.5 h-3.5 text-amber-300" />
+                  <span>Đồng bộ TKB ngay</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
               </div>
             )}
 
             {errorMsg && (
-              <div className="flex items-center gap-2 p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900 font-medium">
+              <div className="flex items-center gap-2 p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900 font-medium animate-in fade-in">
                 <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
                 <span>{errorMsg}</span>
               </div>
@@ -402,10 +605,10 @@ export const TimetableUploadModal: React.FC<TimetableUploadModalProps> = ({
               <div>
                 <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
                   <Layers className="w-4 h-4 text-emerald-700" />
-                  <span>2. Danh sách tiết dạy môn Toán trong tuần ({slots.length} tiết)</span>
+                  <span>2. Danh sách tiết dạy trong tuần ({slots.length} tiết)</span>
                 </h3>
                 <p className="text-[11px] text-slate-500">
-                  Hệ thống sẽ dựa vào danh sách này để tự động xếp chính xác từng tiết PPCT theo tiến độ thời gian thực.
+                  Hệ thống tự động xếp chính xác từng tiết PPCT vào các buổi dạy tương ứng.
                 </p>
               </div>
 
@@ -428,16 +631,18 @@ export const TimetableUploadModal: React.FC<TimetableUploadModalProps> = ({
                     <th className="py-2.5 px-3">Thứ trong tuần</th>
                     <th className="py-2.5 px-3 w-28">Tiết dạy</th>
                     <th className="py-2.5 px-3 w-28">Buổi</th>
-                    <th className="py-2.5 px-3 w-28">Lớp học</th>
-                    <th className="py-2.5 px-3 w-24">Khối</th>
-                    <th className="py-2.5 px-3">Phòng học</th>
-                    <th className="py-2.5 px-3 w-12 text-center">Xóa</th>
+                    <th className="py-2.5 px-3 w-32">Lớp</th>
+                    <th className="py-2.5 px-3">Nội dung / Môn</th>
+                    <th className="py-2.5 px-3 w-28">Phòng</th>
+                    <th className="py-2.5 px-2 w-12 text-center">Xóa</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {slots.map((slot, index) => (
-                    <tr key={slot.id} className="hover:bg-emerald-50/30 transition-colors">
-                      <td className="py-2 px-3 text-center text-slate-400 font-bold">{index + 1}</td>
+                    <tr key={slot.id} className="hover:bg-slate-50 transition-colors">
+                      <td className="py-2 px-3 text-center text-slate-400 font-mono text-[11px]">
+                        {index + 1}
+                      </td>
                       <td className="py-2 px-3">
                         <select
                           value={slot.dayOfWeek}
@@ -467,9 +672,11 @@ export const TimetableUploadModal: React.FC<TimetableUploadModalProps> = ({
                       </td>
                       <td className="py-2 px-3">
                         <select
-                          value={slot.session || 'sang'}
-                          onChange={(e) => handleUpdateSlot(slot.id, { session: e.target.value as 'sang' | 'chieu' })}
-                          className="w-full px-2 py-1 bg-white border border-slate-300 rounded text-slate-700"
+                          value={slot.session}
+                          onChange={(e) =>
+                            handleUpdateSlot(slot.id, { session: e.target.value as 'sang' | 'chieu' })
+                          }
+                          className="w-full px-2 py-1 bg-white border border-slate-300 rounded text-slate-800 font-medium"
                         >
                           <option value="sang">Sáng</option>
                           <option value="chieu">Chiều</option>
@@ -480,21 +687,18 @@ export const TimetableUploadModal: React.FC<TimetableUploadModalProps> = ({
                           type="text"
                           value={slot.className}
                           onChange={(e) => handleUpdateSlot(slot.id, { className: e.target.value })}
-                          className="w-full px-2 py-1 bg-white border border-slate-300 rounded font-bold text-emerald-900"
-                          placeholder="e.g. 9A1"
+                          className="w-full px-2 py-1 bg-white border border-slate-300 rounded font-bold text-emerald-950 uppercase"
+                          placeholder="7A4, 9A4..."
                         />
                       </td>
                       <td className="py-2 px-3">
-                        <select
-                          value={slot.grade}
-                          onChange={(e) => handleUpdateSlot(slot.id, { grade: e.target.value })}
-                          className="w-full px-2 py-1 bg-white border border-slate-300 rounded font-semibold text-slate-800"
-                        >
-                          <option value="6">Khối 6</option>
-                          <option value="7">Khối 7</option>
-                          <option value="8">Khối 8</option>
-                          <option value="9">Khối 9</option>
-                        </select>
+                        <input
+                          type="text"
+                          value={slot.subject}
+                          onChange={(e) => handleUpdateSlot(slot.id, { subject: e.target.value })}
+                          className="w-full px-2 py-1 bg-white border border-slate-300 rounded text-slate-800 font-medium"
+                          placeholder="Toán, Chào cờ, SHL..."
+                        />
                       </td>
                       <td className="py-2 px-3">
                         <input
@@ -524,12 +728,12 @@ export const TimetableUploadModal: React.FC<TimetableUploadModalProps> = ({
         </div>
 
         {/* Modal Footer */}
-        <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between shrink-0">
+        <div className="px-5 sm:px-6 py-4 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0">
           <div className="text-xs text-slate-500">
             Tổng cộng: <strong className="text-emerald-900">{slots.length} tiết/tuần</strong> • Áp dụng tuần 1 từ{' '}
             <strong>{appliedDate}</strong>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
             <button
               type="button"
               onClick={onClose}
@@ -543,7 +747,7 @@ export const TimetableUploadModal: React.FC<TimetableUploadModalProps> = ({
               className="px-5 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1.5"
             >
               <CheckCircle2 className="w-4 h-4" />
-              <span>Xác nhận & Tự động xếp PPCT vào TKB</span>
+              <span>Đồng bộ & Tự động xếp PPCT vào TKB</span>
             </button>
           </div>
         </div>

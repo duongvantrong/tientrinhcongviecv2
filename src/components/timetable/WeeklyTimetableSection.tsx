@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Calendar,
   Clock,
@@ -16,6 +16,12 @@ import {
   Printer,
   Edit3,
   Award,
+  Copy,
+  Table as TableIcon,
+  LayoutGrid,
+  RotateCcw,
+  Check,
+  Clipboard,
 } from 'lucide-react';
 import {
   TeacherTimetableConfig,
@@ -27,9 +33,9 @@ import {
   generateWeeklySchedule,
   getTodayLessons,
   getWeekDates,
+  getDefaultTeacherTimetable,
 } from '../../utils/timetableScheduler';
 import { TimetableUploadModal } from './TimetableUploadModal';
-import { getDayOfWeekVN, formatDateVN } from '../../utils/dateCalculations';
 
 interface WeeklyTimetableSectionProps {
   currentConfig: TeacherTimetableConfig;
@@ -48,22 +54,72 @@ export const WeeklyTimetableSection: React.FC<WeeklyTimetableSectionProps> = ({
   currentWeek,
   term,
 }) => {
-  // Navigation week for viewing schedule (defaults to currentWeek or 1)
+  // Navigation week (Tuần 1 -> 35)
   const [selectedWeek, setSelectedWeek] = useState<number>(() => {
     return currentWeek > 0 && currentWeek <= 35 ? currentWeek : 1;
   });
 
   // Modal upload / edit
   const [isUploadModalOpen, setIsUploadModalOpen] = useState<boolean>(false);
+  const [pastedFilePayload, setPastedFilePayload] = useState<{
+    dataUrl: string;
+    fileName: string;
+    isPdf: boolean;
+  } | null>(null);
 
-  // Filter by class or grade ('all' or '9A1', '7A1', '9', '7'...)
+  // Global Ctrl+V listener: automatically intercept screenshot paste and open modal
+  useEffect(() => {
+    const handleGlobalPaste = (e: ClipboardEvent) => {
+      const activeTag = document.activeElement?.tagName?.toLowerCase();
+      if (activeTag === 'input' || activeTag === 'textarea') {
+        return;
+      }
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (item.type.indexOf('image') !== -1) {
+          const file = item.getAsFile();
+          if (file) {
+            const reader = new FileReader();
+            reader.onload = (event) => {
+              const base64 = event.target?.result as string;
+              setPastedFilePayload({
+                dataUrl: base64,
+                fileName: `Ảnh_chụp_màn_hình_${new Date().toLocaleTimeString('vi-VN').replace(/:/g, '-')}.png`,
+                isPdf: false,
+              });
+              setIsUploadModalOpen(true);
+            };
+            reader.readAsDataURL(file);
+            e.preventDefault();
+            break;
+          }
+        }
+      }
+    };
+
+    window.addEventListener('paste', handleGlobalPaste);
+    return () => window.removeEventListener('paste', handleGlobalPaste);
+  }, []);
+
+  // Filter by class or grade ('all' or '7A4', '9A4', '9A5', '9', '7')
   const [selectedFilter, setSelectedFilter] = useState<string>('all');
 
-  // View mode: 'grid' (Ma trận TKB) or 'table' (Lịch báo giảng chi tiết)
-  const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
+  // View modes:
+  // 'tkb_sample': Bảng Thời khóa biểu đúng theo cấu trúc mẫu ảnh của thầy Dương Văn Trong
+  // 'visual_schedule': Lịch báo giảng trực quan theo ngày
+  // 'official_register': Sổ báo giảng chuẩn in ấn / nộp BGH
+  const [viewMode, setViewMode] = useState<'tkb_sample' | 'visual_schedule' | 'official_register'>('tkb_sample');
 
   // Selected period detail modal
   const [detailPeriod, setDetailPeriod] = useState<WeeklyScheduledPeriod | null>(null);
+
+  // Toggle expand lesson names in the TKB table
+  const [showLessonDetailsInTkb, setShowLessonDetailsInTkb] = useState<boolean>(true);
+
+  // Copy success indicator
+  const [copiedSuccess, setCopiedSuccess] = useState<boolean>(false);
 
   // Today date string (from timeframe config or real Date)
   const todayDateStr = timeframeConfig.currentDate || new Date().toISOString().split('T')[0];
@@ -111,6 +167,7 @@ export const WeeklyTimetableSection: React.FC<WeeklyTimetableSectionProps> = ({
 
   // Toggle lesson completed status
   const handleToggleCompleted = (className: string, tietPpctNumber: number) => {
+    if (tietPpctNumber <= 0) return;
     const key = `${className}_tiet_${tietPpctNumber}`;
     const currentStatus = !!currentConfig.completedLessons?.[key];
     const updatedLessons = {
@@ -124,55 +181,69 @@ export const WeeklyTimetableSection: React.FC<WeeklyTimetableSectionProps> = ({
     });
   };
 
-  // Build grid map: [period 1..5][dayOfWeek 2..7] -> WeeklyScheduledPeriod[]
-  const gridMatrix = useMemo(() => {
-    const matrix: Record<number, Record<number, WeeklyScheduledPeriod[]>> = {
-      1: { 2: [], 3: [], 4: [], 5: [], 6: [], 7: [] },
-      2: { 2: [], 3: [], 4: [], 5: [], 6: [], 7: [] },
-      3: { 2: [], 3: [], 4: [], 5: [], 6: [], 7: [] },
-      4: { 2: [], 3: [], 4: [], 5: [], 6: [], 7: [] },
-      5: { 2: [], 3: [], 4: [], 5: [], 6: [], 7: [] },
+  // Reset to original timetable from the user's uploaded image
+  const handleResetToSample = () => {
+    const def = getDefaultTeacherTimetable();
+    onUpdateConfig(def);
+  };
+
+  // Build matrix lookup for period (1..5) and dayOfWeek (2..7)
+  const scheduleMatrix = useMemo(() => {
+    const matrix: Record<number, Record<number, WeeklyScheduledPeriod | null>> = {
+      1: { 2: null, 3: null, 4: null, 5: null, 6: null, 7: null },
+      2: { 2: null, 3: null, 4: null, 5: null, 6: null, 7: null },
+      3: { 2: null, 3: null, 4: null, 5: null, 6: null, 7: null },
+      4: { 2: null, 3: null, 4: null, 5: null, 6: null, 7: null },
+      5: { 2: null, 3: null, 4: null, 5: null, 6: null, 7: null },
     };
 
-    filteredSchedule.forEach((periodItem) => {
-      const p = periodItem.period;
-      const dow = periodItem.dayOfWeek;
-      if (matrix[p] && matrix[p][dow]) {
-        matrix[p][dow].push(periodItem);
+    weeklySchedule.forEach((item) => {
+      if (matrix[item.period] && matrix[item.period][item.dayOfWeek] !== undefined) {
+        matrix[item.period][item.dayOfWeek] = item;
       }
     });
 
     return matrix;
-  }, [filteredSchedule]);
+  }, [weeklySchedule]);
 
-  const periodsTimetable = [
-    { period: 1, time: '07:00 - 07:45' },
-    { period: 2, time: '07:50 - 08:35' },
-    { period: 3, time: '08:50 - 09:35' },
-    { period: 4, time: '09:40 - 10:25' },
-    { period: 5, time: '10:30 - 11:15' },
-  ];
+  // Copy register to clipboard formatted as TSV for Excel/Word
+  const handleCopyRegister = () => {
+    let tsv = 'STT\tThứ, Ngày\tBuổi\tTiết TKB\tLớp\tTiết PPCT\tTên bài dạy / Nội dung công việc\tThiết bị / ĐDDH\tGhi chú\n';
+    filteredSchedule.forEach((item, idx) => {
+      const tietPpctStr = item.tietPpctNumber > 0 ? `Tiết ${item.tietPpctNumber}` : '—';
+      tsv += `${idx + 1}\t${item.dayName} (${item.dateFormatted})\tSáng\tTiết ${item.period}\t${item.className}\t${tietPpctStr}\t${item.baiHoc}\t${item.thietBi || ''}\t${item.ghiChu || ''}\n`;
+    });
+
+    navigator.clipboard.writeText(tsv).then(() => {
+      setCopiedSuccess(true);
+      setTimeout(() => setCopiedSuccess(false), 2500);
+    });
+  };
+
+  // Trigger browser print
+  const handlePrint = () => {
+    window.print();
+  };
 
   return (
     <div className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 shadow-xs space-y-6">
       {/* Top Banner Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-100">
         <div className="flex items-start gap-3.5">
-          <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-emerald-600 to-teal-700 text-white flex items-center justify-center shrink-0 shadow-xs">
+          <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-emerald-700 to-teal-800 text-white flex items-center justify-center shrink-0 shadow-xs">
             <Calendar className="w-5 h-5" />
           </div>
           <div>
             <div className="flex flex-wrap items-center gap-2">
-              <h2 className="text-base sm:text-lg font-bold text-slate-900">
-                Thời khóa biểu môn Toán & Lịch giảng dạy chi tiết theo PPCT
+              <h2 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight">
+                Thời khóa biểu & Lịch báo giảng môn Toán
               </h2>
               <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
-                Áp dụng từ 07/09/2026 (Tuần 1)
+                Năm học 2026-2027 • Áp dụng 07-09-2026
               </span>
             </div>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Căn cứ thời gian thực • Tự động xếp trực tiếp nội dung bài học PPCT vào từng tiết dạy trong tuần
-              {currentConfig.teacherName ? ` • GV: ${currentConfig.teacherName}` : ''}
+            <p className="text-xs text-slate-600 mt-0.5">
+              Giáo viên: <strong className="text-slate-900">{currentConfig.teacherName || 'Dương Văn Trong'}</strong> • Phụ trách Toán Khối 7 (7A4) & Khối 9 (9A4, 9A5) + Chủ nhiệm 7A4
             </p>
           </div>
         </div>
@@ -182,44 +253,60 @@ export const WeeklyTimetableSection: React.FC<WeeklyTimetableSectionProps> = ({
           <button
             type="button"
             onClick={() => setIsUploadModalOpen(true)}
-            className="flex items-center gap-2 px-3.5 py-2 bg-gradient-to-r from-emerald-700 to-teal-800 hover:from-emerald-800 hover:to-teal-900 text-white rounded-xl text-xs font-bold transition-all shadow-xs"
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-emerald-700 to-teal-800 hover:from-emerald-800 hover:to-teal-900 text-white rounded-xl text-xs font-bold transition-all shadow-xs"
+            title="Tải lên tệp PDF, Ảnh TKB hoặc nhấn Ctrl+V để dán ảnh màn hình"
           >
-            <Camera className="w-4 h-4 text-emerald-200" />
-            <span>+ Chụp ảnh / Tải lên ảnh TKB</span>
+            <Camera className="w-3.5 h-3.5 text-emerald-200" />
+            <span>Nạp TKB (PDF / Ảnh / Ctrl+V)</span>
           </button>
 
           <button
             type="button"
-            onClick={() => setIsUploadModalOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition-colors"
-            title="Tùy chỉnh phân công tiết"
+            onClick={handleResetToSample}
+            className="flex items-center gap-1 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition-colors"
+            title="Khôi phục thời khóa biểu chuẩn theo ảnh mẫu đã tải lên"
           >
-            <Edit3 className="w-3.5 h-3.5 text-slate-500" />
-            <span>Chỉnh sửa TKB</span>
+            <RotateCcw className="w-3 h-3 text-slate-500" />
+            <span>Khôi phục mẫu ảnh</span>
           </button>
 
+          {/* View Mode Switcher */}
           <div className="inline-flex p-1 bg-slate-100 rounded-xl border border-slate-200">
             <button
               type="button"
-              onClick={() => setViewMode('grid')}
-              className={`px-3 py-1 text-xs font-bold rounded-lg transition-all ${
-                viewMode === 'grid'
+              onClick={() => setViewMode('tkb_sample')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${
+                viewMode === 'tkb_sample'
                   ? 'bg-white text-emerald-900 shadow-xs'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              Ma trận TKB
+              <TableIcon className="w-3.5 h-3.5" />
+              <span>Cấu trúc TKB mẫu</span>
             </button>
             <button
               type="button"
-              onClick={() => setViewMode('table')}
-              className={`px-3 py-1 text-xs font-bold rounded-lg transition-all ${
-                viewMode === 'table'
+              onClick={() => setViewMode('visual_schedule')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${
+                viewMode === 'visual_schedule'
                   ? 'bg-white text-emerald-900 shadow-xs'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              Lịch báo giảng
+              <LayoutGrid className="w-3.5 h-3.5" />
+              <span>Lịch báo giảng trực quan</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('official_register')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${
+                viewMode === 'official_register'
+                  ? 'bg-white text-emerald-900 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <FileText className="w-3.5 h-3.5" />
+              <span>Sổ báo giảng in ấn</span>
             </button>
           </div>
         </div>
@@ -238,13 +325,13 @@ export const WeeklyTimetableSection: React.FC<WeeklyTimetableSectionProps> = ({
               <span className="text-xs font-bold text-slate-700">Thời gian thực hôm nay:</span>
               <span className="text-xs font-bold text-emerald-900 bg-emerald-100 px-2 py-0.5 rounded-md">
                 {todayDateStr === '2026-09-08'
-                  ? 'Thứ Ba, ngày 08/09/2026 (Tuần 1)'
+                  ? 'Thứ Ba, ngày 08/09/2026 (Đang ở Tuần 1)'
                   : `${todayDateStr}`}
               </span>
             </div>
             <p className="text-[11px] text-slate-500">
               {todayLessons.length > 0
-                ? `Hôm nay Thầy/Cô có ${todayLessons.length} tiết giảng dạy môn Toán.`
+                ? `Hôm nay Thầy Trong có ${todayLessons.length} tiết giảng dạy (Lớp 7A4 & 9A5).`
                 : 'Hôm nay không có tiết dạy theo thời khóa biểu.'}
             </p>
           </div>
@@ -265,8 +352,11 @@ export const WeeklyTimetableSection: React.FC<WeeklyTimetableSectionProps> = ({
           <div className="flex items-center gap-1.5 px-3 py-1 bg-white border border-slate-300 rounded-lg">
             <Calendar className="w-3.5 h-3.5 text-emerald-700" />
             <span className="text-xs font-bold text-slate-800">
-              Đang xem: Tuần {selectedWeek}{' '}
-              {selectedWeek <= 18 ? '(Học kỳ I)' : '(Học kỳ II)'}
+              Tuần {selectedWeek}{' '}
+              {selectedWeek <= 18 ? '(Học kỳ I)' : '(Học kỳ II)'}:{' '}
+              <span className="text-emerald-800 font-semibold">
+                {weekDays[0]?.dateFormatted} - {weekDays[5]?.dateFormatted}
+              </span>
             </span>
           </div>
 
@@ -292,7 +382,7 @@ export const WeeklyTimetableSection: React.FC<WeeklyTimetableSectionProps> = ({
         </div>
       </div>
 
-      {/* TODAY'S LESSONS HIGHLIGHT CARD (If viewing week that matches today or has today lessons) */}
+      {/* TODAY'S LESSONS HIGHLIGHT CARD */}
       {todayLessons.length > 0 && selectedWeek === currentWeek && (
         <div className="bg-gradient-to-r from-emerald-50 via-teal-50 to-cyan-50 border border-emerald-200 rounded-2xl p-4 sm:p-5 shadow-xs">
           <div className="flex items-center justify-between mb-3">
@@ -301,244 +391,290 @@ export const WeeklyTimetableSection: React.FC<WeeklyTimetableSectionProps> = ({
               <h3 className="text-xs sm:text-sm font-bold uppercase tracking-wider text-emerald-950 flex items-center gap-2">
                 <span>Nội dung giảng dạy hôm nay</span>
                 <span className="text-xs font-normal normal-case text-emerald-800">
-                  (Thứ Ba, 08/09/2026 • {todayLessons.length} tiết)
+                  (Thứ Ba, 08/09/2026 • {todayLessons.length} tiết dạy)
                 </span>
               </h3>
             </div>
             <span className="text-[11px] font-bold text-emerald-800 bg-white/80 px-2.5 py-1 rounded-full border border-emerald-200">
-              Tuần 1 chuẩn PPCT
+              Đồng bộ trực tiếp PPCT Tuần {selectedWeek}
             </span>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
             {todayLessons.map((item) => (
               <div
                 key={item.slotId}
-                className="bg-white border border-emerald-200/80 rounded-xl p-3.5 shadow-xs flex items-start justify-between gap-3 hover:border-emerald-400 transition-all"
+                className="bg-white border border-emerald-200/80 rounded-xl p-3 shadow-xs flex flex-col justify-between gap-2 hover:border-emerald-400 transition-all"
               >
                 <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <span className="px-2 py-0.5 bg-emerald-700 text-white rounded text-[11px] font-bold">
-                      Tiết {item.period} ({item.session === 'sang' ? 'Sáng' : 'Chiều'})
+                  <div className="flex items-center justify-between gap-1">
+                    <span className="px-2 py-0.5 bg-emerald-700 text-white rounded text-[10px] font-bold">
+                      Tiết {item.period} (Sáng)
                     </span>
-                    <span className="px-2 py-0.5 bg-blue-100 text-blue-900 border border-blue-200 rounded text-[11px] font-bold">
-                      Lớp {item.className}
-                    </span>
-                    <span className="text-xs font-bold text-emerald-800">
-                      Tiết {item.tietPpctNumber} PPCT
+                    <span
+                      className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                        item.className === '7A4'
+                          ? 'bg-purple-100 text-purple-900 border border-purple-200'
+                          : 'bg-blue-100 text-blue-900 border border-blue-200'
+                      }`}
+                    >
+                      {item.className}
                     </span>
                   </div>
 
-                  <h4 className="text-xs sm:text-sm font-bold text-slate-900 line-clamp-2">
+                  <div className="text-[11px] font-bold text-emerald-900">
+                    {item.tietPpctNumber > 0 ? `Tiết ${item.tietPpctNumber} PPCT` : item.subject}
+                  </div>
+
+                  <h4 className="text-xs font-bold text-slate-900 line-clamp-2 leading-snug">
                     {item.baiHoc}
                   </h4>
-
-                  {item.chuong && (
-                    <p className="text-[11px] text-slate-500 line-clamp-1">
-                      {item.chuong}
-                    </p>
-                  )}
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => handleToggleCompleted(item.className, item.tietPpctNumber)}
-                  className={`p-2 rounded-xl border transition-all shrink-0 flex items-center gap-1 text-xs font-bold ${
-                    item.completed
-                      ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
-                      : 'bg-slate-50 text-slate-600 hover:bg-emerald-50 hover:text-emerald-800 border-slate-200'
-                  }`}
-                  title={item.completed ? 'Đã dạy (Nhấn để hủy)' : 'Đánh dấu đã dạy xong'}
-                >
-                  {item.completed ? (
-                    <>
-                      <CheckCircle2 className="w-4 h-4" />
-                      <span className="hidden sm:inline">Đã dạy</span>
-                    </>
-                  ) : (
-                    <>
-                      <Circle className="w-4 h-4" />
-                      <span className="hidden sm:inline">Chưa dạy</span>
-                    </>
-                  )}
-                </button>
+                <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
+                  <button
+                    type="button"
+                    onClick={() => setDetailPeriod(item)}
+                    className="text-[11px] font-semibold text-emerald-700 hover:text-emerald-900 underline"
+                  >
+                    Xem chi tiết
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleToggleCompleted(item.className, item.tietPpctNumber)}
+                    className={`px-2 py-1 rounded-lg border text-[10px] font-bold transition-all flex items-center gap-1 ${
+                      item.completed
+                        ? 'bg-emerald-600 text-white border-emerald-600'
+                        : 'bg-slate-50 text-slate-600 hover:bg-emerald-50 border-slate-200'
+                    }`}
+                  >
+                    {item.completed ? (
+                      <>
+                        <CheckCircle2 className="w-3 h-3" />
+                        <span>Đã dạy</span>
+                      </>
+                    ) : (
+                      <>
+                        <Circle className="w-3 h-3" />
+                        <span>Chưa dạy</span>
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
             ))}
           </div>
         </div>
       )}
 
-      {/* Filter by Grade / Class Pills */}
-      <div className="flex flex-wrap items-center gap-2 pt-1">
-        <div className="flex items-center gap-1.5 text-xs text-slate-500 font-semibold mr-1">
-          <Filter className="w-3.5 h-3.5" />
-          <span>Lọc hiển thị:</span>
+      {/* Filter by Grade / Class */}
+      <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-1 text-xs text-slate-500 font-semibold mr-1">
+            <Filter className="w-3.5 h-3.5" />
+            <span>Lớp dạy:</span>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setSelectedFilter('all')}
+            className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+              selectedFilter === 'all'
+                ? 'bg-emerald-800 text-white shadow-xs'
+                : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+            }`}
+          >
+            Tất cả ({weeklySchedule.length} tiết)
+          </button>
+
+          {/* Lớp 7A4, 9A4, 9A5 theo mẫu */}
+          {['7A4', '9A4', '9A5'].map((cls) => {
+            const count = weeklySchedule.filter((p) => p.className === cls).length;
+            const is7 = cls.startsWith('7');
+            return (
+              <button
+                key={cls}
+                type="button"
+                onClick={() => setSelectedFilter(cls)}
+                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                  selectedFilter === cls
+                    ? is7
+                      ? 'bg-purple-700 text-white shadow-xs'
+                      : 'bg-blue-700 text-white shadow-xs'
+                    : is7
+                    ? 'bg-purple-50 text-purple-900 border border-purple-200 hover:bg-purple-100'
+                    : 'bg-blue-50 text-blue-900 border border-blue-200 hover:bg-blue-100'
+                }`}
+              >
+                Lớp {cls} ({count} tiết)
+              </button>
+            );
+          })}
         </div>
 
-        <button
-          type="button"
-          onClick={() => setSelectedFilter('all')}
-          className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
-            selectedFilter === 'all'
-              ? 'bg-emerald-700 text-white shadow-xs'
-              : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
-          }`}
-        >
-          Tất cả các lớp ({weeklySchedule.length} tiết)
-        </button>
+        {viewMode === 'tkb_sample' && (
+          <div className="flex items-center gap-2">
+            <label className="text-xs text-slate-600 font-semibold flex items-center gap-1.5 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={showLessonDetailsInTkb}
+                onChange={(e) => setShowLessonDetailsInTkb(e.target.checked)}
+                className="w-3.5 h-3.5 text-emerald-700 rounded border-slate-300 focus:ring-emerald-500"
+              />
+              <span>Hiển thị trực tiếp tên bài học & tiết PPCT trong ô TKB</span>
+            </label>
+          </div>
+        )}
 
-        {/* Lọc Khối 9 & Khối 7 */}
-        {['9', '7'].map((g) => {
-          const count = weeklySchedule.filter((p) => p.grade === g).length;
-          if (count === 0) return null;
-          return (
+        {viewMode === 'official_register' && (
+          <div className="flex items-center gap-2">
             <button
-              key={`grade-${g}`}
               type="button"
-              onClick={() => setSelectedFilter(g)}
-              className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
-                selectedFilter === g
-                  ? 'bg-emerald-700 text-white shadow-xs'
-                  : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
-              }`}
+              onClick={handleCopyRegister}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-colors"
             >
-              Khối {g} ({count} tiết)
+              {copiedSuccess ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+              <span>{copiedSuccess ? 'Đã sao chép!' : 'Sao chép bảng'}</span>
             </button>
-          );
-        })}
-
-        {/* Lọc theo từng lớp cụ thể */}
-        {distinctClasses.map((cls) => {
-          const count = weeklySchedule.filter((p) => p.className === cls).length;
-          return (
             <button
-              key={`class-${cls}`}
               type="button"
-              onClick={() => setSelectedFilter(cls)}
-              className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
-                selectedFilter === cls
-                  ? 'bg-blue-700 text-white shadow-xs'
-                  : 'bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200/60'
-              }`}
+              onClick={handlePrint}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-xs font-bold transition-colors shadow-xs"
             >
-              Lớp {cls} ({count}t)
+              <Printer className="w-3.5 h-3.5" />
+              <span>In sổ báo giảng</span>
             </button>
-          );
-        })}
+          </div>
+        )}
       </div>
 
-      {/* VIEW MODE 1: GRID TIMETABLE (MA TRẬN THỜI KHÓA BIỂU TUẦN) */}
-      {viewMode === 'grid' && (
-        <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
+      {/* ========================================================================= */}
+      {/* VIEW MODE 1: EXACT MATCH TO USER'S TIMETABLE IMAGE */}
+      {/* THỜI KHÓA BIỂU TKB NĂM HỌC 2026-2027 ÁP DỤNG NGÀY 07-09-2026 */}
+      {/* ========================================================================= */}
+      {viewMode === 'tkb_sample' && (
+        <div className="border-2 border-slate-800 rounded-xl overflow-hidden shadow-xs bg-white">
+          {/* Main Title Banner matching image */}
+          <div className="bg-slate-900 text-white text-center py-3 px-4 uppercase tracking-wide border-b-2 border-slate-800">
+            <h3 className="text-sm sm:text-base font-extrabold">
+              THỜI KHÓA BIỂU TKB NĂM HỌC 2026-2027 ÁP DỤNG NGÀY 07-09-2026
+            </h3>
+            <p className="text-[11px] text-slate-300 normal-case font-medium mt-0.5">
+              Tự động xếp bài dạy theo PPCT Tuần {selectedWeek} ({weekDays[0]?.dateFormatted} - {weekDays[5]?.dateFormatted})
+            </p>
+          </div>
+
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse min-w-[760px]">
+            <table className="w-full text-center border-collapse border border-slate-800 text-xs">
               <thead>
-                <tr className="bg-slate-100 text-slate-700 border-b border-slate-200 text-xs font-bold">
-                  <th className="py-3 px-3 w-28 text-center bg-slate-200/70 border-r border-slate-200">
-                    Tiết \ Thứ
-                  </th>
+                <tr className="bg-slate-100 text-slate-900 font-bold border-b-2 border-slate-800">
+                  <th className="py-2.5 px-3 border-r-2 border-slate-800 w-36">Giáo Viên</th>
+                  <th className="py-2.5 px-2 border-r border-slate-800 w-16">Buổi</th>
+                  <th className="py-2.5 px-2 border-r-2 border-slate-800 w-16">Tiết</th>
                   {weekDays.map((day) => {
                     const isToday = day.dateStr === todayDateStr;
                     return (
                       <th
                         key={day.dayOfWeek}
-                        className={`py-3 px-3 text-center border-r border-slate-200 transition-colors ${
-                          isToday
-                            ? 'bg-emerald-100/90 text-emerald-950 font-bold'
-                            : 'bg-slate-100 text-slate-800'
+                        className={`py-2.5 px-3 border-r border-slate-800 min-w-[130px] transition-colors ${
+                          isToday ? 'bg-emerald-100 text-emerald-950 font-extrabold' : ''
                         }`}
                       >
-                        <div className="flex flex-col items-center">
-                          <span className="text-xs uppercase">{day.dayName}</span>
-                          <span className="text-[11px] font-semibold text-slate-500">
-                            {day.dateFormatted}
+                        <div className="font-bold">{day.dayName}</div>
+                        <div className="text-[10px] text-slate-500 font-normal">{day.dateFormatted}</div>
+                        {isToday && (
+                          <span className="inline-block mt-0.5 px-1.5 py-0.2 rounded text-[9px] font-bold bg-emerald-700 text-white">
+                            HÔM NAY
                           </span>
-                          {isToday && (
-                            <span className="mt-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-700 text-white">
-                              HÔM NAY
-                            </span>
-                          )}
-                        </div>
+                        )}
                       </th>
                     );
                   })}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-200 text-xs">
-                {periodsTimetable.map((periodRow) => (
-                  <tr key={periodRow.period} className="hover:bg-slate-50/50 transition-colors">
-                    {/* Period number and time */}
-                    <td className="py-3 px-3 text-center font-bold bg-slate-50 border-r border-slate-200">
-                      <div className="text-xs text-slate-900">Tiết {periodRow.period}</div>
-                      <div className="text-[10px] text-slate-500 font-normal">{periodRow.time}</div>
+              <tbody>
+                {[1, 2, 3, 4, 5].map((periodNum, rowIndex) => (
+                  <tr key={periodNum} className="border-b border-slate-800 hover:bg-slate-50/60 transition-colors">
+                    {/* Column: Giáo Viên (Spanned across all 5 rows) */}
+                    {rowIndex === 0 && (
+                      <td
+                        rowSpan={5}
+                        className="py-4 px-3 font-bold text-slate-900 border-r-2 border-slate-800 bg-slate-50 align-middle text-center text-sm"
+                      >
+                        <div className="font-serif font-bold text-base tracking-wide">
+                          {currentConfig.teacherName || 'Dương Văn Trong'}
+                        </div>
+                        <div className="text-[11px] text-slate-500 font-sans font-normal mt-1">
+                          Tổ Toán - Tin
+                        </div>
+                      </td>
+                    )}
+
+                    {/* Column: Buổi (Spanned across all 5 rows) */}
+                    {rowIndex === 0 && (
+                      <td
+                        rowSpan={5}
+                        className="py-4 px-2 font-bold text-slate-900 border-r border-slate-800 bg-slate-50 align-middle text-center text-sm font-serif"
+                      >
+                        S
+                      </td>
+                    )}
+
+                    {/* Column: Tiết (1 to 5) */}
+                    <td className="py-2.5 px-2 font-bold text-slate-900 border-r-2 border-slate-800 bg-slate-100/50">
+                      {periodNum}
                     </td>
 
-                    {/* Columns for Monday (2) to Saturday (7) */}
+                    {/* Columns: Thứ 2 -> Thứ 7 */}
                     {weekDays.map((day) => {
+                      const item = scheduleMatrix[periodNum]?.[day.dayOfWeek];
                       const isToday = day.dateStr === todayDateStr;
-                      const cellPeriods = gridMatrix[periodRow.period]?.[day.dayOfWeek] || [];
 
                       return (
                         <td
                           key={day.dayOfWeek}
-                          className={`py-2 px-2.5 border-r border-slate-200 align-top transition-colors ${
-                            isToday ? 'bg-emerald-50/30' : ''
+                          className={`py-2 px-2 border-r border-slate-800 align-middle transition-colors ${
+                            isToday ? 'bg-emerald-50/40' : ''
                           }`}
                         >
-                          {cellPeriods.length > 0 ? (
-                            <div className="space-y-2">
-                              {cellPeriods.map((periodItem) => (
-                                <div
-                                  key={periodItem.slotId}
-                                  onClick={() => setDetailPeriod(periodItem)}
-                                  className={`rounded-xl p-2.5 border transition-all cursor-pointer shadow-2xs hover:shadow-sm ${
-                                    periodItem.completed
-                                      ? 'bg-emerald-50/80 border-emerald-300 text-emerald-950'
-                                      : isToday
-                                      ? 'bg-amber-50/80 border-amber-300 text-amber-950'
-                                      : 'bg-white border-slate-200 hover:border-emerald-400 text-slate-900'
-                                  }`}
-                                >
-                                  {/* Badges: Class & PPCT Period */}
-                                  <div className="flex items-center justify-between gap-1 mb-1">
-                                    <span
-                                      className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
-                                        periodItem.grade === '9'
-                                          ? 'bg-blue-100 text-blue-900'
-                                          : 'bg-purple-100 text-purple-900'
-                                      }`}
-                                    >
-                                      {periodItem.className}
+                          {item ? (
+                            <div
+                              onClick={() => setDetailPeriod(item)}
+                              className={`p-2 rounded-lg border text-left cursor-pointer transition-all shadow-2xs ${
+                                item.className === '7A4'
+                                  ? 'bg-purple-50/90 border-purple-300 hover:border-purple-500 text-purple-950'
+                                  : 'bg-blue-50/90 border-blue-300 hover:border-blue-500 text-blue-950'
+                              } ${item.completed ? 'opacity-80 ring-1 ring-emerald-500' : ''}`}
+                            >
+                              {/* Label formatted exactly as the sample image: 7A4-Chào cờ, 9A5-Toán, 7A4-SHL */}
+                              <div className="flex items-center justify-between font-bold text-xs">
+                                <span>
+                                  {item.className}-{item.subject}
+                                </span>
+                                {item.tietPpctNumber > 0 && (
+                                  <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 px-1 rounded">
+                                    T.{item.tietPpctNumber}
+                                  </span>
+                                )}
+                              </div>
+
+                              {/* Detailed lesson preview from PPCT if enabled */}
+                              {showLessonDetailsInTkb && (
+                                <div className="mt-1 pt-1 border-t border-slate-200/60">
+                                  <p className="text-[11px] font-medium text-slate-800 line-clamp-2 leading-snug">
+                                    {item.baiHoc}
+                                  </p>
+                                  {item.completed && (
+                                    <span className="inline-flex items-center gap-0.5 text-[9px] font-bold text-emerald-700 mt-0.5">
+                                      <CheckCircle2 className="w-2.5 h-2.5" /> Đã dạy
                                     </span>
-
-                                    <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100/80 px-1.5 py-0.5 rounded">
-                                      Tiết {periodItem.tietPpctNumber}
-                                    </span>
-                                  </div>
-
-                                  {/* Lesson Title */}
-                                  <div className="font-bold text-[11px] line-clamp-2 leading-snug">
-                                    {periodItem.baiHoc}
-                                  </div>
-
-                                  {/* Status Indicator */}
-                                  <div className="mt-1.5 flex items-center justify-between text-[10px] text-slate-500">
-                                    <span>Khối {periodItem.grade}</span>
-                                    {periodItem.completed ? (
-                                      <span className="text-emerald-700 font-bold flex items-center gap-0.5">
-                                        <CheckCircle2 className="w-3 h-3" /> Đã dạy
-                                      </span>
-                                    ) : (
-                                      <span className="text-slate-400">Chưa dạy</span>
-                                    )}
-                                  </div>
+                                  )}
                                 </div>
-                              ))}
+                              )}
                             </div>
                           ) : (
-                            <div className="h-14 flex items-center justify-center text-slate-300 text-[11px]">
-                              —
-                            </div>
+                            <span className="text-slate-300 text-xs font-light">—</span>
                           )}
                         </td>
                       );
@@ -551,79 +687,227 @@ export const WeeklyTimetableSection: React.FC<WeeklyTimetableSectionProps> = ({
         </div>
       )}
 
-      {/* VIEW MODE 2: TABLE VIEW (LỊCH BÁO GIẢNG CHI TIẾT THEO NGÀY) */}
-      {viewMode === 'table' && (
-        <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
+      {/* ========================================================================= */}
+      {/* VIEW MODE 2: VISUAL SCHEDULE (LỊCH BÁO GIẢNG TRỰC QUAN THEO NGÀY) */}
+      {/* ========================================================================= */}
+      {viewMode === 'visual_schedule' && (
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+            {weekDays.filter((d) => d.dayOfWeek <= 6).map((day) => {
+              const dayLessons = filteredSchedule.filter((p) => p.dayOfWeek === day.dayOfWeek);
+              const isToday = day.dateStr === todayDateStr;
+
+              return (
+                <div
+                  key={day.dayOfWeek}
+                  className={`rounded-2xl border transition-all flex flex-col ${
+                    isToday
+                      ? 'bg-gradient-to-b from-emerald-50/90 to-white border-emerald-400 shadow-md ring-2 ring-emerald-400/30'
+                      : 'bg-white border-slate-200 shadow-2xs'
+                  }`}
+                >
+                  {/* Day Header */}
+                  <div
+                    className={`p-3 border-b rounded-t-2xl flex items-center justify-between ${
+                      isToday
+                        ? 'bg-emerald-700 text-white border-emerald-700'
+                        : 'bg-slate-100 text-slate-800 border-slate-200'
+                    }`}
+                  >
+                    <div>
+                      <h4 className="font-bold text-xs uppercase tracking-wide">{day.dayName}</h4>
+                      <p className={`text-[10px] ${isToday ? 'text-emerald-100' : 'text-slate-500'}`}>
+                        {day.dateFormatted}
+                      </p>
+                    </div>
+                    {isToday ? (
+                      <span className="px-2 py-0.5 bg-white text-emerald-800 rounded-full text-[9px] font-bold">
+                        Hôm nay
+                      </span>
+                    ) : (
+                      <span className="text-[11px] font-bold text-slate-500">
+                        {dayLessons.length} tiết
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Lessons List for this Day */}
+                  <div className="p-3 space-y-3 flex-1">
+                    {dayLessons.length > 0 ? (
+                      dayLessons.map((item) => (
+                        <div
+                          key={item.slotId}
+                          onClick={() => setDetailPeriod(item)}
+                          className={`p-3 rounded-xl border text-left cursor-pointer transition-all hover:shadow-sm space-y-1.5 ${
+                            item.className === '7A4'
+                              ? 'bg-purple-50/70 border-purple-200 hover:border-purple-400'
+                              : 'bg-blue-50/70 border-blue-200 hover:border-blue-400'
+                          } ${item.completed ? 'opacity-85' : ''}`}
+                        >
+                          <div className="flex items-center justify-between gap-1">
+                            <span className="px-1.5 py-0.5 bg-slate-800 text-white rounded text-[10px] font-bold">
+                              Tiết {item.period}
+                            </span>
+                            <span
+                              className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                                item.className === '7A4'
+                                  ? 'bg-purple-200 text-purple-900'
+                                  : 'bg-blue-200 text-blue-900'
+                              }`}
+                            >
+                              {item.className}
+                            </span>
+                            {item.tietPpctNumber > 0 && (
+                              <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 px-1.5 py-0.5 rounded">
+                                Tiết {item.tietPpctNumber} PPCT
+                              </span>
+                            )}
+                          </div>
+
+                          <h5 className="font-bold text-xs text-slate-900 line-clamp-2 leading-snug">
+                            {item.baiHoc}
+                          </h5>
+
+                          {item.thietBi && (
+                            <div className="text-[10px] text-slate-500 line-clamp-1">
+                              <strong>ĐDDH:</strong> {item.thietBi}
+                            </div>
+                          )}
+
+                          <div className="pt-1.5 flex items-center justify-between border-t border-slate-200/60">
+                            <span className="text-[10px] text-slate-400">
+                              {item.room || 'Phòng học'}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleToggleCompleted(item.className, item.tietPpctNumber);
+                              }}
+                              className={`p-1 rounded text-[10px] font-bold flex items-center gap-1 ${
+                                item.completed
+                                  ? 'text-emerald-700 bg-emerald-100 px-1.5'
+                                  : 'text-slate-400 hover:text-slate-700'
+                              }`}
+                            >
+                              {item.completed ? <CheckCircle2 className="w-3 h-3" /> : <Circle className="w-3 h-3" />}
+                              <span>{item.completed ? 'Đã dạy' : 'Chưa dạy'}</span>
+                            </button>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="h-32 flex flex-col items-center justify-center text-slate-400 text-xs">
+                        <span>Không có tiết</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* VIEW MODE 3: OFFICIAL PRINTABLE REGISTER (SỔ BÁO GIẢNG CHUẨN IN ẤN) */}
+      {/* ========================================================================= */}
+      {viewMode === 'official_register' && (
+        <div className="border border-slate-300 rounded-2xl p-6 bg-white shadow-xs space-y-5 print:border-none print:p-0">
+          {/* Official Document Header */}
+          <div className="border-b-2 border-slate-800 pb-4 text-center space-y-1">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between text-xs font-bold text-slate-700 uppercase">
+              <span>{currentConfig.schoolName || 'TRƯỜNG THCS VÀ THPT PHÚ THÀNH'}</span>
+              <span>TỔ CHUYÊN MÔN: TOÁN - TIN</span>
+            </div>
+            <h3 className="text-base sm:text-lg font-extrabold uppercase text-slate-900 pt-2 tracking-wide font-serif">
+              KẾ HOẠCH BÁO GIẢNG TUẦN {selectedWeek}
+            </h3>
+            <p className="text-xs text-slate-600 font-medium italic">
+              (Từ ngày {weekDays[0]?.dateFormatted} đến ngày {weekDays[5]?.dateFormatted}) • Học kỳ {selectedWeek <= 18 ? 'I' : 'II'}
+            </p>
+            <div className="text-xs font-bold text-slate-800 pt-1">
+              Giáo viên giảng dạy: <u>{currentConfig.teacherName || 'Dương Văn Trong'}</u> • Môn: Toán (Khối 7, Khối 9) & Chủ nhiệm 7A4
+            </div>
+          </div>
+
+          {/* Sổ báo giảng table */}
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
+            <table className="w-full text-left text-xs border-collapse border border-slate-800">
               <thead>
-                <tr className="bg-slate-100 text-slate-700 font-bold border-b border-slate-200 text-[11px]">
-                  <th className="py-2.5 px-3 text-center w-12">STT</th>
-                  <th className="py-2.5 px-3 w-32">Thứ, Ngày</th>
-                  <th className="py-2.5 px-3 text-center w-20">Tiết TKB</th>
-                  <th className="py-2.5 px-3 text-center w-20">Lớp</th>
-                  <th className="py-2.5 px-3 text-center w-24">Tiết PPCT</th>
-                  <th className="py-2.5 px-4">Tên bài dạy / Nội dung PPCT</th>
-                  <th className="py-2.5 px-3 w-36">Chương / Chủ đề</th>
-                  <th className="py-2.5 px-3 text-center w-28">Trạng thái</th>
+                <tr className="bg-slate-100 text-slate-900 font-bold border-b-2 border-slate-800 text-[11px] text-center">
+                  <th className="py-2.5 px-2 border border-slate-800 w-10">STT</th>
+                  <th className="py-2.5 px-3 border border-slate-800 w-32">Thứ, Ngày</th>
+                  <th className="py-2.5 px-2 border border-slate-800 w-20">Tiết TKB</th>
+                  <th className="py-2.5 px-2 border border-slate-800 w-16">Lớp</th>
+                  <th className="py-2.5 px-2 border border-slate-800 w-20">Tiết PPCT</th>
+                  <th className="py-2.5 px-4 border border-slate-800 text-left">Tên bài dạy / Nội dung công việc</th>
+                  <th className="py-2.5 px-3 border border-slate-800 w-44 text-left">Thiết bị dạy học / ĐDDH</th>
+                  <th className="py-2.5 px-3 border border-slate-800 w-28">Ghi chú</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody>
                 {filteredSchedule.map((item, index) => {
                   const isToday = item.dateStr === todayDateStr;
+                  const tietPpctText = item.tietPpctNumber > 0 ? `Tiết ${item.tietPpctNumber}` : '—';
 
                   return (
                     <tr
                       key={item.slotId}
                       className={`hover:bg-slate-50 transition-colors ${
-                        isToday ? 'bg-emerald-50/40 font-medium' : ''
+                        isToday ? 'bg-emerald-50/50 font-medium' : ''
                       }`}
                     >
-                      <td className="py-2.5 px-3 text-center text-slate-400 font-bold">
+                      <td className="py-2 px-2 border border-slate-800 text-center font-bold text-slate-700">
                         {index + 1}
                       </td>
-                      <td className="py-2.5 px-3">
-                        <div className="font-bold text-slate-800">{item.dayName}</div>
-                        <div className="text-[11px] text-slate-500">{item.dateFormatted}</div>
+                      <td className="py-2 px-3 border border-slate-800 font-semibold text-slate-900">
+                        {item.dayName} ({item.dateFormatted})
                         {isToday && (
-                          <span className="text-[9px] font-bold text-emerald-800 bg-emerald-100 px-1.5 py-0.5 rounded">
+                          <span className="ml-1 text-[9px] font-bold text-emerald-800 bg-emerald-100 px-1 py-0.2 rounded print:hidden">
                             Hôm nay
                           </span>
                         )}
                       </td>
-                      <td className="py-2.5 px-3 text-center font-bold text-slate-800">
-                        Tiết {item.period}
+                      <td className="py-2 px-2 border border-slate-800 text-center font-bold">
+                        Sáng - Tiết {item.period}
                       </td>
-                      <td className="py-2.5 px-3 text-center">
-                        <span className="px-2 py-0.5 bg-blue-100 text-blue-900 rounded font-bold text-xs">
+                      <td className="py-2 px-2 border border-slate-800 text-center font-bold">
+                        <span
+                          className={`px-1.5 py-0.5 rounded text-xs ${
+                            item.className === '7A4'
+                              ? 'bg-purple-100 text-purple-900 font-bold'
+                              : 'bg-blue-100 text-blue-900 font-bold'
+                          }`}
+                        >
                           {item.className}
                         </span>
                       </td>
-                      <td className="py-2.5 px-3 text-center font-bold text-emerald-800">
-                        Tiết {item.tietPpctNumber}
+                      <td className="py-2 px-2 border border-slate-800 text-center font-bold text-emerald-900">
+                        {tietPpctText}
                       </td>
-                      <td className="py-2.5 px-4 font-bold text-slate-900">
-                        <div
+                      <td className="py-2 px-4 border border-slate-800 font-bold text-slate-900">
+                        <span
                           className="hover:text-emerald-800 cursor-pointer"
                           onClick={() => setDetailPeriod(item)}
                         >
                           {item.baiHoc}
-                        </div>
+                        </span>
                       </td>
-                      <td className="py-2.5 px-3 text-[11px] text-slate-600 line-clamp-1">
-                        {item.chuong || '—'}
+                      <td className="py-2 px-3 border border-slate-800 text-[11px] text-slate-700">
+                        {item.thietBi || 'Thước thẳng, bảng phụ'}
                       </td>
-                      <td className="py-2.5 px-3 text-center">
+                      <td className="py-2 px-3 border border-slate-800 text-center">
                         <button
                           type="button"
                           onClick={() => handleToggleCompleted(item.className, item.tietPpctNumber)}
-                          className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all border ${
+                          className={`px-2 py-0.5 rounded text-[11px] font-semibold border transition-all ${
                             item.completed
-                              ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
-                              : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-emerald-50 hover:text-emerald-800'
-                          }`}
+                              ? 'bg-emerald-100 text-emerald-900 border-emerald-300'
+                              : 'bg-slate-100 text-slate-600 border-slate-300 hover:bg-emerald-50'
+                          } print:border-none print:bg-transparent print:text-slate-800`}
                         >
-                          {item.completed ? 'Đã dạy' : 'Chưa dạy'}
+                          {item.completed ? 'Đã thực hiện' : 'Chưa dạy'}
                         </button>
                       </td>
                     </tr>
@@ -632,17 +916,33 @@ export const WeeklyTimetableSection: React.FC<WeeklyTimetableSectionProps> = ({
               </tbody>
             </table>
           </div>
+
+          {/* Signatures for submission */}
+          <div className="pt-6 grid grid-cols-2 text-center text-xs font-bold text-slate-900 print:pt-12">
+            <div>
+              <p className="uppercase">TỔ TRƯỞNG CHUYÊN MÔN</p>
+              <p className="text-[11px] text-slate-400 font-normal italic mt-1">(Ký và ghi rõ họ tên)</p>
+            </div>
+            <div>
+              <p className="font-normal italic text-slate-600">
+                Phú Thành, ngày {weekDays[0]?.dateFormatted}
+              </p>
+              <p className="uppercase font-bold mt-1">GIÁO VIÊN BÁO GIẢNG</p>
+              <p className="text-[11px] text-slate-400 font-normal italic mt-1">(Ký và ghi rõ họ tên)</p>
+              <p className="font-bold text-slate-900 mt-12">{currentConfig.teacherName || 'Dương Văn Trong'}</p>
+            </div>
+          </div>
         </div>
       )}
 
       {/* DETAIL LESSON MODAL */}
       {detailPeriod && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg p-6 space-y-4 animate-in fade-in zoom-in-95 duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg p-6 space-y-4 animate-in fade-in zoom-in-95 duration-200 text-slate-800">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2">
                 <span className="px-2 py-0.5 bg-emerald-700 text-white rounded text-xs font-bold">
-                  Tiết {detailPeriod.tietPpctNumber} PPCT
+                  {detailPeriod.tietPpctNumber > 0 ? `Tiết ${detailPeriod.tietPpctNumber} PPCT` : detailPeriod.subject}
                 </span>
                 <span className="px-2 py-0.5 bg-blue-100 text-blue-900 rounded text-xs font-bold">
                   Lớp {detailPeriod.className}
@@ -659,25 +959,25 @@ export const WeeklyTimetableSection: React.FC<WeeklyTimetableSectionProps> = ({
 
             <div className="space-y-2">
               <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                {detailPeriod.dayName}, {detailPeriod.dateFormatted} • Tiết {detailPeriod.period} ({detailPeriod.session === 'sang' ? 'Buổi sáng' : 'Buổi chiều'})
+                {detailPeriod.dayName}, {detailPeriod.dateFormatted} • Sáng - Tiết {detailPeriod.period}
               </span>
               <h3 className="text-base font-bold text-slate-900">
                 {detailPeriod.baiHoc}
               </h3>
               <p className="text-xs text-slate-600">
-                <strong>Chương:</strong> {detailPeriod.chuong || 'Chưa cập nhật'}
+                <strong>Chương / Chủ đề:</strong> {detailPeriod.chuong || 'Chưa cập nhật'}
               </p>
             </div>
 
-            <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs space-y-1.5 text-slate-700">
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 text-xs space-y-1.5 text-slate-700">
               <div>
                 <strong>Khối lớp:</strong> Khối {detailPeriod.grade} • Môn {detailPeriod.subject}
               </div>
               <div>
-                <strong>Học kỳ:</strong> Học kỳ {detailPeriod.hocKy} • Tuần PPCT: {detailPeriod.tuanPpct}
+                <strong>Học kỳ:</strong> Học kỳ {detailPeriod.hocKy} • Tuần {selectedWeek} (PPCT Tuần {detailPeriod.tuanPpct})
               </div>
               <div>
-                <strong>Thời lượng bài:</strong> {detailPeriod.soTietCuaBai} tiết (Đây là tiết thứ {detailPeriod.tietThuCuaBai} của bài học này)
+                <strong>Thiết bị dạy học / ĐDDH:</strong> {detailPeriod.thietBi || 'Thước thẳng, compa, bảng phụ, máy chiếu'}
               </div>
               {detailPeriod.room && (
                 <div>
@@ -687,26 +987,28 @@ export const WeeklyTimetableSection: React.FC<WeeklyTimetableSectionProps> = ({
             </div>
 
             <div className="flex items-center justify-between pt-2">
-              <button
-                type="button"
-                onClick={() => {
-                  handleToggleCompleted(detailPeriod.className, detailPeriod.tietPpctNumber);
-                  setDetailPeriod((prev) => (prev ? { ...prev, completed: !prev.completed } : null));
-                }}
-                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
-                  detailPeriod.completed
-                    ? 'bg-emerald-600 text-white'
-                    : 'bg-slate-100 text-slate-700 hover:bg-emerald-50 hover:text-emerald-800'
-                }`}
-              >
-                <CheckCircle2 className="w-4 h-4" />
-                <span>{detailPeriod.completed ? 'Đã hoàn thành tiết dạy' : 'Đánh dấu đã dạy'}</span>
-              </button>
+              {detailPeriod.tietPpctNumber > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleToggleCompleted(detailPeriod.className, detailPeriod.tietPpctNumber);
+                    setDetailPeriod((prev) => (prev ? { ...prev, completed: !prev.completed } : null));
+                  }}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                    detailPeriod.completed
+                      ? 'bg-emerald-600 text-white shadow-xs'
+                      : 'bg-slate-100 text-slate-700 hover:bg-emerald-50 hover:text-emerald-800'
+                  }`}
+                >
+                  <CheckCircle2 className="w-4 h-4" />
+                  <span>{detailPeriod.completed ? 'Đã hoàn thành tiết dạy' : 'Đánh dấu đã dạy'}</span>
+                </button>
+              )}
 
               <button
                 type="button"
                 onClick={() => setDetailPeriod(null)}
-                className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold"
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold ml-auto"
               >
                 Đóng
               </button>
@@ -718,9 +1020,13 @@ export const WeeklyTimetableSection: React.FC<WeeklyTimetableSectionProps> = ({
       {/* UPLOAD & OCR MODAL */}
       <TimetableUploadModal
         isOpen={isUploadModalOpen}
-        onClose={() => setIsUploadModalOpen(false)}
+        onClose={() => {
+          setIsUploadModalOpen(false);
+          setPastedFilePayload(null);
+        }}
         currentConfig={currentConfig}
         onSaveConfig={onUpdateConfig}
+        initialFile={pastedFilePayload}
       />
     </div>
   );

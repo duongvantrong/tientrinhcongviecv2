@@ -13,99 +13,167 @@ import {
 } from '../data/defaultData';
 import { parseDate, formatDateVN, getDayOfWeekVN } from './dateCalculations';
 
-// Cung cấp thời khóa biểu mặc định áp dụng từ ngày 7/9/2026 (Tuần 1)
-// Thầy/Cô phụ trách môn Toán Khối 7 & Khối 9 (ví dụ lớp 9A1 & 7A1, mỗi lớp 4 tiết/tuần = 8 tiết/tuần)
+// Cung cấp thời khóa biểu mặc định chuẩn xác theo ảnh TKB năm học 2026-2027 áp dụng từ 07-09-2026
+// Giáo viên: Dương Văn Trong - Dạy Toán Khối 7 (7A4) & Khối 9 (9A4, 9A5) + Chủ nhiệm 7A4
 export function getDefaultTeacherTimetable(): TeacherTimetableConfig {
   return {
-    id: 'default-tkb-toan-7-9',
+    id: 'tkb-toan-duong-van-trong-2026-2027',
     teacherName: 'Dương Văn Trong',
     schoolName: 'TRƯỜNG THCS VÀ THPT PHÚ THÀNH',
     academicYear: '2026 - 2027',
-    appliedDate: '2026-09-07', // Tuần 1 bắt đầu từ 07/09/2026
+    appliedDate: '2026-09-07', // Áp dụng ngày 07-09-2026 (Tuần 1)
     appliedWeek: 1,
     slots: [
-      // Khối 9: Lớp 9A1 (4 tiết/tuần)
+      // --- THỨ 2 ---
       {
-        id: 'slot-9a1-t2-t1',
-        dayOfWeek: 2, // Thứ 2
+        id: 'slot-t2-t1-7a4-cc',
+        dayOfWeek: 2,
         period: 1,
         session: 'sang',
-        className: '9A1',
-        grade: '9',
-        subject: 'Toán',
-        room: 'Phòng 9A1',
+        className: '7A4',
+        grade: '7',
+        subject: 'Chào cờ',
+        room: 'Sân trường',
+        notes: 'Chào cờ đầu tuần',
       },
       {
-        id: 'slot-9a1-t3-t2',
-        dayOfWeek: 3, // Thứ 3
+        id: 'slot-t2-t2-9a5-toan',
+        dayOfWeek: 2,
         period: 2,
         session: 'sang',
-        className: '9A1',
+        className: '9A5',
         grade: '9',
         subject: 'Toán',
-        room: 'Phòng 9A1',
+        room: 'Phòng 9A5',
       },
       {
-        id: 'slot-9a1-t5-t3',
-        dayOfWeek: 5, // Thứ 5
-        period: 3,
+        id: 'slot-t2-t4-7a4-toan',
+        dayOfWeek: 2,
+        period: 4,
         session: 'sang',
-        className: '9A1',
-        grade: '9',
+        className: '7A4',
+        grade: '7',
         subject: 'Toán',
-        room: 'Phòng 9A1',
+        room: 'Phòng 7A4',
       },
       {
-        id: 'slot-9a1-t6-t1',
-        dayOfWeek: 6, // Thứ 6
-        period: 1,
+        id: 'slot-t2-t5-7a4-toan',
+        dayOfWeek: 2,
+        period: 5,
         session: 'sang',
-        className: '9A1',
-        grade: '9',
+        className: '7A4',
+        grade: '7',
         subject: 'Toán',
-        room: 'Phòng 9A1',
+        room: 'Phòng 7A4',
       },
 
-      // Khối 7: Lớp 7A1 (4 tiết/tuần)
+      // --- THỨ 3 ---
       {
-        id: 'slot-7a1-t2-t3',
-        dayOfWeek: 2, // Thứ 2
-        period: 3,
-        session: 'sang',
-        className: '7A1',
-        grade: '7',
-        subject: 'Toán',
-        room: 'Phòng 7A1',
-      },
-      {
-        id: 'slot-7a1-t4-t1',
-        dayOfWeek: 4, // Thứ 4
+        id: 'slot-t3-t1-7a4-toan',
+        dayOfWeek: 3,
         period: 1,
         session: 'sang',
-        className: '7A1',
+        className: '7A4',
         grade: '7',
         subject: 'Toán',
-        room: 'Phòng 7A1',
+        room: 'Phòng 7A4',
       },
       {
-        id: 'slot-7a1-t5-t2',
-        dayOfWeek: 5, // Thứ 5
+        id: 'slot-t3-t2-7a4-toan',
+        dayOfWeek: 3,
         period: 2,
         session: 'sang',
-        className: '7A1',
+        className: '7A4',
         grade: '7',
         subject: 'Toán',
-        room: 'Phòng 7A1',
+        room: 'Phòng 7A4',
       },
       {
-        id: 'slot-7a1-t7-t2',
-        dayOfWeek: 7, // Thứ 7
+        id: 'slot-t3-t4-9a5-toan',
+        dayOfWeek: 3,
+        period: 4,
+        session: 'sang',
+        className: '9A5',
+        grade: '9',
+        subject: 'Toán',
+        room: 'Phòng 9A5',
+      },
+      {
+        id: 'slot-t3-t5-9a5-toan',
+        dayOfWeek: 3,
+        period: 5,
+        session: 'sang',
+        className: '9A5',
+        grade: '9',
+        subject: 'Toán',
+        room: 'Phòng 9A5',
+      },
+
+      // --- THỨ 4 ---
+      {
+        id: 'slot-t4-t1-9a5-toan',
+        dayOfWeek: 4,
+        period: 1,
+        session: 'sang',
+        className: '9A5',
+        grade: '9',
+        subject: 'Toán',
+        room: 'Phòng 9A5',
+      },
+      {
+        id: 'slot-t4-t2-9a4-toan',
+        dayOfWeek: 4,
         period: 2,
         session: 'sang',
-        className: '7A1',
-        grade: '7',
+        className: '9A4',
+        grade: '9',
         subject: 'Toán',
-        room: 'Phòng 7A1',
+        room: 'Phòng 9A4',
+      },
+
+      // --- THỨ 5 ---
+      {
+        id: 'slot-t5-t1-9a4-toan',
+        dayOfWeek: 5,
+        period: 1,
+        session: 'sang',
+        className: '9A4',
+        grade: '9',
+        subject: 'Toán',
+        room: 'Phòng 9A4',
+      },
+      {
+        id: 'slot-t5-t2-9a4-toan',
+        dayOfWeek: 5,
+        period: 2,
+        session: 'sang',
+        className: '9A4',
+        grade: '9',
+        subject: 'Toán',
+        room: 'Phòng 9A4',
+      },
+
+      // --- THỨ 6 ---
+      {
+        id: 'slot-t6-t4-9a4-toan',
+        dayOfWeek: 6,
+        period: 4,
+        session: 'sang',
+        className: '9A4',
+        grade: '9',
+        subject: 'Toán',
+        room: 'Phòng 9A4',
+      },
+      {
+        id: 'slot-t6-t5-7a4-shl',
+        dayOfWeek: 6,
+        period: 5,
+        session: 'sang',
+        className: '7A4',
+        grade: '7',
+        subject: 'SHL',
+        room: 'Phòng 7A4',
+        notes: 'Sinh hoạt lớp',
       },
     ],
     completedLessons: {},
@@ -234,45 +302,101 @@ export function generateWeeklySchedule(
     const ppct = findMatchingPpct(datasets, grade, className);
     const expandedMap = expandPpctLessons(ppct);
 
-    const periodsPerWeekForClass = sortedSlots.length; // Thường là 4 tiết/tuần
+    // Lọc riêng các tiết Toán để tính số thứ tự tiết PPCT chuẩn xác (4 tiết/tuần)
+    const mathSlots = sortedSlots.filter(
+      (s) => s.subject === 'Toán' || (!s.subject?.includes('Chào cờ') && !s.subject?.includes('SHL'))
+    );
+    const periodsPerWeekForClass = mathSlots.length || 4;
     const basePeriodOffset = (weekNumber - 1) * periodsPerWeekForClass;
 
-    sortedSlots.forEach((slot, slotIndex) => {
-      const currentPeriodNumber = basePeriodOffset + slotIndex + 1;
-      const lessonInfo = expandedMap.get(currentPeriodNumber);
+    let mathRunningIndex = 0;
+
+    sortedSlots.forEach((slot) => {
       const dayInfo = dateMap.get(slot.dayOfWeek);
+      const isActivity = slot.subject === 'Chào cờ' || slot.subject === 'SHL' || slot.subject === 'Sinh hoạt lớp';
 
-      const isCompleted = !!timetableConfig.completedLessons?.[`${className}_tiet_${currentPeriodNumber}`];
+      if (isActivity) {
+        const isChaoCo = slot.subject === 'Chào cờ';
+        const baiHocText = isChaoCo
+          ? `Chào cờ đầu tuần (Khối ${grade} - ${className})`
+          : `Sinh hoạt lớp tuần ${weekNumber} (Chủ nhiệm ${className})`;
 
-      let baiHocText = lessonInfo ? lessonInfo.lesson.baiHoc : `Tiết ${currentPeriodNumber} (Theo PPCT Toán ${grade})`;
-      if (lessonInfo && lessonInfo.totalSubPeriods > 1) {
-        baiHocText += ` (Tiết ${lessonInfo.subPeriod}/${lessonInfo.totalSubPeriods})`;
+        scheduledPeriods.push({
+          slotId: slot.id,
+          dayOfWeek: slot.dayOfWeek,
+          dateStr: dayInfo?.dateStr || '',
+          dateFormatted: dayInfo?.dateFormatted || '',
+          dayName: dayInfo?.dayName || `Thứ ${slot.dayOfWeek}`,
+          period: slot.period,
+          session: slot.session || 'sang',
+          className: slot.className,
+          grade,
+          subject: slot.subject,
+          room: slot.room,
+          tietPpctNumber: 0,
+          baiHoc: baiHocText,
+          chuong: isChaoCo ? 'Hoạt động trải nghiệm, hướng nghiệp' : 'Công tác chủ nhiệm & Sinh hoạt lớp',
+          soTietCuaBai: 1,
+          tietThuCuaBai: 1,
+          hocKy: weekNumber <= 18 ? 1 : 2,
+          tuanPpct: weekNumber,
+          thietBi: isChaoCo ? 'Sân cờ, micro, cờ Tổ quốc' : 'Sổ chủ nhiệm, kế hoạch tuần',
+          ghiChu: slot.notes,
+          completed: false,
+        });
+      } else {
+        // Tiết môn Toán
+        const currentPeriodNumber = basePeriodOffset + mathRunningIndex + 1;
+        mathRunningIndex++;
+
+        const lessonInfo = expandedMap.get(currentPeriodNumber);
+        const isCompleted = !!timetableConfig.completedLessons?.[`${className}_tiet_${currentPeriodNumber}`];
+
+        let baiHocText = lessonInfo ? lessonInfo.lesson.baiHoc : `Tiết ${currentPeriodNumber} (Theo PPCT Toán ${grade})`;
+        if (lessonInfo && lessonInfo.totalSubPeriods > 1) {
+          baiHocText += ` (Tiết ${lessonInfo.subPeriod}/${lessonInfo.totalSubPeriods})`;
+        }
+
+        // Tự động đề xuất thiết bị / đồ dùng dạy học
+        let suggestedThietBi = 'Thước thẳng, bảng phụ, SGK, phấn màu';
+        const lessonTitleLower = (lessonInfo?.lesson.baiHoc || '').toLowerCase();
+        const chapterLower = (lessonInfo?.lesson.chuong || '').toLowerCase();
+        if (chapterLower.includes('hình') || lessonTitleLower.includes('tam giác') || lessonTitleLower.includes('góc') || lessonTitleLower.includes('đường tròn')) {
+          suggestedThietBi = 'Thước thẳng, compa, êke, bảng phụ, máy chiếu';
+        } else if (lessonTitleLower.includes('phương trình') || lessonTitleLower.includes('hệ') || lessonTitleLower.includes('căn bậc') || lessonTitleLower.includes('hàm số')) {
+          suggestedThietBi = 'Máy tính cầm tay fx-580VN, bảng phụ, máy chiếu';
+        } else if (lessonTitleLower.includes('thống kê') || lessonTitleLower.includes('xác suất')) {
+          suggestedThietBi = 'Bảng số liệu, biểu đồ mẫu, phiếu học tập nhóm';
+        } else if (lessonTitleLower.includes('luyện tập') || lessonTitleLower.includes('ôn tập')) {
+          suggestedThietBi = 'Phiếu bài tập trắc nghiệm & tự luận, bảng phụ nhóm';
+        }
+
+        scheduledPeriods.push({
+          slotId: slot.id,
+          dayOfWeek: slot.dayOfWeek,
+          dateStr: dayInfo?.dateStr || '',
+          dateFormatted: dayInfo?.dateFormatted || '',
+          dayName: dayInfo?.dayName || `Thứ ${slot.dayOfWeek}`,
+          period: slot.period,
+          session: slot.session || 'sang',
+          className: slot.className,
+          grade,
+          subject: slot.subject || 'Toán',
+          room: slot.room,
+
+          tietPpctNumber: currentPeriodNumber,
+          lessonId: lessonInfo?.lesson.id,
+          baiHoc: baiHocText,
+          chuong: lessonInfo?.lesson.chuong || '',
+          soTietCuaBai: lessonInfo?.totalSubPeriods || 1,
+          tietThuCuaBai: lessonInfo?.subPeriod || 1,
+          hocKy: lessonInfo?.lesson.hocKy || (weekNumber <= 18 ? 1 : 2),
+          tuanPpct: lessonInfo?.lesson.tuan || weekNumber,
+          thietBi: suggestedThietBi,
+          ghiChu: lessonInfo?.lesson.ghiChu || slot.notes,
+          completed: isCompleted,
+        });
       }
-
-      scheduledPeriods.push({
-        slotId: slot.id,
-        dayOfWeek: slot.dayOfWeek,
-        dateStr: dayInfo?.dateStr || '',
-        dateFormatted: dayInfo?.dateFormatted || '',
-        dayName: dayInfo?.dayName || `Thứ ${slot.dayOfWeek}`,
-        period: slot.period,
-        session: slot.session || 'sang',
-        className: slot.className,
-        grade,
-        subject: slot.subject || 'Toán',
-        room: slot.room,
-
-        tietPpctNumber: currentPeriodNumber,
-        lessonId: lessonInfo?.lesson.id,
-        baiHoc: baiHocText,
-        chuong: lessonInfo?.lesson.chuong || '',
-        soTietCuaBai: lessonInfo?.totalSubPeriods || 1,
-        tietThuCuaBai: lessonInfo?.subPeriod || 1,
-        hocKy: lessonInfo?.lesson.hocKy || (weekNumber <= 18 ? 1 : 2),
-        tuanPpct: lessonInfo?.lesson.tuan || weekNumber,
-        ghiChu: lessonInfo?.lesson.ghiChu,
-        completed: isCompleted,
-      });
     });
   });
 
