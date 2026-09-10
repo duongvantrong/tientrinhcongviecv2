@@ -9,6 +9,8 @@ import {
   CheckCircle2,
   ChevronRight,
   Info,
+  Plus,
+  Sliders,
 } from 'lucide-react';
 import { ExamQuestion } from '../../types';
 import { LatexRenderer } from '../../utils/latexUtils';
@@ -19,6 +21,8 @@ interface QuestionGuidanceTooltipProps {
   onRegenerateEquivalent?: (question: ExamQuestion) => void;
   onOpenSuggestions?: (question: ExamQuestion) => void;
   onEditQuestion?: (question: ExamQuestion) => void;
+  onChangeCognitiveLevel?: (questionId: string, newLevel: 'nhanBiet' | 'thongHieu' | 'vanDung' | 'vanDungCao') => void;
+  onAddSameLevelQuestion?: (question: ExamQuestion, count: number) => void;
   showRawLatex?: boolean;
 }
 
@@ -28,6 +32,8 @@ export const QuestionGuidanceTooltip: React.FC<QuestionGuidanceTooltipProps> = (
   onRegenerateEquivalent,
   onOpenSuggestions,
   onEditQuestion,
+  onChangeCognitiveLevel,
+  onAddSameLevelQuestion,
   showRawLatex = false,
 }) => {
   const [isOpen, setIsOpen] = useState<boolean>(false);
@@ -152,6 +158,74 @@ export const QuestionGuidanceTooltip: React.FC<QuestionGuidanceTooltipProps> = (
               </p>
             )}
           </div>
+
+          {/* Tùy chỉnh mức độ nhận thức thủ công */}
+          {onChangeCognitiveLevel && (
+            <div className="mb-2.5 p-2 bg-indigo-50/60 rounded-lg border border-indigo-100">
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-[10px] font-bold text-indigo-900 flex items-center gap-1">
+                  <Sliders className="w-3 h-3 text-indigo-600" />
+                  Tùy chỉnh mức độ nhận thức:
+                </span>
+                <span className="text-[9px] text-indigo-600 italic">Nhấp để đổi ngay</span>
+              </div>
+              <div className="grid grid-cols-4 gap-1">
+                {[
+                  { key: 'nhanBiet', label: 'Nhận biết' },
+                  { key: 'thongHieu', label: 'Thông hiểu' },
+                  { key: 'vanDung', label: 'Vận dụng' },
+                  { key: 'vanDungCao', label: 'Vận dụng cao' },
+                ].map((lvl) => {
+                  const isCurrent = question.cognitiveLevel === lvl.key;
+                  return (
+                    <button
+                      key={lvl.key}
+                      type="button"
+                      onClick={() => {
+                        onChangeCognitiveLevel(question.id, lvl.key as any);
+                      }}
+                      className={`px-1 py-1 rounded text-[10px] font-bold transition-all border text-center cursor-pointer ${
+                        isCurrent
+                          ? 'bg-indigo-600 text-white border-indigo-700 shadow-2xs font-black'
+                          : 'bg-white text-slate-700 hover:bg-slate-100 border-slate-200 hover:border-slate-300'
+                      }`}
+                      title={`Tùy chỉnh mức độ câu hỏi sang: ${lvl.label}`}
+                    >
+                      {lvl.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Thêm nhiều hơn câu hỏi cùng mức độ */}
+          {onAddSameLevelQuestion && (
+            <div className="mb-2.5 p-2 bg-emerald-50/60 rounded-lg border border-emerald-200/80 flex items-center justify-between gap-2">
+              <div className="text-[11px] font-bold text-emerald-900 flex items-center gap-1 min-w-0">
+                <Plus className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
+                <span className="truncate">
+                  Thêm câu cùng mức <strong>{question.cognitiveLevelLabel}</strong>:
+                </span>
+              </div>
+              <div className="flex items-center gap-1 shrink-0">
+                {[1, 2, 3].map((count) => (
+                  <button
+                    key={count}
+                    type="button"
+                    onClick={() => {
+                      onAddSameLevelQuestion(question, count);
+                      setIsOpen(false);
+                    }}
+                    className="px-2 py-0.5 bg-white hover:bg-emerald-600 text-emerald-800 hover:text-white border border-emerald-300 hover:border-emerald-600 rounded text-[10px] font-bold shadow-2xs transition-colors cursor-pointer"
+                    title={`Thêm ${count} câu hỏi cùng mức độ ${question.cognitiveLevelLabel} vào đề thi`}
+                  >
+                    +{count}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Actions: Tùy chọn câu hỏi cụ thể */}
           <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-1.5">

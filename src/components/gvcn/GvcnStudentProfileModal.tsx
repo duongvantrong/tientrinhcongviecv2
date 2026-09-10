@@ -16,6 +16,7 @@ import {
   HeartHandshake,
   MessageSquare,
   TrendingUp,
+  Edit3,
 } from 'lucide-react';
 import {
   GvcnStudent,
@@ -26,6 +27,7 @@ import {
   GvcnTT22Evaluation,
 } from '../../types';
 import { generateTT22CommentForStudent } from '../../utils/vneduExcel';
+import { GvcnEditStudentModal } from './GvcnEditStudentModal';
 
 interface GvcnStudentProfileModalProps {
   isOpen: boolean;
@@ -51,6 +53,7 @@ export const GvcnStudentProfileModal: React.FC<GvcnStudentProfileModalProps> = (
   const [activeTab, setActiveTab] = useState<'info' | 'grades' | 'tt22' | 'conduct'>('info');
   const [editEvaluation, setEditEvaluation] = useState<GvcnTT22Evaluation | null>(null);
   const [savedSuccess, setSavedSuccess] = useState(false);
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
 
   const [variantCount, setVariantCount] = useState(0);
 
@@ -132,8 +135,18 @@ export const GvcnStudentProfileModal: React.FC<GvcnStudentProfileModalProps> = (
 
             <div className="flex items-center gap-2 print:hidden">
               <button
+                type="button"
+                onClick={() => setIsEditingProfile(true)}
+                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs border border-emerald-400/40 cursor-pointer"
+                title="Tùy chỉnh thông tin học sinh"
+              >
+                <Edit3 className="w-4 h-4 text-emerald-200" />
+                <span className="hidden sm:inline">Chỉnh Sửa</span>
+              </button>
+
+              <button
                 onClick={handlePrint}
-                className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all border border-white/20"
+                className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all border border-white/20 cursor-pointer"
                 title="In phiếu học sinh"
               >
                 <Printer className="w-4 h-4 text-emerald-300" />
@@ -243,10 +256,20 @@ export const GvcnStudentProfileModal: React.FC<GvcnStudentProfileModalProps> = (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* Thông tin học sinh */}
                 <div className="bg-slate-50 p-4.5 rounded-2xl border border-slate-200 space-y-3">
-                  <h4 className="text-xs font-black uppercase tracking-wider text-emerald-800 flex items-center gap-2">
-                    <User className="w-4 h-4 text-emerald-700" />
-                    <span>Thông tin cá nhân học sinh</span>
-                  </h4>
+                  <div className="flex items-center justify-between pb-1 border-b border-slate-200">
+                    <h4 className="text-xs font-black uppercase tracking-wider text-emerald-800 flex items-center gap-2">
+                      <User className="w-4 h-4 text-emerald-700" />
+                      <span>Thông tin cá nhân học sinh</span>
+                    </h4>
+                    <button
+                      type="button"
+                      onClick={() => setIsEditingProfile(true)}
+                      className="text-xs font-bold text-emerald-700 hover:text-emerald-900 flex items-center gap-1 bg-white hover:bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200 shadow-2xs cursor-pointer transition-colors"
+                    >
+                      <Edit3 className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>Sửa thông tin</span>
+                    </button>
+                  </div>
 
                   <div className="space-y-2 text-xs">
                     <div className="flex justify-between py-1.5 border-b border-slate-200">
@@ -704,6 +727,19 @@ export const GvcnStudentProfileModal: React.FC<GvcnStudentProfileModalProps> = (
           </button>
         </div>
       </div>
+
+      {/* Modal chỉnh sửa thông tin học sinh */}
+      <GvcnEditStudentModal
+        isOpen={isEditingProfile}
+        student={student}
+        onClose={() => setIsEditingProfile(false)}
+        onSave={(updated) => {
+          onUpdateStudent(updated);
+          setSavedSuccess(true);
+          setTimeout(() => setSavedSuccess(false), 2500);
+        }}
+        classInfo={classInfo}
+      />
     </div>
   );
 };

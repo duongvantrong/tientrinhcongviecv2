@@ -24,6 +24,8 @@ import {
   Square,
   RotateCcw,
   Target,
+  CheckCircle2,
+  X,
 } from 'lucide-react';
 import { ExamPaper, ExamQuestion, MatrixConfig, MatrixRow, SpecificationRow } from '../../types';
 import { exportExamPaperToDocx } from '../../utils/examDocxExport';
@@ -43,6 +45,9 @@ interface ExamPaperViewProps {
   onRegenerateWholeExam?: () => void;
   onRegenerateMultipleQuestions?: (questionIds: string[]) => void;
   onRegenerateSection?: (section: 'part1_mcq' | 'part2_true_false' | 'part3_short_answer' | 'part4_essay') => void;
+  onChangeQuestionLevel?: (questionId: string, newLevel: 'nhanBiet' | 'thongHieu' | 'vanDung' | 'vanDungCao') => void;
+  onAddQuestionsSameLevel?: (referenceQuestion: ExamQuestion, count: number) => void;
+  onAddQuestionsToSection?: (section: 'part1_mcq' | 'part2_true_false' | 'part3_short_answer' | 'part4_essay', level: 'nhanBiet' | 'thongHieu' | 'vanDung' | 'vanDungCao', count: number) => void;
 }
 
 export const ExamPaperView: React.FC<ExamPaperViewProps> = ({
@@ -58,6 +63,9 @@ export const ExamPaperView: React.FC<ExamPaperViewProps> = ({
   onRegenerateWholeExam,
   onRegenerateMultipleQuestions,
   onRegenerateSection,
+  onChangeQuestionLevel,
+  onAddQuestionsSameLevel,
+  onAddQuestionsToSection,
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<'exam' | 'solutions' | 'matrix_alignment'>('exam');
   const [isExportMenuOpen, setIsExportMenuOpen] = useState<boolean>(false);
@@ -65,6 +73,10 @@ export const ExamPaperView: React.FC<ExamPaperViewProps> = ({
   const [showRawLatex, setShowRawLatex] = useState<boolean>(false);
   const [selectedQuestionIds, setSelectedQuestionIds] = useState<Set<string>>(new Set());
   const [alwaysShowGuidance, setAlwaysShowGuidance] = useState<boolean>(false);
+  const [addingSection, setAddingSection] = useState<'part1_mcq' | 'part2_true_false' | 'part3_short_answer' | 'part4_essay' | null>(null);
+  const [sectionAddLevel, setSectionAddLevel] = useState<'nhanBiet' | 'thongHieu' | 'vanDung' | 'vanDungCao'>('nhanBiet');
+  const [sectionAddCount, setSectionAddCount] = useState<number>(1);
+  const [activeLevelMenuId, setActiveLevelMenuId] = useState<string | null>(null);
 
   // Đảm bảo toàn bộ câu hỏi và đáp án được chuẩn hóa cú pháp LaTeX
   const formattedPaper = React.useMemo(() => formatPaperLatex(paper), [paper]);
@@ -110,6 +122,171 @@ export const ExamPaperView: React.FC<ExamPaperViewProps> = ({
   const p4 = formattedPaper.questions.filter((q) => q.section === 'part4_essay');
 
   const summary = formattedPaper.matrixAlignmentSummary;
+
+  const renderSectionAddControl = (
+    section: 'part1_mcq' | 'part2_true_false' | 'part3_short_answer' | 'part4_essay',
+    sectionTitle: string
+  ) => {
+    if (!onAddQuestionsToSection || addingSection !== section) return null;
+
+    const levelOptions: { key: 'nhanBiet' | 'thongHieu' | 'vanDung' | 'vanDungCao'; label: string }[] = [
+      { key: 'nhanBiet', label: 'Nhận biết' },
+      { key: 'thongHieu', label: 'Thông hiểu' },
+      { key: 'vanDung', label: 'Vận dụng' },
+      { key: 'vanDungCao', label: 'Vận dụng cao' },
+    ];
+
+    return (
+      <div className="p-3.5 bg-gradient-to-r from-indigo-50/90 via-emerald-50/70 to-indigo-50/90 border border-indigo-200 rounded-xl mb-3 space-y-2.5 animate-in fade-in zoom-in-95 duration-150 font-sans print:hidden shadow-xs">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1.5 text-xs font-bold text-indigo-950">
+            <Plus size={15} className="text-indigo-600 shrink-0" />
+            <span>Thêm câu hỏi mới vào {sectionTitle}:</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setAddingSection(null)}
+            className="text-slate-400 hover:text-slate-600 p-1 rounded-md hover:bg-white/80 cursor-pointer"
+            title="Đóng bảng thêm câu"
+          >
+            <X size={14} />
+          </button>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3 text-xs">
+          <div className="flex items-center gap-1.5">
+            <span className="font-semibold text-slate-700">Mức độ nhận thức:</span>
+            <div className="flex gap-1">
+              {levelOptions.map((lvl) => (
+                <button
+                  key={lvl.key}
+                  type="button"
+                  onClick={() => setSectionAddLevel(lvl.key)}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold border transition-all cursor-pointer ${
+                    sectionAddLevel === lvl.key
+                      ? 'bg-indigo-600 text-white border-indigo-700 shadow-xs ring-1 ring-indigo-300'
+                      : 'bg-white text-slate-700 hover:bg-slate-50 border-slate-200'
+                  }`}
+                >
+                  {lvl.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            <span className="font-semibold text-slate-700">Số lượng:</span>
+            <div className="flex gap-1">
+              {[1, 2, 3, 5].map((cnt) => (
+                <button
+                  key={cnt}
+                  type="button"
+                  onClick={() => setSectionAddCount(cnt)}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold border transition-all cursor-pointer ${
+                    sectionAddCount === cnt
+                      ? 'bg-indigo-600 text-white border-indigo-700 shadow-xs'
+                      : 'bg-white text-slate-700 hover:bg-slate-50 border-slate-200'
+                  }`}
+                >
+                  +{cnt} câu
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              onAddQuestionsToSection(section, sectionAddLevel, sectionAddCount);
+              setAddingSection(null);
+            }}
+            className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shadow-xs transition-colors cursor-pointer sm:ml-auto flex items-center gap-1"
+          >
+            <Plus size={13} />
+            <span>Thêm {sectionAddCount} câu vào đề</span>
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  const renderQuestionLevelAndAddButtons = (q: ExamQuestion) => {
+    return (
+      <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-auto">
+        {/* Tùy chỉnh thủ công mức độ nhận thức */}
+        {onChangeQuestionLevel ? (
+          <div className="relative inline-block">
+            <button
+              type="button"
+              onClick={() => setActiveLevelMenuId(activeLevelMenuId === q.id ? null : q.id)}
+              className="text-[10px] font-bold text-indigo-900 bg-white hover:bg-indigo-50 border border-indigo-300 px-2 py-1 rounded-lg flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
+              title="Nhấp để tùy chỉnh thủ công mức độ nhận thức của câu này"
+            >
+              <Sliders size={11} className="text-indigo-600" />
+              <span>{q.cognitiveLevelLabel || q.cognitiveLevel}</span>
+              <ChevronDown size={10} className="text-slate-400" />
+            </button>
+
+            {activeLevelMenuId === q.id && (
+              <div className="absolute right-0 bottom-full mb-1 w-44 bg-white rounded-xl shadow-xl border border-slate-200 py-1.5 z-40 animate-in fade-in zoom-in-95 duration-150">
+                <div className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100">
+                  Tùy chỉnh thủ công mức độ:
+                </div>
+                {[
+                  { key: 'nhanBiet', label: 'Nhận biết', color: 'text-emerald-700 hover:bg-emerald-50' },
+                  { key: 'thongHieu', label: 'Thông hiểu', color: 'text-blue-700 hover:bg-blue-50' },
+                  { key: 'vanDung', label: 'Vận dụng', color: 'text-amber-800 hover:bg-amber-50' },
+                  { key: 'vanDungCao', label: 'Vận dụng cao', color: 'text-purple-700 hover:bg-purple-50' },
+                ].map((lvl) => (
+                  <button
+                    key={lvl.key}
+                    type="button"
+                    onClick={() => {
+                      onChangeQuestionLevel(q.id, lvl.key as any);
+                      setActiveLevelMenuId(null);
+                    }}
+                    className={`w-full text-left px-3 py-1.5 text-xs font-bold flex items-center justify-between ${lvl.color} transition-colors cursor-pointer`}
+                  >
+                    <span>{lvl.label}</span>
+                    {q.cognitiveLevel === lvl.key && <CheckCircle2 size={13} className="text-indigo-600" />}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : (
+          <span className="text-[10px] font-bold text-indigo-800 bg-indigo-100/90 px-2 py-0.5 rounded">
+            {q.cognitiveLevelLabel} ({q.score}đ)
+          </span>
+        )}
+
+        {/* Nút Thêm câu cùng mức độ */}
+        {onAddQuestionsSameLevel && (
+          <button
+            type="button"
+            onClick={() => onAddQuestionsSameLevel(q, 1)}
+            className="px-2 py-1 bg-white hover:bg-emerald-50 text-emerald-800 border border-emerald-300 rounded-lg text-[11px] font-bold flex items-center gap-1 shadow-2xs cursor-pointer transition-colors"
+            title={`Thêm 1 câu hỏi cùng mức độ (${q.cognitiveLevelLabel}) vào đề thi`}
+          >
+            <Plus size={11} className="text-emerald-700" />
+            <span>+ Thêm cùng mức</span>
+          </button>
+        )}
+
+        {onOpenSuggestions && (
+          <button
+            type="button"
+            onClick={() => onOpenSuggestions(q)}
+            className="px-2 py-1 bg-white hover:bg-emerald-50 text-emerald-800 border border-emerald-300 rounded-lg text-[11px] font-bold flex items-center gap-1 shadow-2xs cursor-pointer transition-colors"
+            title="Tùy chọn câu khác từ ngân hàng chuẩn (kèm đổi đáp án tự động)"
+          >
+            <Sparkles size={11} className="text-emerald-600" />
+            <span>Đổi câu & đáp án</span>
+          </button>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div className="space-y-6">
@@ -457,22 +634,37 @@ export const ExamPaperView: React.FC<ExamPaperViewProps> = ({
                       Thí sinh trả lời từ câu 1 đến câu {p1.length}. Mỗi câu hỏi thí sinh chỉ chọn một phương án đúng nhất.
                     </p>
                   </div>
-                  {onRegenerateSection && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (window.confirm('Đổi mới tất cả câu hỏi trong Phần I và tự động cập nhật toàn bộ đáp án tương ứng?')) {
-                          onRegenerateSection('part1_mcq');
-                        }
-                      }}
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-slate-700 hover:text-emerald-800 bg-white hover:bg-emerald-50 border border-slate-300 hover:border-emerald-300 rounded-lg shadow-2xs transition-colors cursor-pointer"
-                      title="Đổi toàn bộ câu hỏi Phần I và tự động cập nhật đáp án của Phần I"
-                    >
-                      <RefreshCw size={12} className="text-emerald-600" />
-                      <span>Đổi cả Phần I</span>
-                    </button>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {onAddQuestionsToSection && (
+                      <button
+                        type="button"
+                        onClick={() => setAddingSection(addingSection === 'part1_mcq' ? null : 'part1_mcq')}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-indigo-700 hover:text-indigo-900 bg-white hover:bg-indigo-50 border border-indigo-200 rounded-lg shadow-2xs transition-colors cursor-pointer"
+                        title="Thêm các câu hỏi cùng mức độ vào Phần I"
+                      >
+                        <Plus size={13} className="text-indigo-600" />
+                        <span>+ Thêm câu cùng mức độ</span>
+                      </button>
+                    )}
+                    {onRegenerateSection && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (window.confirm('Đổi mới tất cả câu hỏi trong Phần I và tự động cập nhật toàn bộ đáp án tương ứng?')) {
+                            onRegenerateSection('part1_mcq');
+                          }
+                        }}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-slate-700 hover:text-emerald-800 bg-white hover:bg-emerald-50 border border-slate-300 hover:border-emerald-300 rounded-lg shadow-2xs transition-colors cursor-pointer"
+                        title="Đổi toàn bộ câu hỏi Phần I và tự động cập nhật đáp án của Phần I"
+                      >
+                        <RefreshCw size={12} className="text-emerald-600" />
+                        <span>Đổi cả Phần I</span>
+                      </button>
+                    )}
+                  </div>
                 </div>
+
+                {renderSectionAddControl('part1_mcq', 'Phần I (Trắc nghiệm nhiều phương án)')}
 
                 <div className="space-y-3 pl-1">
                   {p1.map((q, idx) => (
@@ -492,9 +684,21 @@ export const ExamPaperView: React.FC<ExamPaperViewProps> = ({
                           onRegenerateEquivalent={onRegenerateEquivalent}
                           onOpenSuggestions={onOpenSuggestions}
                           onEditQuestion={onEditQuestion}
+                          onChangeCognitiveLevel={onChangeQuestionLevel}
+                          onAddSameLevelQuestion={onAddQuestionsSameLevel}
                           showRawLatex={showRawLatex}
                         />
                         <div className="hidden group-hover:flex items-center gap-1">
+                          {onAddQuestionsSameLevel && (
+                            <button
+                              type="button"
+                              onClick={() => onAddQuestionsSameLevel(q, 1)}
+                              title={`Thêm 1 câu hỏi cùng mức độ (${q.cognitiveLevelLabel}) vào đề`}
+                              className="p-1 text-emerald-700 hover:text-emerald-900 bg-white hover:bg-emerald-50 rounded border border-emerald-300 shadow-2xs cursor-pointer"
+                            >
+                              <Plus size={12} />
+                            </button>
+                          )}
                           {onOpenSuggestions && (
                             <button
                               type="button"
@@ -573,22 +777,7 @@ export const ExamPaperView: React.FC<ExamPaperViewProps> = ({
                             {q.learningObjective || `${q.cognitiveLevelLabel} kiến thức trọng tâm bài học theo chuẩn GDPT 2018`}
                           </span>
                         </div>
-                        <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-auto">
-                          <span className="text-[10px] font-bold text-indigo-800 bg-indigo-100/90 px-2 py-0.5 rounded">
-                            {q.cognitiveLevelLabel} ({q.score}đ)
-                          </span>
-                          {onOpenSuggestions && (
-                            <button
-                              type="button"
-                              onClick={() => onOpenSuggestions(q)}
-                              className="px-2 py-1 bg-white hover:bg-emerald-50 text-emerald-800 border border-emerald-300 rounded-lg text-[11px] font-bold flex items-center gap-1 shadow-2xs cursor-pointer transition-colors"
-                              title="Tùy chọn câu khác từ ngân hàng chuẩn (kèm đổi đáp án tự động)"
-                            >
-                              <Sparkles size={11} className="text-emerald-600" />
-                              <span>Đổi câu & đáp án</span>
-                            </button>
-                          )}
-                        </div>
+                        {renderQuestionLevelAndAddButtons(q)}
                       </div>
                     </div>
                   ))}
@@ -609,22 +798,37 @@ export const ExamPaperView: React.FC<ExamPaperViewProps> = ({
                       Thí sinh trả lời từ câu 1 đến câu {p2.length}. Trong mỗi ý a), b), c), d) ở mỗi câu, thí sinh chọn đúng hoặc sai.
                     </p>
                   </div>
-                  {onRegenerateSection && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (window.confirm('Đổi mới tất cả câu hỏi trong Phần II và tự động cập nhật toàn bộ đáp án tương ứng?')) {
-                          onRegenerateSection('part2_true_false');
-                        }
-                      }}
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-slate-700 hover:text-emerald-800 bg-white hover:bg-emerald-50 border border-slate-300 hover:border-emerald-300 rounded-lg shadow-2xs transition-colors cursor-pointer"
-                      title="Đổi toàn bộ câu hỏi Phần II và tự động cập nhật đáp án của Phần II"
-                    >
-                      <RefreshCw size={12} className="text-emerald-600" />
-                      <span>Đổi cả Phần II</span>
-                    </button>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {onAddQuestionsToSection && (
+                      <button
+                        type="button"
+                        onClick={() => setAddingSection(addingSection === 'part2_true_false' ? null : 'part2_true_false')}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-indigo-700 hover:text-indigo-900 bg-white hover:bg-indigo-50 border border-indigo-200 rounded-lg shadow-2xs transition-colors cursor-pointer"
+                        title="Thêm các câu hỏi cùng mức độ vào Phần II"
+                      >
+                        <Plus size={13} className="text-indigo-600" />
+                        <span>+ Thêm câu cùng mức độ</span>
+                      </button>
+                    )}
+                    {onRegenerateSection && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (window.confirm('Đổi mới tất cả câu hỏi trong Phần II và tự động cập nhật toàn bộ đáp án tương ứng?')) {
+                            onRegenerateSection('part2_true_false');
+                          }
+                        }}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-slate-700 hover:text-emerald-800 bg-white hover:bg-emerald-50 border border-slate-300 hover:border-emerald-300 rounded-lg shadow-2xs transition-colors cursor-pointer"
+                        title="Đổi toàn bộ câu hỏi Phần II và tự động cập nhật đáp án của Phần II"
+                      >
+                        <RefreshCw size={12} className="text-emerald-600" />
+                        <span>Đổi cả Phần II</span>
+                      </button>
+                    )}
+                  </div>
                 </div>
+
+                {renderSectionAddControl('part2_true_false', 'Phần II (Trắc nghiệm đúng sai)')}
 
                 <div className="space-y-4 pl-1">
                   {p2.map((q, idx) => (
@@ -643,9 +847,21 @@ export const ExamPaperView: React.FC<ExamPaperViewProps> = ({
                           onRegenerateEquivalent={onRegenerateEquivalent}
                           onOpenSuggestions={onOpenSuggestions}
                           onEditQuestion={onEditQuestion}
+                          onChangeCognitiveLevel={onChangeQuestionLevel}
+                          onAddSameLevelQuestion={onAddQuestionsSameLevel}
                           showRawLatex={showRawLatex}
                         />
                         <div className="hidden group-hover:flex items-center gap-1">
+                          {onAddQuestionsSameLevel && (
+                            <button
+                              type="button"
+                              onClick={() => onAddQuestionsSameLevel(q, 1)}
+                              title={`Thêm 1 câu hỏi cùng mức độ (${q.cognitiveLevelLabel}) vào đề`}
+                              className="p-1 text-emerald-700 hover:text-emerald-900 bg-white hover:bg-emerald-50 rounded border border-emerald-300 shadow-2xs cursor-pointer"
+                            >
+                              <Plus size={12} />
+                            </button>
+                          )}
                           {onOpenSuggestions && (
                             <button
                               type="button"
@@ -728,22 +944,7 @@ export const ExamPaperView: React.FC<ExamPaperViewProps> = ({
                             {q.learningObjective || `${q.cognitiveLevelLabel} kiến thức trọng tâm bài học theo chuẩn GDPT 2018`}
                           </span>
                         </div>
-                        <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-auto">
-                          <span className="text-[10px] font-bold text-indigo-800 bg-indigo-100/90 px-2 py-0.5 rounded">
-                            {q.cognitiveLevelLabel} ({q.score}đ)
-                          </span>
-                          {onOpenSuggestions && (
-                            <button
-                              type="button"
-                              onClick={() => onOpenSuggestions(q)}
-                              className="px-2 py-1 bg-white hover:bg-emerald-50 text-emerald-800 border border-emerald-300 rounded-lg text-[11px] font-bold flex items-center gap-1 shadow-2xs cursor-pointer transition-colors"
-                              title="Tùy chọn câu khác từ ngân hàng chuẩn (kèm đổi đáp án tự động)"
-                            >
-                              <Sparkles size={11} className="text-emerald-600" />
-                              <span>Đổi câu & đáp án</span>
-                            </button>
-                          )}
-                        </div>
+                        {renderQuestionLevelAndAddButtons(q)}
                       </div>
                     </div>
                   ))}
@@ -764,22 +965,37 @@ export const ExamPaperView: React.FC<ExamPaperViewProps> = ({
                       Thí sinh trả lời từ câu 1 đến câu {p3.length}. Viết đáp số vào ô trống tương ứng.
                     </p>
                   </div>
-                  {onRegenerateSection && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (window.confirm('Đổi mới tất cả câu hỏi trong Phần III và tự động cập nhật toàn bộ đáp án tương ứng?')) {
-                          onRegenerateSection('part3_short_answer');
-                        }
-                      }}
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-slate-700 hover:text-emerald-800 bg-white hover:bg-emerald-50 border border-slate-300 hover:border-emerald-300 rounded-lg shadow-2xs transition-colors cursor-pointer"
-                      title="Đổi toàn bộ câu hỏi Phần III và tự động cập nhật đáp án của Phần III"
-                    >
-                      <RefreshCw size={12} className="text-emerald-600" />
-                      <span>Đổi cả Phần III</span>
-                    </button>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {onAddQuestionsToSection && (
+                      <button
+                        type="button"
+                        onClick={() => setAddingSection(addingSection === 'part3_short_answer' ? null : 'part3_short_answer')}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-indigo-700 hover:text-indigo-900 bg-white hover:bg-indigo-50 border border-indigo-200 rounded-lg shadow-2xs transition-colors cursor-pointer"
+                        title="Thêm các câu hỏi cùng mức độ vào Phần III"
+                      >
+                        <Plus size={13} className="text-indigo-600" />
+                        <span>+ Thêm câu cùng mức độ</span>
+                      </button>
+                    )}
+                    {onRegenerateSection && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (window.confirm('Đổi mới tất cả câu hỏi trong Phần III và tự động cập nhật toàn bộ đáp án tương ứng?')) {
+                            onRegenerateSection('part3_short_answer');
+                          }
+                        }}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-slate-700 hover:text-emerald-800 bg-white hover:bg-emerald-50 border border-slate-300 hover:border-emerald-300 rounded-lg shadow-2xs transition-colors cursor-pointer"
+                        title="Đổi toàn bộ câu hỏi Phần III và tự động cập nhật đáp án của Phần III"
+                      >
+                        <RefreshCw size={12} className="text-emerald-600" />
+                        <span>Đổi cả Phần III</span>
+                      </button>
+                    )}
+                  </div>
                 </div>
+
+                {renderSectionAddControl('part3_short_answer', 'Phần III (Trắc nghiệm trả lời ngắn)')}
 
                 <div className="space-y-4 pl-1">
                   {p3.map((q, idx) => (
@@ -798,9 +1014,21 @@ export const ExamPaperView: React.FC<ExamPaperViewProps> = ({
                           onRegenerateEquivalent={onRegenerateEquivalent}
                           onOpenSuggestions={onOpenSuggestions}
                           onEditQuestion={onEditQuestion}
+                          onChangeCognitiveLevel={onChangeQuestionLevel}
+                          onAddSameLevelQuestion={onAddQuestionsSameLevel}
                           showRawLatex={showRawLatex}
                         />
                         <div className="hidden group-hover:flex items-center gap-1">
+                          {onAddQuestionsSameLevel && (
+                            <button
+                              type="button"
+                              onClick={() => onAddQuestionsSameLevel(q, 1)}
+                              title={`Thêm 1 câu hỏi cùng mức độ (${q.cognitiveLevelLabel}) vào đề`}
+                              className="p-1 text-emerald-700 hover:text-emerald-900 bg-white hover:bg-emerald-50 rounded border border-emerald-300 shadow-2xs cursor-pointer"
+                            >
+                              <Plus size={12} />
+                            </button>
+                          )}
                           {onOpenSuggestions && (
                             <button
                               type="button"
@@ -873,22 +1101,7 @@ export const ExamPaperView: React.FC<ExamPaperViewProps> = ({
                             {q.learningObjective || `${q.cognitiveLevelLabel} kiến thức trọng tâm bài học theo chuẩn GDPT 2018`}
                           </span>
                         </div>
-                        <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-auto">
-                          <span className="text-[10px] font-bold text-indigo-800 bg-indigo-100/90 px-2 py-0.5 rounded">
-                            {q.cognitiveLevelLabel} ({q.score}đ)
-                          </span>
-                          {onOpenSuggestions && (
-                            <button
-                              type="button"
-                              onClick={() => onOpenSuggestions(q)}
-                              className="px-2 py-1 bg-white hover:bg-emerald-50 text-emerald-800 border border-emerald-300 rounded-lg text-[11px] font-bold flex items-center gap-1 shadow-2xs cursor-pointer transition-colors"
-                              title="Tùy chọn câu khác từ ngân hàng chuẩn (kèm đổi đáp án tự động)"
-                            >
-                              <Sparkles size={11} className="text-emerald-600" />
-                              <span>Đổi câu & đáp án</span>
-                            </button>
-                          )}
-                        </div>
+                        {renderQuestionLevelAndAddButtons(q)}
                       </div>
                     </div>
                   ))}
@@ -909,22 +1122,37 @@ export const ExamPaperView: React.FC<ExamPaperViewProps> = ({
                       Thí sinh trình bày chi tiết lời giải các bài toán sau vào giấy thi.
                     </p>
                   </div>
-                  {onRegenerateSection && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (window.confirm('Đổi mới tất cả bài toán trong Phần IV và tự động cập nhật toàn bộ barem chấm tương ứng?')) {
-                          onRegenerateSection('part4_essay');
-                        }
-                      }}
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-slate-700 hover:text-emerald-800 bg-white hover:bg-emerald-50 border border-slate-300 hover:border-emerald-300 rounded-lg shadow-2xs transition-colors cursor-pointer"
-                      title="Đổi toàn bộ bài toán Phần IV và tự động cập nhật barem của Phần IV"
-                    >
-                      <RefreshCw size={12} className="text-emerald-600" />
-                      <span>Đổi cả Phần IV</span>
-                    </button>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {onAddQuestionsToSection && (
+                      <button
+                        type="button"
+                        onClick={() => setAddingSection(addingSection === 'part4_essay' ? null : 'part4_essay')}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-indigo-700 hover:text-indigo-900 bg-white hover:bg-indigo-50 border border-indigo-200 rounded-lg shadow-2xs transition-colors cursor-pointer"
+                        title="Thêm bài toán cùng mức độ vào Phần IV"
+                      >
+                        <Plus size={13} className="text-indigo-600" />
+                        <span>+ Thêm câu cùng mức độ</span>
+                      </button>
+                    )}
+                    {onRegenerateSection && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (window.confirm('Đổi mới tất cả bài toán trong Phần IV và tự động cập nhật toàn bộ barem chấm tương ứng?')) {
+                            onRegenerateSection('part4_essay');
+                          }
+                        }}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-slate-700 hover:text-emerald-800 bg-white hover:bg-emerald-50 border border-slate-300 hover:border-emerald-300 rounded-lg shadow-2xs transition-colors cursor-pointer"
+                        title="Đổi toàn bộ bài toán Phần IV và tự động cập nhật barem của Phần IV"
+                      >
+                        <RefreshCw size={12} className="text-emerald-600" />
+                        <span>Đổi cả Phần IV</span>
+                      </button>
+                    )}
+                  </div>
                 </div>
+
+                {renderSectionAddControl('part4_essay', 'Phần IV (Tự luận)')}
 
                 <div className="space-y-4 pl-1">
                   {p4.map((q, idx) => (
@@ -943,9 +1171,21 @@ export const ExamPaperView: React.FC<ExamPaperViewProps> = ({
                           onRegenerateEquivalent={onRegenerateEquivalent}
                           onOpenSuggestions={onOpenSuggestions}
                           onEditQuestion={onEditQuestion}
+                          onChangeCognitiveLevel={onChangeQuestionLevel}
+                          onAddSameLevelQuestion={onAddQuestionsSameLevel}
                           showRawLatex={showRawLatex}
                         />
                         <div className="hidden group-hover:flex items-center gap-1">
+                          {onAddQuestionsSameLevel && (
+                            <button
+                              type="button"
+                              onClick={() => onAddQuestionsSameLevel(q, 1)}
+                              title={`Thêm 1 bài toán cùng mức độ (${q.cognitiveLevelLabel}) vào đề`}
+                              className="p-1 text-emerald-700 hover:text-emerald-900 bg-white hover:bg-emerald-50 rounded border border-emerald-300 shadow-2xs cursor-pointer"
+                            >
+                              <Plus size={12} />
+                            </button>
+                          )}
                           {onOpenSuggestions && (
                             <button
                               type="button"
@@ -1013,22 +1253,7 @@ export const ExamPaperView: React.FC<ExamPaperViewProps> = ({
                             {q.learningObjective || `${q.cognitiveLevelLabel} kiến thức trọng tâm bài học theo chuẩn GDPT 2018`}
                           </span>
                         </div>
-                        <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-auto">
-                          <span className="text-[10px] font-bold text-indigo-800 bg-indigo-100/90 px-2 py-0.5 rounded">
-                            {q.cognitiveLevelLabel} ({q.score}đ)
-                          </span>
-                          {onOpenSuggestions && (
-                            <button
-                              type="button"
-                              onClick={() => onOpenSuggestions(q)}
-                              className="px-2 py-1 bg-white hover:bg-emerald-50 text-emerald-800 border border-emerald-300 rounded-lg text-[11px] font-bold flex items-center gap-1 shadow-2xs cursor-pointer transition-colors"
-                              title="Tùy chọn bài khác từ ngân hàng chuẩn (kèm đổi đáp án tự động)"
-                            >
-                              <Sparkles size={11} className="text-emerald-600" />
-                              <span>Đổi câu & barem</span>
-                            </button>
-                          )}
-                        </div>
+                        {renderQuestionLevelAndAddButtons(q)}
                       </div>
                     </div>
                   ))}

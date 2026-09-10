@@ -64,6 +64,7 @@ import { GvcnQuickLogModal } from './GvcnQuickLogModal';
 import { GvcnClassSettingsModal } from './GvcnClassSettingsModal';
 import { GvcnStudentProfileModal } from './GvcnStudentProfileModal';
 import { GvcnAddStudentModal } from './GvcnAddStudentModal';
+import { GvcnEditStudentModal } from './GvcnEditStudentModal';
 
 export type GvcnSubTab =
   | 'students_grades'
@@ -219,11 +220,16 @@ export const GvcnDashboardTab: React.FC = () => {
   const [showClassSettingsModal, setShowClassSettingsModal] = useState<boolean>(false);
   const [selectedStudentForProfile, setSelectedStudentForProfile] = useState<GvcnStudent | null>(null);
   const [showProfileModal, setShowProfileModal] = useState<boolean>(false);
+  const [editingStudent, setEditingStudent] = useState<GvcnStudent | null>(null);
 
   // Handlers for student 360 profile
   const handleSelectStudent = (student: GvcnStudent) => {
     setSelectedStudentForProfile(student);
     setShowProfileModal(true);
+  };
+
+  const handleOpenEditStudent = (student: GvcnStudent) => {
+    setEditingStudent(student);
   };
 
   const handleUpdateStudent = (updatedStudent: GvcnStudent) => {
@@ -939,6 +945,7 @@ export const GvcnDashboardTab: React.FC = () => {
             onUpdateStudents={handleUpdateStudents}
             onSelectStudent={handleSelectStudent}
             onOpenAddStudent={() => setShowAddStudentModal(true)}
+            onEditStudent={handleOpenEditStudent}
           />
         )}
 
@@ -948,6 +955,8 @@ export const GvcnDashboardTab: React.FC = () => {
             students={students}
             seatingChart={seatingChart}
             onUpdateSeatingChart={handleUpdateSeatingChart}
+            onSelectStudent={handleSelectStudent}
+            onEditStudent={handleOpenEditStudent}
           />
         )}
 
@@ -957,6 +966,7 @@ export const GvcnDashboardTab: React.FC = () => {
             classInfo={classInfo}
             onUpdateStudents={handleUpdateStudents}
             onSelectStudent={handleSelectStudent}
+            onEditStudent={handleOpenEditStudent}
           />
         )}
 
@@ -1045,6 +1055,7 @@ export const GvcnDashboardTab: React.FC = () => {
         students={students}
         classInfo={classInfo}
         onSelectStudent={handleSelectStudent}
+        onUpdateStudent={handleUpdateStudent}
       />
 
       <GvcnQuickLogModal
@@ -1062,6 +1073,19 @@ export const GvcnDashboardTab: React.FC = () => {
         onAddStudent={handleAddStudent}
         existingStudents={students}
       />
+
+      {editingStudent && (
+        <GvcnEditStudentModal
+          isOpen={!!editingStudent}
+          onClose={() => setEditingStudent(null)}
+          student={editingStudent}
+          onSave={(updated) => {
+            handleUpdateStudent(updated);
+            setEditingStudent(null);
+          }}
+          classInfo={classInfo}
+        />
+      )}
     </div>
   );
 };

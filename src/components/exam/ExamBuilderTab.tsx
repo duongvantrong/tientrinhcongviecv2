@@ -32,6 +32,7 @@ import {
   generateCustomExamPaper,
   shuffleExamPaper,
   regenerateSingleQuestion,
+  createNewQuestionWithLevel,
   calculateAlignmentSummary,
 } from '../../utils/examGenerator';
 import { ExamPaperView } from './ExamPaperView';
@@ -240,10 +241,226 @@ export const ExamBuilderTab: React.FC<ExamBuilderTabProps> = ({
   const handleSaveQuestion = (updated: ExamQuestion) => {
     if (!examPaper) return;
     const updatedQuestions = examPaper.questions.map((q) => (q.id === updated.id ? updated : q));
+    const newSummary = calculateAlignmentSummary(updatedQuestions);
     savePaper({
       ...examPaper,
       questions: updatedQuestions,
+      matrixAlignmentSummary: newSummary,
     });
+    setSyncToast(`Đã lưu thay đổi cho câu hỏi ${updated.code}!`);
+    setTimeout(() => setSyncToast(null), 3000);
+  };
+
+  // Thay đổi mức độ nhận thức của câu hỏi thủ công
+  const handleChangeQuestionLevel = (
+    questionId: string,
+    newLevel: 'nhanBiet' | 'thongHieu' | 'vanDung' | 'vanDungCao'
+  ) => {
+    if (!examPaper) return;
+    const levelLabels: Record<string, string> = {
+      nhanBiet: 'Nhận biết',
+      thongHieu: 'Thông hiểu',
+      vanDung: 'Vận dụng',
+      vanDungCao: 'Vận dụng cao',
+    };
+
+    const updatedQuestions = examPaper.questions.map((q) => {
+      if (q.id === questionId) {
+        return {
+          ...q,
+          cognitiveLevel: newLevel,
+          cognitiveLevelLabel: levelLabels[newLevel],
+        };
+      }
+      return q;
+    });
+
+    const newSummary = calculateAlignmentSummary(updatedQuestions);
+    savePaper({
+      ...examPaper,
+      questions: updatedQuestions,
+      matrixAlignmentSummary: newSummary,
+    });
+
+    setSyncToast(`Đã chuyển mức độ câu hỏi sang "${levelLabels[newLevel]}"!`);
+    setTimeout(() => setSyncToast(null), 3500);
+  };
+
+  // Thêm nhiều câu hỏi cùng mức độ từ một câu tham chiếu
+  const handleAddQuestionsSameLevel = (referenceQuestion: ExamQuestion, count: number = 1) => {
+    if (!examPaper) return;
+    const currentGrade = examPaper.config.grade || activePpct.grade || '9';
+    const newQuestions: ExamQuestion[] = [];
+    const pool = [...examPaper.questions];
+
+    for (let i = 0; i < count; i++) {
+      const newQ = createNewQuestionWithLevel(
+        referenceQuestion,
+        [...pool, ...newQuestions],
+        referenceQuestion.cognitiveLevel,
+        currentGrade
+      );
+      newQuestions.push(newQ);
+    }
+
+    const refIdx = examPaper.questions.findIndex((q) => q.id === referenceQuestion.id);
+    const updated = [...examPaper.questions];
+    if (refIdx !== -1) {
+      updated.splice(refIdx + 1, 0, ...newQuestions);
+    } else {
+      updated.push(...newQuestions);
+    }
+
+    const reIndexed = updated.map((q, idx) => ({ ...q, code: `[C${idx + 1}]` }));
+    const newSummary = calculateAlignmentSummary(reIndexed);
+
+    savePaper({
+      ...examPaper,
+      questions: reIndexed,
+      matrixAlignmentSummary: newSummary,
+    });
+
+    setSyncToast(
+      `Đã thêm ${count} câu hỏi cùng mức độ "${referenceQuestion.cognitiveLevelLabel || referenceQuestion.cognitiveLevel}" vào đề!`
+    );
+    setTimeout(() => setSyncToast(null), 3500);
+  };
+
+  // Thêm nhiều câu hỏi theo mức độ vào một Phần cụ thể (Part I, II, III, IV)
+  const handleAddQuestionsToSection = (
+    section: 'part1_mcq' | 'part2_true_false' | 'part3_short_answer' | 'part4_essay',
+    level: 'nhanBiet' | 'thongHieu' | 'vanDung' | 'vanDungCao',
+    count: number = 1
+  ) => {
+    if (!examPaper) return;
+    const currentGrade = examPaper.config.grade || activePpct.grade || '9';
+
+    const sampleQuestion = examPaper.questions.find((q) => q.section === section);
+    const baseQuestion: ExamQuestion = sampleQuestion || {
+      id: '',
+      code: '',
+      section,
+      type:
+        section === 'part1_mcq'
+          ? 'mcq_single'
+          : section === 'part2_true_false'
+          ? 'true_false'
+          : section === 'part3_short_answer'
+          ? 'short_answer'
+          : 'essay',
+      chapter: 'Toán học',
+      lesson: 'Kiến thức trọng tâm',
+      cognitiveLevel: level,
+      score:
+        section === 'part1_mcq'
+          ? matrixConfig.scorePerTn1 || 0.25
+          : section === 'part2_true_false'
+          ? matrixConfig.scorePerTn2 || 1.0
+          : section === 'part3_short_answer'
+          ? matrixConfig.scorePerTn3 || 0.5
+          : 1.0,
+      prompt: '',
+    };
+
+    const newQuestions: ExamQuestion[] = [];
+    const pool = [...examPaper.questions];
+
+    for (let i = 0; i < count; i++) {
+      const newQ = createNewQuestionWithLevel(
+        baseQuestion,
+        [...pool, ...newQuestions],
+        level,
+        currentGrade
+      );
+      newQuestions.push(newQ);
+    }
+
+    let lastSectionIdx = -1;
+    for (let i = examPaper.questions.length - 1; i >= 0; i--) {
+      if (examPaper.questions[i].section === section) {
+        lastSectionIdx = i;
+        break;
+      }
+    }
+
+    const updated = [...examPaper.questions];
+    if (lastSectionIdx !== -1) {
+      updated.splice(lastSectionIdx + 1, 0, ...newQuestions);
+    } else {
+      updated.push(...newQuestions);
+    }
+
+    const reIndexed = updated.map((q, idx) => ({ ...q, code: `[C${idx + 1}]` }));
+    const newSummary = calculateAlignmentSummary(reIndexed);
+
+    savePaper({
+      ...examPaper,
+      questions: reIndexed,
+      matrixAlignmentSummary: newSummary,
+    });
+
+    const levelLabels: Record<string, string> = {
+      nhanBiet: 'Nhận biết',
+      thongHieu: 'Thông hiểu',
+      vanDung: 'Vận dụng',
+      vanDungCao: 'Vận dụng cao',
+    };
+
+    setSyncToast(`Đã thêm ${count} câu hỏi mức độ "${levelLabels[level]}" vào đề thi!`);
+    setTimeout(() => setSyncToast(null), 3500);
+  };
+
+  // Thêm một câu từ Ngân hàng mẫu gợi ý vào đề
+  const handleAddQuestionFromTemplate = (template: BankQuestionTemplate) => {
+    if (!examPaper || !suggestingQuestion) return;
+
+    const newQuestion: ExamQuestion = {
+      id: `q_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      code: `[C${examPaper.questions.length + 1}]`,
+      section: suggestingQuestion.section,
+      type: template.type || suggestingQuestion.type,
+      chapter: suggestingQuestion.chapter,
+      lesson: suggestingQuestion.lesson,
+      cognitiveLevel: template.cognitiveLevel,
+      cognitiveLevelLabel:
+        template.cognitiveLevel === 'nhanBiet'
+          ? 'Nhận biết'
+          : template.cognitiveLevel === 'thongHieu'
+          ? 'Thông hiểu'
+          : template.cognitiveLevel === 'vanDung'
+          ? 'Vận dụng'
+          : 'Vận dụng cao',
+      learningObjective: template.learningObjective || suggestingQuestion.learningObjective,
+      score: suggestingQuestion.score,
+      prompt: template.prompt,
+      options: template.options,
+      correctOption: template.correctOption,
+      tfStatements: template.tfStatements,
+      shortAnswerText: template.shortAnswerText,
+      essayGradingSteps: template.essayGradingSteps,
+      solutionExplanation: template.solutionExplanation,
+    };
+
+    const refIdx = examPaper.questions.findIndex((q) => q.id === suggestingQuestion.id);
+    const updated = [...examPaper.questions];
+    if (refIdx !== -1) {
+      updated.splice(refIdx + 1, 0, newQuestion);
+    } else {
+      updated.push(newQuestion);
+    }
+
+    const reIndexed = updated.map((q, idx) => ({ ...q, code: `[C${idx + 1}]` }));
+    const newSummary = calculateAlignmentSummary(reIndexed);
+
+    savePaper({
+      ...examPaper,
+      questions: reIndexed,
+      matrixAlignmentSummary: newSummary,
+    });
+
+    setSuggestingQuestion(null);
+    setSyncToast(`Đã thêm câu mới từ ngân hàng vào đề thi!`);
+    setTimeout(() => setSyncToast(null), 3500);
   };
 
   // Đổi câu hỏi tương đương từ ngân hàng
@@ -583,6 +800,9 @@ export const ExamBuilderTab: React.FC<ExamBuilderTabProps> = ({
           onRegenerateWholeExam={handleRegenerateWholeExam}
           onRegenerateSection={handleRegenerateSection}
           onRegenerateMultipleQuestions={handleRegenerateMultipleQuestions}
+          onChangeQuestionLevel={handleChangeQuestionLevel}
+          onAddQuestionsSameLevel={handleAddQuestionsSameLevel}
+          onAddQuestionsToSection={handleAddQuestionsToSection}
         />
       ) : (
         <div className="bg-white rounded-2xl p-12 text-center border border-slate-200 shadow-xs">
@@ -635,6 +855,7 @@ export const ExamBuilderTab: React.FC<ExamBuilderTabProps> = ({
           onClose={() => setSuggestingQuestion(null)}
           onSelectReplacement={handleSelectReplacementTemplate}
           onRegenerateEquivalent={handleRegenerateEquivalent}
+          onAddAsNewQuestion={handleAddQuestionFromTemplate}
         />
       )}
 

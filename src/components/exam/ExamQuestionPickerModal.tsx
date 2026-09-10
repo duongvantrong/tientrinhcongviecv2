@@ -8,6 +8,7 @@ import {
   Target,
   Sliders,
   Layers,
+  Plus,
 } from 'lucide-react';
 import { ExamQuestion, BankQuestionTemplate, CognitiveLevel } from '../../types';
 import { getSuggestedQuestions } from '../../utils/examGenerator';
@@ -20,6 +21,7 @@ interface ExamQuestionPickerModalProps {
   onClose: () => void;
   onSelectReplacement: (selected: BankQuestionTemplate) => void;
   onRegenerateEquivalent: (question: ExamQuestion) => void;
+  onAddAsNewQuestion?: (selected: BankQuestionTemplate) => void;
 }
 
 export const ExamQuestionPickerModal: React.FC<ExamQuestionPickerModalProps> = ({
@@ -29,6 +31,7 @@ export const ExamQuestionPickerModal: React.FC<ExamQuestionPickerModalProps> = (
   onClose,
   onSelectReplacement,
   onRegenerateEquivalent,
+  onAddAsNewQuestion,
 }) => {
   if (!isOpen || !question) return null;
 
@@ -154,17 +157,35 @@ export const ExamQuestionPickerModal: React.FC<ExamQuestionPickerModalProps> = (
                   </div>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => {
-                    onSelectReplacement(item);
-                    onClose();
-                  }}
-                  className="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-xs font-bold transition-colors shrink-0 flex items-center gap-1.5 shadow-xs cursor-pointer"
-                >
-                  <CheckCircle2 className="w-3.5 h-3.5" />
-                  <span>Chọn câu này</span>
-                </button>
+                <div className="flex flex-col sm:flex-row items-end sm:items-center gap-1.5 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onSelectReplacement(item);
+                      onClose();
+                    }}
+                    className="px-2.5 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-xs font-bold transition-colors flex items-center gap-1 shadow-xs cursor-pointer"
+                    title="Thay thế câu hiện tại bằng câu này"
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>Chọn câu này</span>
+                  </button>
+
+                  {onAddAsNewQuestion && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onAddAsNewQuestion(item);
+                        onClose();
+                      }}
+                      className="px-2.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-lg text-xs font-bold transition-colors flex items-center gap-1 shadow-2xs cursor-pointer"
+                      title="Thêm câu này thành câu hỏi mới cùng mức độ vào đề thi"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>+ Thêm vào đề</span>
+                    </button>
+                  )}
+                </div>
               </div>
 
               {/* Options (MCQ) */}

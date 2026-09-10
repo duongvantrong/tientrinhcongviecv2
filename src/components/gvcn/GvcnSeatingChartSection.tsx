@@ -25,6 +25,7 @@ import {
   MapPin,
   Calendar,
   UserCheck,
+  Edit3,
 } from 'lucide-react';
 
 interface GvcnSeatingChartSectionProps {
@@ -32,13 +33,70 @@ interface GvcnSeatingChartSectionProps {
   students: GvcnStudent[];
   seatingChart: GvcnSeatingChartConfig;
   onUpdateSeatingChart: (newChart: GvcnSeatingChartConfig) => void;
+  onSelectStudent?: (student: GvcnStudent) => void;
+  onEditStudent?: (student: GvcnStudent) => void;
 }
+
+/**
+ * Định dạng tên học sinh hiển thị trên sơ đồ lớp:
+ * - Chỉ hiển thị chữ lót và tên (ví dụ: "Nguyễn Văn An" -> "Văn An")
+ * - Nếu trùng cả chữ lót và tên với bạn khác trong lớp -> hiển thị đầy đủ Họ và tên
+ */
+export const formatSeatingStudentName = (
+  student: GvcnStudent,
+  allStudents: GvcnStudent[]
+): { displayName: string; isFullName: boolean } => {
+  if (!student || !student.name) return { displayName: '', isFullName: false };
+
+  const fullName = student.name.trim();
+  const words = fullName.split(/\s+/).filter(Boolean);
+
+  if (words.length <= 1) {
+    return { displayName: fullName, isFullName: true };
+  }
+
+  // Chữ lót và tên: bỏ từ đầu tiên (Họ)
+  const middleAndLastName = words.slice(1).join(' ');
+
+  // Kiểm tra trùng lặp chữ lót và tên trong toàn bộ danh sách lớp
+  const normalizedShort = middleAndLastName.toLowerCase();
+  const duplicateCount = allStudents.filter((s) => {
+    if (!s || !s.name) return false;
+    const sWords = s.name.trim().split(/\s+/).filter(Boolean);
+    const sShort = sWords.length > 1 ? sWords.slice(1).join(' ') : s.name.trim();
+    return sShort.toLowerCase() === normalizedShort;
+  }).length;
+
+  if (duplicateCount > 1) {
+    // Trùng tên và chữ lót -> hiển thị đầy đủ họ và tên
+    return { displayName: fullName, isFullName: true };
+  }
+
+  return { displayName: middleAndLastName, isFullName: false };
+};
+
+/**
+ * Tự động tính kích thước font chữ giúp tên hiển thị rõ ràng,
+ * có thể thu nhỏ hơn một chút nếu tên học sinh quá dài.
+ */
+export const getSeatingNameFontSize = (displayName: string): string => {
+  const len = displayName.length;
+  if (len > 16) {
+    return 'text-[9px] leading-tight font-black';
+  }
+  if (len > 12) {
+    return 'text-[10px] leading-tight font-black';
+  }
+  return 'text-[11.5px] leading-tight font-black';
+};
 
 export const GvcnSeatingChartSection: React.FC<GvcnSeatingChartSectionProps> = ({
   classInfo,
   students,
   seatingChart,
   onUpdateSeatingChart,
+  onSelectStudent,
+  onEditStudent,
 }) => {
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   const [selectedSeatKey, setSelectedSeatKey] = useState<string | null>(null);
@@ -64,6 +122,21 @@ export const GvcnSeatingChartSection: React.FC<GvcnSeatingChartSectionProps> = (
     });
     return set;
   }, [seatingChart]);
+
+  // Thông tin ghế đang được chọn
+  const selectedSeatData = useMemo(() => {
+    if (!selectedSeatKey) return null;
+    const parts = selectedSeatKey.split('-').map(Number);
+    if (parts.length < 3) return null;
+    const [r, c, idx] = parts;
+    const seat = (seatingChart.seats && seatingChart.seats[selectedSeatKey]) || {
+      deskRow: r,
+      deskCol: c,
+      seatIndex: idx,
+    };
+    const student = seat.studentId ? studentMap.get(seat.studentId) : null;
+    return { row: r, col: c, seatIdx: idx, seat, student };
+  }, [selectedSeatKey, seatingChart, studentMap]);
 
   // Học sinh chưa xếp chỗ
   const unassignedStudents = useMemo(() => {
@@ -491,6 +564,9 @@ export const GvcnSeatingChartSection: React.FC<GvcnSeatingChartSectionProps> = (
           </div>
 
           <div className="flex items-center gap-3">
+            <span className="text-[10px] bg-emerald-50 text-emerald-800 px-2 py-0.5 rounded-md border border-emerald-200 font-semibold" title="Tự động hiển thị chữ lót & tên; nếu trùng trong lớp sẽ hiển thị cả họ tên; tự co chữ nếu tên dài">
+              Tên: Chữ lót & Tên (Trùng hiện đủ Họ Tên)
+            </span>
             <span className="flex items-center gap-1">
               <span className="w-2.5 h-2.5 rounded-full bg-blue-500"></span> Nam
             </span>
@@ -609,6 +685,8 @@ export const GvcnSeatingChartSection: React.FC<GvcnSeatingChartSectionProps> = (
                             const key = `${row}-${col}-${sIdx}`;
                             const student = seat.studentId ? studentMap.get(seat.studentId) : undefined;
                             const isSelected = selectedSeatKey === key;
+                            const nameInfo = student ? formatSeatingStudentName(student, students) : null;
+                            const fontClass = nameInfo ? getSeatingNameFontSize(nameInfo.displayName) : '';
 
                             return (
                               <div
@@ -627,16 +705,16 @@ export const GvcnSeatingChartSection: React.FC<GvcnSeatingChartSectionProps> = (
                                 }`}
                                 title={
                                   student
-                                    ? `${student.name} (${student.gender}) - ${student.role || 'Học sinh'}\n${seat.note ? `Ghi chú: ${seat.note}` : ''}`
+                                    ? `${student.name} (${student.gender}) - ${student.role || 'Học sinh'}${nameInfo?.isFullName ? ' [Hiển thị đầy đủ Họ & Tên do trùng tên & chữ lót trong lớp]' : ' [Hiển thị chữ lót & tên]'}\n${seat.note ? `Ghi chú: ${seat.note}` : ''}`
                                     : 'Ghế trống - Nhấp để xếp học sinh'
                                 }
                               >
                                 {student ? (
                                   <>
                                     <div className="flex items-start justify-between gap-1">
-                                      <div className="flex items-center gap-1 min-w-0">
+                                      <div className="flex items-center gap-1 min-w-0 flex-1">
                                         <span
-                                          className={`text-[9px] font-black px-1 py-0.2 rounded ${
+                                          className={`text-[9px] font-black px-1 py-0.2 rounded shrink-0 ${
                                             student.gender === 'Nam'
                                               ? 'bg-blue-200 text-blue-900'
                                               : 'bg-rose-200 text-rose-900'
@@ -644,19 +722,41 @@ export const GvcnSeatingChartSection: React.FC<GvcnSeatingChartSectionProps> = (
                                         >
                                           #{student.stt}
                                         </span>
-                                        <span className="text-[11px] font-bold text-slate-800 truncate">
-                                          {student.name}
+                                        <span
+                                          className={`font-bold text-slate-900 tracking-tight truncate flex-1 ${fontClass}`}
+                                          title={
+                                            nameInfo?.isFullName
+                                              ? `Họ và tên: ${student.name} (Hiển thị đầy đủ do trùng tên & chữ lót)`
+                                              : `Học sinh: ${student.name}`
+                                          }
+                                        >
+                                          {nameInfo?.displayName}
                                         </span>
                                       </div>
 
-                                      {/* Nút gỡ */}
-                                      <button
-                                        onClick={(e) => handleRemoveFromSeat(row, col, sIdx, e)}
-                                        className="text-slate-400 hover:text-rose-600 rounded p-0.5"
-                                        title="Gỡ học sinh khỏi ghế"
-                                      >
-                                        <X className="w-3 h-3" />
-                                      </button>
+                                      {/* Nút thao tác: Sửa & Gỡ */}
+                                      <div className="flex items-center gap-0.5 shrink-0">
+                                        {onEditStudent && (
+                                          <button
+                                            type="button"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              onEditStudent(student);
+                                            }}
+                                            className="text-slate-400 hover:text-indigo-600 rounded p-0.5 transition-colors"
+                                            title={`Tùy chỉnh thông tin ${student.name}`}
+                                          >
+                                            <Edit3 className="w-3 h-3" />
+                                          </button>
+                                        )}
+                                        <button
+                                          onClick={(e) => handleRemoveFromSeat(row, col, sIdx, e)}
+                                          className="text-slate-400 hover:text-rose-600 rounded p-0.5"
+                                          title="Gỡ học sinh khỏi ghế"
+                                        >
+                                          <X className="w-3 h-3" />
+                                        </button>
+                                      </div>
                                     </div>
 
                                     {/* Dòng vai trò / ghi chú */}
@@ -711,6 +811,89 @@ export const GvcnSeatingChartSection: React.FC<GvcnSeatingChartSectionProps> = (
         </div>
       </div>
 
+      {/* THANH ĐIỀU KHIỂN VỊ TRÍ GHẾ ĐANG CHỌN */}
+      {selectedSeatData && (
+        <div className="bg-white border-2 border-emerald-500 rounded-2xl p-4 shadow-lg flex flex-wrap items-center justify-between gap-3 animate-fade-in">
+          <div className="flex items-center gap-2.5">
+            <span className="w-3 h-3 rounded-full bg-emerald-500 animate-ping"></span>
+            <div>
+              <div className="text-xs font-black text-emerald-950 uppercase flex items-center gap-2">
+                <span>VỊ TRÍ ĐANG CHỌN: DÃY {selectedSeatData.col} (TỔ {selectedSeatData.col}) — BÀN {selectedSeatData.row}, GHẾ {selectedSeatData.seatIdx + 1}</span>
+                {selectedSeatData.seat.note && (
+                  <span className="bg-emerald-100 text-emerald-800 text-[10px] font-semibold px-2 py-0.5 rounded-full">
+                    Ghi chú: {selectedSeatData.seat.note}
+                  </span>
+                )}
+              </div>
+              <div className="text-xs text-slate-600 mt-0.5">
+                {selectedSeatData.student ? (
+                  <span>
+                    Học sinh: <strong className="text-slate-900">#{selectedSeatData.student.stt} {selectedSeatData.student.name}</strong> ({selectedSeatData.student.gender}, Tổ {selectedSeatData.student.group}, {selectedSeatData.student.role || 'Học sinh'})
+                  </span>
+                ) : (
+                  <span className="italic text-slate-400">Chỗ ngồi đang trống (Nhấp học sinh bên dưới để xếp vào đây)</span>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {selectedSeatData.student && onEditStudent && (
+              <button
+                type="button"
+                onClick={() => onEditStudent(selectedSeatData.student!)}
+                className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition-all"
+                title="Tùy chỉnh thông tin học sinh này"
+              >
+                <Edit3 className="w-3.5 h-3.5" />
+                <span>Tùy Chỉnh Thông Tin</span>
+              </button>
+            )}
+
+            {selectedSeatData.student && onSelectStudent && (
+              <button
+                type="button"
+                onClick={() => onSelectStudent(selectedSeatData.student!)}
+                className="px-3.5 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition-all"
+                title="Xem hồ sơ toàn diện 360°"
+              >
+                <Eye className="w-3.5 h-3.5" />
+                <span>Hồ Sơ 360°</span>
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={() => setSeatNoteModal({ seatKey: selectedSeatKey!, currentNote: selectedSeatData.seat.note || '' })}
+              className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors"
+            >
+              <FileText className="w-3.5 h-3.5 text-slate-500" />
+              <span>Ghi Chú Ghế</span>
+            </button>
+
+            {selectedSeatData.student && (
+              <button
+                type="button"
+                onClick={(e) => handleRemoveFromSeat(selectedSeatData.row, selectedSeatData.col, selectedSeatData.seatIdx, e)}
+                className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors"
+              >
+                <Trash2 className="w-3.5 h-3.5 text-rose-500" />
+                <span>Gỡ Khỏi Ghế</span>
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={() => setSelectedSeatKey(null)}
+              className="px-2.5 py-1.5 text-slate-400 hover:text-slate-700 rounded-xl text-xs font-semibold transition-colors"
+              title="Bỏ chọn"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* DANH SÁCH HỌC SINH CHƯA XẾP CHỖ (NẾU CÓ) */}
       {unassignedStudents.length > 0 && (
         <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 shadow-sm">
@@ -746,6 +929,19 @@ export const GvcnSeatingChartSection: React.FC<GvcnSeatingChartSectionProps> = (
                   <span>#{s.stt}</span>
                   <span>{s.name}</span>
                   <span className="text-[10px] font-normal opacity-80">(Tổ {s.group})</span>
+                  {onEditStudent && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onEditStudent(s);
+                      }}
+                      className="opacity-60 hover:opacity-100 hover:text-indigo-950 p-0.5 ml-0.5"
+                      title={`Tùy chỉnh thông tin ${s.name}`}
+                    >
+                      <Edit3 className="w-3 h-3" />
+                    </button>
+                  )}
                 </div>
               );
             })}
@@ -1019,16 +1215,26 @@ export const GvcnSeatingChartSection: React.FC<GvcnSeatingChartSectionProps> = (
                           const s1 = getSeat(row, col, 1);
                           const st0 = s0.studentId ? studentMap.get(s0.studentId) : null;
                           const st1 = s1.studentId ? studentMap.get(s1.studentId) : null;
+                          const st0Info = st0 ? formatSeatingStudentName(st0, students) : null;
+                          const st1Info = st1 ? formatSeatingStudentName(st1, students) : null;
+                          const st0Font = st0Info ? getSeatingNameFontSize(st0Info.displayName) : 'text-[10px]';
+                          const st1Font = st1Info ? getSeatingNameFontSize(st1Info.displayName) : 'text-[10px]';
 
                           return (
                             <div key={row} className="border border-slate-300 p-1 rounded bg-slate-50 text-[10px]">
                               <div className="text-[8px] text-slate-400 font-bold mb-0.5">BÀN {row}</div>
                               <div className="grid grid-cols-2 gap-1 text-center font-medium">
-                                <div className="border border-slate-200 p-1 bg-white rounded truncate">
-                                  {st0 ? `${st0.stt}. ${st0.name}` : '-'}
+                                <div
+                                  className={`border border-slate-200 p-1 bg-white rounded truncate font-bold text-slate-800 ${st0Font}`}
+                                  title={st0 ? `Họ tên: ${st0.name}${st0Info?.isFullName ? ' (Hiển thị đầy đủ Họ và Tên do trùng tên & chữ lót)' : ''}` : undefined}
+                                >
+                                  {st0 ? `${st0.stt}. ${st0Info?.displayName}` : '-'}
                                 </div>
-                                <div className="border border-slate-200 p-1 bg-white rounded truncate">
-                                  {st1 ? `${st1.stt}. ${st1.name}` : '-'}
+                                <div
+                                  className={`border border-slate-200 p-1 bg-white rounded truncate font-bold text-slate-800 ${st1Font}`}
+                                  title={st1 ? `Họ tên: ${st1.name}${st1Info?.isFullName ? ' (Hiển thị đầy đủ Họ và Tên do trùng tên & chữ lót)' : ''}` : undefined}
+                                >
+                                  {st1 ? `${st1.stt}. ${st1Info?.displayName}` : '-'}
                                 </div>
                               </div>
                             </div>

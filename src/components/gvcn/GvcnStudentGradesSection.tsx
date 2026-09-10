@@ -22,6 +22,7 @@ import {
   generateSampleVnEduStudentExcel,
   generateSampleVnEduGradeExcel,
 } from '../../utils/vneduExcel';
+import { GvcnEditStudentModal } from './GvcnEditStudentModal';
 
 interface GvcnStudentGradesSectionProps {
   students: GvcnStudent[];
@@ -29,6 +30,7 @@ interface GvcnStudentGradesSectionProps {
   onUpdateStudents: (updated: GvcnStudent[]) => void;
   onSelectStudent: (student: GvcnStudent) => void;
   onOpenAddStudent?: () => void;
+  onEditStudent?: (student: GvcnStudent) => void;
 }
 
 export const GvcnStudentGradesSection: React.FC<GvcnStudentGradesSectionProps> = ({
@@ -37,12 +39,14 @@ export const GvcnStudentGradesSection: React.FC<GvcnStudentGradesSectionProps> =
   onUpdateStudents,
   onSelectStudent,
   onOpenAddStudent,
+  onEditStudent,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedGroup, setSelectedGroup] = useState<number | 'all'>('all');
   const [selectedRank, setSelectedRank] = useState<string | 'all'>('all');
   const [isProcessing, setIsProcessing] = useState(false);
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [editingStudent, setEditingStudent] = useState<GvcnStudent | null>(null);
 
   const studentFileInputRef = useRef<HTMLInputElement>(null);
   const gradeFileInputRef = useRef<HTMLInputElement>(null);
@@ -463,13 +467,32 @@ export const GvcnStudentGradesSection: React.FC<GvcnStudentGradesSectionProps> =
                       </td>
 
                       <td className="px-3.5 py-3 text-center" onClick={(e) => e.stopPropagation()}>
-                        <button
-                          onClick={() => onSelectStudent(s)}
-                          className="px-2.5 py-1 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 rounded-lg font-bold text-[11px] flex items-center gap-1 mx-auto transition-all shadow-2xs"
-                        >
-                          <Eye className="w-3.5 h-3.5" />
-                          <span>Hồ sơ 360°</span>
-                        </button>
+                        <div className="flex items-center justify-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => onSelectStudent(s)}
+                            className="px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded-lg font-bold text-[11px] flex items-center gap-1 transition-all shadow-2xs border border-emerald-200 cursor-pointer"
+                            title="Xem chi tiết hồ sơ toàn diện 360°"
+                          >
+                            <Eye className="w-3.5 h-3.5 text-emerald-700" />
+                            <span className="hidden sm:inline">Hồ sơ</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (onEditStudent) {
+                                onEditStudent(s);
+                              } else {
+                                setEditingStudent(s);
+                              }
+                            }}
+                            className="px-2 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg font-bold text-[11px] flex items-center gap-1 transition-all shadow-2xs border border-indigo-200 cursor-pointer"
+                            title="Tùy chỉnh, chỉnh sửa thông tin học sinh"
+                          >
+                            <Edit3 className="w-3.5 h-3.5 text-indigo-600" />
+                            <span>Sửa</span>
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -491,6 +514,19 @@ export const GvcnStudentGradesSection: React.FC<GvcnStudentGradesSectionProps> =
           </div>
         </div>
       </div>
+
+      {/* Modal Tùy chỉnh chỉnh sửa thông tin học sinh */}
+      <GvcnEditStudentModal
+        isOpen={!!editingStudent}
+        student={editingStudent}
+        onClose={() => setEditingStudent(null)}
+        onSave={(updated) => {
+          const nextList = students.map((st) => (st.id === updated.id ? updated : st));
+          onUpdateStudents(nextList);
+          showNotification('success', `Đã cập nhật thông tin học sinh ${updated.name} thành công!`);
+        }}
+        classInfo={classInfo}
+      />
     </div>
   );
 };

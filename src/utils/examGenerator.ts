@@ -1482,6 +1482,70 @@ export function regenerateSingleQuestion(
   });
 }
 
+/**
+ * Tạo câu hỏi mới theo mức độ nhận thức chỉ định (cùng mức độ hoặc mức độ mới tùy chọn)
+ */
+export function createNewQuestionWithLevel(
+  baseQuestion: ExamQuestion,
+  allQuestionsInPaper: ExamQuestion[],
+  targetLevel?: 'nhanBiet' | 'thongHieu' | 'vanDung' | 'vanDungCao',
+  grade: string = '9'
+): ExamQuestion {
+  const level = targetLevel || baseQuestion.cognitiveLevel;
+  const normGrade = String(grade || '').replace(/\D/g, '') || '9';
+  const usedPrompts = new Set(allQuestionsInPaper.map((q) => q.prompt));
+
+  let replacement = findBestQuestionFromBank(
+    'Toán',
+    normGrade,
+    baseQuestion.lesson,
+    baseQuestion.section,
+    level,
+    usedPrompts
+  );
+
+  if (!replacement) {
+    replacement = createFallbackQuestion(
+      'Toán',
+      normGrade,
+      baseQuestion.chapter,
+      baseQuestion.lesson,
+      baseQuestion.section,
+      level,
+      allQuestionsInPaper.length + 1
+    );
+  }
+
+  const levelLabel =
+    level === 'nhanBiet'
+      ? 'Nhận biết'
+      : level === 'thongHieu'
+      ? 'Thông hiểu'
+      : level === 'vanDung'
+      ? 'Vận dụng'
+      : 'Vận dụng cao';
+
+  return formatQuestionLatex({
+    id: `q_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+    code: `[C${allQuestionsInPaper.length + 1}]`,
+    section: baseQuestion.section,
+    type: replacement.type || baseQuestion.type,
+    chapter: baseQuestion.chapter,
+    lesson: baseQuestion.lesson,
+    cognitiveLevel: level,
+    cognitiveLevelLabel: levelLabel,
+    learningObjective: replacement.learningObjective || baseQuestion.learningObjective,
+    score: baseQuestion.score,
+    prompt: replacement.prompt,
+    options: replacement.options,
+    correctOption: replacement.correctOption,
+    tfStatements: replacement.tfStatements,
+    shortAnswerText: replacement.shortAnswerText,
+    essayGradingSteps: replacement.essayGradingSteps,
+    solutionExplanation: replacement.solutionExplanation,
+  });
+}
+
 // =================================================================
 // 5. TÍNH TOÁN BẢNG ĐỐI CHIẾU MA TRẬN & YÊU CẦU CẦN ĐẠT
 // =================================================================

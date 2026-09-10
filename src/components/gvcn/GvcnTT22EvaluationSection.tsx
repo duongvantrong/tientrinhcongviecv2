@@ -12,6 +12,7 @@ import {
   HelpCircle,
   X,
   FileSpreadsheet,
+  Edit3,
 } from 'lucide-react';
 import { GvcnStudent, GvcnClassInfo, GvcnTT22Evaluation } from '../../types';
 import {
@@ -25,6 +26,7 @@ interface GvcnTT22EvaluationSectionProps {
   classInfo: GvcnClassInfo;
   onUpdateStudents: (updated: GvcnStudent[]) => void;
   onSelectStudent: (student: GvcnStudent) => void;
+  onEditStudent?: (student: GvcnStudent) => void;
 }
 
 export const GvcnTT22EvaluationSection: React.FC<GvcnTT22EvaluationSectionProps> = ({
@@ -32,6 +34,7 @@ export const GvcnTT22EvaluationSection: React.FC<GvcnTT22EvaluationSectionProps>
   classInfo,
   onUpdateStudents,
   onSelectStudent,
+  onEditStudent,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedRank, setSelectedRank] = useState<string | 'all'>('all');
@@ -466,6 +469,15 @@ export const GvcnTT22EvaluationSection: React.FC<GvcnTT22EvaluationSectionProps>
 
                       <td className="px-2 py-3 text-center" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-center gap-1">
+                          {onEditStudent && (
+                            <button
+                              onClick={() => onEditStudent(s)}
+                              title="Tùy chỉnh thông tin học sinh"
+                              className="p-1 text-indigo-600 hover:text-indigo-800 hover:bg-indigo-100 rounded-md transition-all"
+                            >
+                              <Edit3 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                           <button
                             onClick={(e) => handleSingleAutoGenerate(s.id, e)}
                             title="Gợi ý câu nhận xét mới"

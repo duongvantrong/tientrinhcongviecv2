@@ -9,8 +9,11 @@ import {
   Shield,
   Download,
   Filter,
+  Edit3,
+  Eye,
 } from 'lucide-react';
 import { GvcnStudent, GvcnClassInfo } from '../../types';
+import { GvcnEditStudentModal } from './GvcnEditStudentModal';
 
 interface GvcnStudentListModalProps {
   isOpen: boolean;
@@ -18,6 +21,7 @@ interface GvcnStudentListModalProps {
   students: GvcnStudent[];
   classInfo: GvcnClassInfo;
   onSelectStudent?: (student: GvcnStudent) => void;
+  onUpdateStudent?: (student: GvcnStudent) => void;
 }
 
 export const GvcnStudentListModal: React.FC<GvcnStudentListModalProps> = ({
@@ -26,9 +30,11 @@ export const GvcnStudentListModal: React.FC<GvcnStudentListModalProps> = ({
   students,
   classInfo,
   onSelectStudent,
+  onUpdateStudent,
 }) => {
   const [selectedGroup, setSelectedGroup] = useState<number | 'all'>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [editingStudent, setEditingStudent] = useState<GvcnStudent | null>(null);
 
   if (!isOpen) return null;
 
@@ -139,6 +145,7 @@ export const GvcnStudentListModal: React.FC<GvcnStudentListModalProps> = ({
                   <th className="p-3">Họ tên Phụ huynh</th>
                   <th className="p-3">Số điện thoại</th>
                   <th className="p-3">Đặc điểm / Ghi chú</th>
+                  <th className="p-3 text-center">Thao tác</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -196,6 +203,28 @@ export const GvcnStudentListModal: React.FC<GvcnStudentListModalProps> = ({
                     <td className="p-3 text-slate-500 italic max-w-xs truncate" title={student.note}>
                       {student.note || '—'}
                     </td>
+                    <td className="p-3 text-center" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex items-center justify-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => onSelectStudent && onSelectStudent(student)}
+                          className="px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded-md font-bold text-[11px] flex items-center gap-1 border border-emerald-200 transition-colors"
+                          title="Xem hồ sơ chi tiết"
+                        >
+                          <Eye className="w-3 h-3 text-emerald-700" />
+                          <span>Hồ sơ</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setEditingStudent(student)}
+                          className="px-2 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-md font-bold text-[11px] flex items-center gap-1 border border-indigo-200 transition-colors"
+                          title="Tùy chỉnh, sửa thông tin học sinh"
+                        >
+                          <Edit3 className="w-3 h-3 text-indigo-600" />
+                          <span>Sửa</span>
+                        </button>
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -214,6 +243,19 @@ export const GvcnStudentListModal: React.FC<GvcnStudentListModalProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Modal Chỉnh sửa thông tin */}
+      <GvcnEditStudentModal
+        isOpen={!!editingStudent}
+        student={editingStudent}
+        onClose={() => setEditingStudent(null)}
+        onSave={(updated) => {
+          if (onUpdateStudent) {
+            onUpdateStudent(updated);
+          }
+        }}
+        classInfo={classInfo}
+      />
     </div>
   );
 };

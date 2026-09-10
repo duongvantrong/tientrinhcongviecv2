@@ -123,35 +123,49 @@ export const ExamQuestionEditModal: React.FC<ExamQuestionEditModalProps> = ({
         <div className="p-6 overflow-y-auto space-y-5 text-sm flex-1">
           {/* Metadata Row */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-slate-50 p-3 rounded-xl border border-slate-200">
-            <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1">
-                Mức độ nhận thức
-              </label>
-              <select
-                value={formData.cognitiveLevel}
-                onChange={(e) => {
-                  const val = e.target.value as any;
-                  const label =
-                    val === 'nhanBiet'
-                      ? 'Nhận biết'
-                      : val === 'thongHieu'
-                      ? 'Thông hiểu'
-                      : val === 'vanDung'
-                      ? 'Vận dụng'
-                      : 'Vận dụng cao';
-                  setFormData({ ...formData, cognitiveLevel: val, cognitiveLevelLabel: label });
-                }}
-                className="w-full text-xs font-medium border border-slate-300 rounded-lg px-2.5 py-1.5 bg-white text-slate-700"
-              >
-                <option value="nhanBiet">Nhận biết</option>
-                <option value="thongHieu">Thông hiểu</option>
-                <option value="vanDung">Vận dụng</option>
-                <option value="vanDungCao">Vận dụng cao</option>
-              </select>
+            <div className="md:col-span-2">
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-semibold text-slate-700">
+                  Mức độ nhận thức (Tùy chỉnh thủ công)
+                </label>
+                <span className="text-[10px] text-slate-500 italic">
+                  Thay đổi sẽ tự động đồng bộ thống kê Ma trận
+                </span>
+              </div>
+
+              {/* 4 Nút chọn nhanh mức độ */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                {[
+                  { key: 'nhanBiet', label: 'Nhận biết', activeColor: 'bg-emerald-600 text-white border-emerald-700 shadow-xs ring-2 ring-emerald-200', inactiveColor: 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100' },
+                  { key: 'thongHieu', label: 'Thông hiểu', activeColor: 'bg-blue-600 text-white border-blue-700 shadow-xs ring-2 ring-blue-200', inactiveColor: 'bg-blue-50 text-blue-800 border-blue-200 hover:bg-blue-100' },
+                  { key: 'vanDung', label: 'Vận dụng', activeColor: 'bg-amber-600 text-white border-amber-700 shadow-xs ring-2 ring-amber-200', inactiveColor: 'bg-amber-50 text-amber-900 border-amber-200 hover:bg-amber-100' },
+                  { key: 'vanDungCao', label: 'Vận dụng cao', activeColor: 'bg-purple-600 text-white border-purple-700 shadow-xs ring-2 ring-purple-200', inactiveColor: 'bg-purple-50 text-purple-800 border-purple-200 hover:bg-purple-100' },
+                ].map((lvl) => {
+                  const isSelected = formData.cognitiveLevel === lvl.key;
+                  return (
+                    <button
+                      key={lvl.key}
+                      type="button"
+                      onClick={() => {
+                        setFormData({
+                          ...formData,
+                          cognitiveLevel: lvl.key as any,
+                          cognitiveLevelLabel: lvl.label,
+                        });
+                      }}
+                      className={`px-2 py-1.5 rounded-lg text-xs font-bold border transition-all text-center ${
+                        isSelected ? lvl.activeColor : lvl.inactiveColor
+                      }`}
+                    >
+                      {lvl.label}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1">
+              <label className="block text-xs font-semibold text-slate-700 mb-1">
                 Điểm số câu hỏi
               </label>
               <input
@@ -161,7 +175,7 @@ export const ExamQuestionEditModal: React.FC<ExamQuestionEditModalProps> = ({
                 max="10"
                 value={formData.score}
                 onChange={(e) => setFormData({ ...formData, score: parseFloat(e.target.value) || 0 })}
-                className="w-full text-xs font-medium border border-slate-300 rounded-lg px-2.5 py-1.5 bg-white text-slate-700"
+                className="w-full text-xs font-medium border border-slate-300 rounded-lg px-2.5 py-2 bg-white text-slate-700 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
               />
             </div>
 
