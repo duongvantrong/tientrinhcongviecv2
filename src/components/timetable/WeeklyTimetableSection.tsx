@@ -22,10 +22,18 @@ import {
   RotateCcw,
   Check,
   Clipboard,
+  Plus,
+  Trash2,
+  Save,
+  X,
+  UserCheck,
+  Users,
+  RefreshCw,
 } from 'lucide-react';
 import {
   TeacherTimetableConfig,
   WeeklyScheduledPeriod,
+  TimetableSlot,
   PpctDataset,
   TimeframeConfig,
 } from '../../types';
@@ -106,13 +114,36 @@ export const WeeklyTimetableSection: React.FC<WeeklyTimetableSectionProps> = ({
     return () => window.removeEventListener('paste', handleGlobalPaste);
   }, []);
 
-  // Filter by class or grade ('all' or '7A4', '9A4', '9A5', '9', '7')
+  // Inline editing teacher name
+  const [isEditingTeacher, setIsEditingTeacher] = useState<boolean>(false);
+  const [tempTeacherName, setTempTeacherName] = useState<string>('');
+
+  // Batch rename class modal state
+  const [isBatchRenameModalOpen, setIsBatchRenameModalOpen] = useState<boolean>(false);
+  const [batchOldClass, setBatchOldClass] = useState<string>('');
+  const [batchNewClass, setBatchNewClass] = useState<string>('');
+  const [batchRenameScope, setBatchRenameScope] = useState<'all' | 'current_week'>('all');
+
+  // Add slot modal state
+  const [isAddSlotModalOpen, setIsAddSlotModalOpen] = useState<boolean>(false);
+  const [newSlotDay, setNewSlotDay] = useState<number>(2);
+  const [newSlotPeriod, setNewSlotPeriod] = useState<number>(1);
+  const [newSlotClass, setNewSlotClass] = useState<string>('');
+  const [newSlotSubject, setNewSlotSubject] = useState<string>('Toán');
+  const [newSlotRoom, setNewSlotRoom] = useState<string>('');
+  const [newSlotScope, setNewSlotScope] = useState<'all' | 'current_week'>('all');
+
+  // Detail slot editing state
+  const [isEditingDetailSlot, setIsEditingDetailSlot] = useState<boolean>(false);
+  const [editSlotClass, setEditSlotClass] = useState<string>('');
+  const [editSlotSubject, setEditSlotSubject] = useState<string>('');
+  const [editSlotRoom, setEditSlotRoom] = useState<string>('');
+  const [editSlotScope, setEditSlotScope] = useState<'all' | 'current_week'>('all');
+
+  // Filter by class or grade ('all' or specific className)
   const [selectedFilter, setSelectedFilter] = useState<string>('all');
 
-  // View modes:
-  // 'tkb_sample': Bảng Thời khóa biểu đúng theo cấu trúc mẫu ảnh của thầy Dương Văn Trong
-  // 'visual_schedule': Lịch báo giảng trực quan theo ngày
-  // 'official_register': Sổ báo giảng chuẩn in ấn / nộp BGH
+  // View modes
   const [viewMode, setViewMode] = useState<'tkb_sample' | 'visual_schedule' | 'official_register'>('tkb_sample');
 
   // Selected period detail modal
@@ -154,10 +185,117 @@ export const WeeklyTimetableSection: React.FC<WeeklyTimetableSectionProps> = ({
   const distinctClasses = useMemo(() => {
     const set = new Set<string>();
     activeSlots.forEach((s) => {
-      if (s.className) set.add(s.className);
+      if (s.className) set.add(s.className.trim().toUpperCase());
     });
     return Array.from(set).sort();
   }, [activeSlots]);
+
+  // Auto reset selectedFilter if filtered class no longer exists
+  useEffect(() => {
+    if (selectedFilter !== 'all' && !['6', '7', '8', '9'].includes(selectedFilter)) {
+      if (!distinctClasses.includes(selectedFilter)) {
+        setSelectedFilter('all');
+      }
+    }
+  }, [distinctClasses, selectedFilter]);
+
+  // Dynamic teaching summary calculated from actual distinct classes and active slots
+  const teachingSummary = useMemo(() => {
+    if (distinctClasses.length === 0) {
+      return {
+        text: 'Chưa có lớp dạy',
+        gradesText: 'Toán',
+        classesByGradeText: '',
+        homeroomClass: null,
+      };
+    }
+
+    const byGrade: Record<string, string[]> = {};
+    distinctClasses.forEach((cls) => {
+      const match = cls.match(/\b(1[0-2]|[6-9])/);
+      const g = match ? match[0] : cls.replace(/\D/g, '')[0] || 'Toán';
+      if (!byGrade[g]) byGrade[g] = [];
+      byGrade[g].push(cls);
+    });
+
+    const gradeParts: string[] = [];
+    Object.keys(byGrade)
+      .sort()
+      .forEach((g) => {
+        gradeParts.push(`Khối ${g} (${byGrade[g].join(', ')})`);
+      });
+
+    const homeroomSlot = activeSlots.find(
+      (s) =>
+        s.subject?.toLowerCase().includes('chào cờ') ||
+        s.subject?.toLowerCase().includes('shl') ||
+        s.subject?.toLowerCase().includes('sinh hoạt') ||
+        s.notes?.toLowerCase().includes('chủ nhiệm')
+    );
+    const homeroomClass = homeroomSlot?.className || null;
+    const gradesList = Object.keys(byGrade).sort().map((g) => `Khối ${g}`).join(', ');
+
+    return {
+      text: `Phụ trách Toán ${gradeParts.join(' & ')}${homeroomClass ? ` + Chủ nhiệm ${homeroomClass}` : ''}`,
+      gradesText: gradesList || 'Toán',
+      classesByGradeText: gradeParts.join(' & '),
+      homeroomClass,
+    };
+  }, [distinctClasses, activeSlots]);
+
+  // Helper styling for classes according to grade
+  const getClassTheme = (className: string) => {
+    const match = className.match(/\b(1[0-2]|[6-9])/);
+    const g = match ? match[0] : className.replace(/\D/g, '')[0];
+    if (g === '6') {
+      return {
+        bg: 'bg-amber-50/90',
+        border: 'border-amber-300',
+        hoverBorder: 'hover:border-amber-500',
+        text: 'text-amber-950',
+        activeBg: 'bg-amber-700',
+        badge: 'bg-amber-100 text-amber-900 border border-amber-300 font-bold',
+      };
+    }
+    if (g === '7') {
+      return {
+        bg: 'bg-purple-50/90',
+        border: 'border-purple-300',
+        hoverBorder: 'hover:border-purple-500',
+        text: 'text-purple-950',
+        activeBg: 'bg-purple-700',
+        badge: 'bg-purple-100 text-purple-900 border border-purple-300 font-bold',
+      };
+    }
+    if (g === '8') {
+      return {
+        bg: 'bg-teal-50/90',
+        border: 'border-teal-300',
+        hoverBorder: 'hover:border-teal-500',
+        text: 'text-teal-950',
+        activeBg: 'bg-teal-700',
+        badge: 'bg-teal-100 text-teal-900 border border-teal-300 font-bold',
+      };
+    }
+    if (g === '9') {
+      return {
+        bg: 'bg-blue-50/90',
+        border: 'border-blue-300',
+        hoverBorder: 'hover:border-blue-500',
+        text: 'text-blue-950',
+        activeBg: 'bg-blue-700',
+        badge: 'bg-blue-100 text-blue-900 border border-blue-300 font-bold',
+      };
+    }
+    return {
+      bg: 'bg-indigo-50/90',
+      border: 'border-indigo-300',
+      hoverBorder: 'hover:border-indigo-500',
+      text: 'text-indigo-950',
+      activeBg: 'bg-indigo-700',
+      badge: 'bg-indigo-100 text-indigo-900 border border-indigo-300 font-bold',
+    };
+  };
 
   // Filtered periods
   const filteredSchedule = useMemo(() => {
@@ -165,7 +303,7 @@ export const WeeklyTimetableSection: React.FC<WeeklyTimetableSectionProps> = ({
     if (['6', '7', '8', '9'].includes(selectedFilter)) {
       return weeklySchedule.filter((p) => p.grade === selectedFilter);
     }
-    return weeklySchedule.filter((p) => p.className === selectedFilter);
+    return weeklySchedule.filter((p) => p.className?.toUpperCase() === selectedFilter.toUpperCase());
   }, [weeklySchedule, selectedFilter]);
 
   // Today lessons
@@ -201,6 +339,227 @@ export const WeeklyTimetableSection: React.FC<WeeklyTimetableSectionProps> = ({
   const handleResetToSample = () => {
     const def = getDefaultTeacherTimetable();
     onUpdateConfig(def);
+  };
+
+  // Save edited teacher name
+  const handleSaveTeacherName = () => {
+    if (!tempTeacherName.trim()) return;
+    onUpdateConfig({
+      ...currentConfig,
+      teacherName: tempTeacherName.trim(),
+    });
+    setIsEditingTeacher(false);
+  };
+
+  // Batch rename a class across timetable
+  const handleExecuteBatchRename = () => {
+    if (!batchOldClass || !batchNewClass.trim()) return;
+    const trimmedNew = batchNewClass.trim().toUpperCase();
+    const match = trimmedNew.match(/\b(1[0-2]|[6-9])|([6-9])/);
+    const inferredGrade = match ? match[0] : '9';
+    const defaultRoom = `Phòng ${trimmedNew}`;
+
+    const updateSlotList = (slotList: TimetableSlot[]) => {
+      return (slotList || []).map((s) => {
+        if (s.className?.toUpperCase() === batchOldClass.toUpperCase()) {
+          return {
+            ...s,
+            className: trimmedNew,
+            grade: inferredGrade,
+            room: !s.room || s.room === `Phòng ${s.className}` ? defaultRoom : s.room,
+          };
+        }
+        return s;
+      });
+    };
+
+    let updatedSlots = currentConfig.slots || [];
+    const updatedWeeklySlots: Record<number, TimetableSlot[]> = { ...(currentConfig.weeklySlots || {}) };
+
+    if (batchRenameScope === 'all') {
+      updatedSlots = updateSlotList(currentConfig.slots || []);
+      Object.keys(updatedWeeklySlots).forEach((w) => {
+        const weekNum = Number(w);
+        updatedWeeklySlots[weekNum] = updateSlotList(updatedWeeklySlots[weekNum]);
+      });
+    } else {
+      const currentWeekSlots = getWeeklySlots(currentConfig, selectedWeek);
+      updatedWeeklySlots[selectedWeek] = updateSlotList(currentWeekSlots);
+    }
+
+    const updatedCompleted: Record<string, boolean> = {};
+    Object.entries(currentConfig.completedLessons || {}).forEach(([key, val]) => {
+      const boolVal = Boolean(val);
+      if (key.startsWith(`${batchOldClass}_tiet_`)) {
+        const newKey = key.replace(`${batchOldClass}_tiet_`, `${trimmedNew}_tiet_`);
+        updatedCompleted[newKey] = boolVal;
+      } else {
+        updatedCompleted[key] = boolVal;
+      }
+    });
+
+    onUpdateConfig({
+      ...currentConfig,
+      slots: updatedSlots,
+      weeklySlots: updatedWeeklySlots,
+      completedLessons: updatedCompleted,
+    });
+
+    if (selectedFilter === batchOldClass) {
+      setSelectedFilter(trimmedNew);
+    }
+
+    setIsBatchRenameModalOpen(false);
+    setBatchNewClass('');
+  };
+
+  // Open Add Slot modal for a specific day and period
+  const handleOpenAddSlot = (dayOfWeek: number, period: number) => {
+    setNewSlotDay(dayOfWeek);
+    setNewSlotPeriod(period);
+    const defaultClass = distinctClasses[0] || '9A1';
+    setNewSlotClass(defaultClass);
+    setNewSlotSubject('Toán');
+    setNewSlotRoom(`Phòng ${defaultClass}`);
+    setNewSlotScope('all');
+    setIsAddSlotModalOpen(true);
+  };
+
+  // Save newly added slot
+  const handleSaveNewSlot = () => {
+    if (!newSlotClass.trim()) return;
+    const trimmedClass = newSlotClass.trim().toUpperCase();
+    const match = trimmedClass.match(/\b(1[0-2]|[6-9])|([6-9])/);
+    const inferredGrade = match ? match[0] : '9';
+
+    const newSlot: TimetableSlot = {
+      id: `slot-${Date.now()}`,
+      dayOfWeek: newSlotDay,
+      period: newSlotPeriod,
+      session: 'sang',
+      className: trimmedClass,
+      grade: inferredGrade,
+      subject: newSlotSubject.trim() || 'Toán',
+      room: newSlotRoom.trim() || `Phòng ${trimmedClass}`,
+    };
+
+    if (newSlotScope === 'all') {
+      const filtered = (currentConfig.slots || []).filter(
+        (s) => !(s.dayOfWeek === newSlotDay && s.period === newSlotPeriod)
+      );
+      onUpdateConfig({
+        ...currentConfig,
+        slots: [...filtered, newSlot],
+      });
+    } else {
+      const currentWeekSlots = getWeeklySlots(currentConfig, selectedWeek);
+      const filtered = currentWeekSlots.filter(
+        (s) => !(s.dayOfWeek === newSlotDay && s.period === newSlotPeriod)
+      );
+      onUpdateConfig({
+        ...currentConfig,
+        weeklySlots: {
+          ...(currentConfig.weeklySlots || {}),
+          [selectedWeek]: [...filtered, newSlot],
+        },
+      });
+    }
+
+    setIsAddSlotModalOpen(false);
+  };
+
+  // Open detail slot editor
+  const handleStartEditDetailSlot = () => {
+    if (!detailPeriod) return;
+    setEditSlotClass(detailPeriod.className);
+    setEditSlotSubject(detailPeriod.subject);
+    setEditSlotRoom(detailPeriod.room || `Phòng ${detailPeriod.className}`);
+    setEditSlotScope('all');
+    setIsEditingDetailSlot(true);
+  };
+
+  // Save changes to detail slot
+  const handleSaveDetailSlot = () => {
+    if (!detailPeriod || !editSlotClass.trim()) return;
+    const trimmedClass = editSlotClass.trim().toUpperCase();
+    const match = trimmedClass.match(/\b(1[0-2]|[6-9])|([6-9])/);
+    const inferredGrade = match ? match[0] : '9';
+
+    const updateSlotItem = (s: TimetableSlot) => {
+      if (s.id === detailPeriod.slotId || (s.dayOfWeek === detailPeriod.dayOfWeek && s.period === detailPeriod.period)) {
+        return {
+          ...s,
+          className: trimmedClass,
+          grade: inferredGrade,
+          subject: editSlotSubject.trim() || 'Toán',
+          room: editSlotRoom.trim() || `Phòng ${trimmedClass}`,
+        };
+      }
+      return s;
+    };
+
+    if (editSlotScope === 'all') {
+      const updatedSlots = (currentConfig.slots || []).map(updateSlotItem);
+      const updatedWeekly: Record<number, TimetableSlot[]> = { ...(currentConfig.weeklySlots || {}) };
+      Object.keys(updatedWeekly).forEach((w) => {
+        const wNum = Number(w);
+        updatedWeekly[wNum] = updatedWeekly[wNum].map(updateSlotItem);
+      });
+      onUpdateConfig({
+        ...currentConfig,
+        slots: updatedSlots,
+        weeklySlots: updatedWeekly,
+      });
+    } else {
+      const currentWeekSlots = getWeeklySlots(currentConfig, selectedWeek);
+      const updated = currentWeekSlots.map(updateSlotItem);
+      onUpdateConfig({
+        ...currentConfig,
+        weeklySlots: {
+          ...(currentConfig.weeklySlots || {}),
+          [selectedWeek]: updated,
+        },
+      });
+    }
+
+    setIsEditingDetailSlot(false);
+    setDetailPeriod(null);
+  };
+
+  // Delete detail slot
+  const handleDeleteDetailSlot = () => {
+    if (!detailPeriod) return;
+    const filterOut = (slotList: TimetableSlot[]) =>
+      (slotList || []).filter(
+        (s) => !(s.id === detailPeriod.slotId || (s.dayOfWeek === detailPeriod.dayOfWeek && s.period === detailPeriod.period))
+      );
+
+    if (editSlotScope === 'all') {
+      const updatedSlots = filterOut(currentConfig.slots || []);
+      const updatedWeekly: Record<number, TimetableSlot[]> = { ...(currentConfig.weeklySlots || {}) };
+      Object.keys(updatedWeekly).forEach((w) => {
+        const wNum = Number(w);
+        updatedWeekly[wNum] = filterOut(updatedWeekly[wNum]);
+      });
+      onUpdateConfig({
+        ...currentConfig,
+        slots: updatedSlots,
+        weeklySlots: updatedWeekly,
+      });
+    } else {
+      const currentWeekSlots = getWeeklySlots(currentConfig, selectedWeek);
+      const updated = filterOut(currentWeekSlots);
+      onUpdateConfig({
+        ...currentConfig,
+        weeklySlots: {
+          ...(currentConfig.weeklySlots || {}),
+          [selectedWeek]: updated,
+        },
+      });
+    }
+
+    setIsEditingDetailSlot(false);
+    setDetailPeriod(null);
   };
 
   // Build matrix lookup for period (1..5) and dayOfWeek (2..7)
@@ -258,9 +617,62 @@ export const WeeklyTimetableSection: React.FC<WeeklyTimetableSectionProps> = ({
                 Năm học 2026-2027 • Áp dụng 07-09-2026
               </span>
             </div>
-            <p className="text-xs text-slate-600 mt-0.5">
-              Giáo viên: <strong className="text-slate-900">{currentConfig.teacherName || 'Dương Văn Trong'}</strong> • Phụ trách Toán Khối 7 (7A4) & Khối 9 (9A4, 9A5) + Chủ nhiệm 7A4
-            </p>
+            <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600 mt-1">
+              <span>Giáo viên:</span>
+              {isEditingTeacher ? (
+                <div className="flex items-center gap-1">
+                  <input
+                    type="text"
+                    value={tempTeacherName}
+                    onChange={(e) => setTempTeacherName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleSaveTeacherName();
+                      if (e.key === 'Escape') setIsEditingTeacher(false);
+                    }}
+                    placeholder="Nhập họ tên giáo viên..."
+                    autoFocus
+                    className="px-2 py-0.5 border border-emerald-500 rounded text-xs font-bold text-slate-900 bg-white shadow-2xs focus:outline-hidden focus:ring-1 focus:ring-emerald-600"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleSaveTeacherName}
+                    className="p-1 rounded bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xs"
+                    title="Lưu họ tên giáo viên"
+                  >
+                    <Check className="w-3 h-3" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsEditingTeacher(false)}
+                    className="p-1 rounded bg-slate-200 hover:bg-slate-300 text-slate-700"
+                    title="Hủy"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              ) : (
+                <span className="inline-flex items-center gap-1 group">
+                  <strong className="text-slate-900 font-bold bg-slate-100/80 px-1.5 py-0.5 rounded border border-slate-200/60">
+                    {currentConfig.teacherName || 'Dương Văn Trong'}
+                  </strong>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTempTeacherName(currentConfig.teacherName || 'Dương Văn Trong');
+                      setIsEditingTeacher(true);
+                    }}
+                    className="text-slate-400 hover:text-emerald-700 p-0.5 rounded transition-colors"
+                    title="Bấm để sửa tên giáo viên (tự động đồng bộ toàn hệ thống)"
+                  >
+                    <Edit3 className="w-3.5 h-3.5" />
+                  </button>
+                </span>
+              )}
+              <span className="text-slate-300">•</span>
+              <span className="text-slate-700 font-medium">
+                {teachingSummary.text}
+              </span>
+            </div>
           </div>
         </div>
 
@@ -619,29 +1031,44 @@ export const WeeklyTimetableSection: React.FC<WeeklyTimetableSectionProps> = ({
             Tất cả ({weeklySchedule.length} tiết)
           </button>
 
-          {/* Lớp 7A4, 9A4, 9A5 theo mẫu */}
-          {['7A4', '9A4', '9A5'].map((cls) => {
-            const count = weeklySchedule.filter((p) => p.className === cls).length;
-            const is7 = cls.startsWith('7');
+          {/* Danh sách các lớp thực tế có trong TKB */}
+          {distinctClasses.map((cls) => {
+            const count = weeklySchedule.filter((p) => p.className?.toUpperCase() === cls.toUpperCase()).length;
+            const theme = getClassTheme(cls);
+            const isSelected = selectedFilter.toUpperCase() === cls.toUpperCase();
+
             return (
               <button
                 key={cls}
                 type="button"
                 onClick={() => setSelectedFilter(cls)}
                 className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
-                  selectedFilter === cls
-                    ? is7
-                      ? 'bg-purple-700 text-white shadow-xs'
-                      : 'bg-blue-700 text-white shadow-xs'
-                    : is7
-                    ? 'bg-purple-50 text-purple-900 border border-purple-200 hover:bg-purple-100'
-                    : 'bg-blue-50 text-blue-900 border border-blue-200 hover:bg-blue-100'
+                  isSelected
+                    ? `${theme.activeBg} text-white shadow-xs`
+                    : `${theme.bg} ${theme.text} border ${theme.border} hover:opacity-90`
                 }`}
               >
                 Lớp {cls} ({count} tiết)
               </button>
             );
           })}
+
+          {/* Nút công cụ đổi lớp hàng loạt */}
+          {distinctClasses.length > 0 && (
+            <button
+              type="button"
+              onClick={() => {
+                setBatchOldClass(distinctClasses[0] || '');
+                setBatchNewClass('');
+                setIsBatchRenameModalOpen(true);
+              }}
+              className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 border border-slate-200 transition-colors"
+              title="Đổi tên lớp hàng loạt trong TKB (ví dụ 7A4 sang 7A2)"
+            >
+              <Edit3 className="w-3 h-3 text-slate-500" />
+              <span>Đổi lớp...</span>
+            </button>
+          )}
         </div>
 
         {viewMode === 'tkb_sample' && (
@@ -739,6 +1166,11 @@ export const WeeklyTimetableSection: React.FC<WeeklyTimetableSectionProps> = ({
                         <div className="text-[11px] text-slate-500 font-sans font-normal mt-1">
                           Tổ Toán - Tin
                         </div>
+                        {teachingSummary.classesByGradeText && (
+                          <div className="text-[10px] text-emerald-800 font-sans font-semibold mt-1.5 bg-emerald-50 rounded-md px-1.5 py-1 border border-emerald-200 leading-tight">
+                            {teachingSummary.classesByGradeText}
+                          </div>
+                        )}
                       </td>
                     )}
 
@@ -761,6 +1193,7 @@ export const WeeklyTimetableSection: React.FC<WeeklyTimetableSectionProps> = ({
                     {weekDays.map((day) => {
                       const item = scheduleMatrix[periodNum]?.[day.dayOfWeek];
                       const isToday = day.dateStr === todayDateStr;
+                      const theme = item ? getClassTheme(item.className) : null;
 
                       return (
                         <td
@@ -769,14 +1202,12 @@ export const WeeklyTimetableSection: React.FC<WeeklyTimetableSectionProps> = ({
                             isToday ? 'bg-emerald-50/40' : ''
                           }`}
                         >
-                          {item ? (
+                          {item && theme ? (
                             <div
                               onClick={() => setDetailPeriod(item)}
-                              className={`p-2 rounded-lg border text-left cursor-pointer transition-all shadow-2xs ${
-                                item.className === '7A4'
-                                  ? 'bg-purple-50/90 border-purple-300 hover:border-purple-500 text-purple-950'
-                                  : 'bg-blue-50/90 border-blue-300 hover:border-blue-500 text-blue-950'
-                              } ${item.completed ? 'opacity-80 ring-1 ring-emerald-500' : ''}`}
+                              className={`p-2 rounded-lg border text-left cursor-pointer transition-all shadow-2xs ${theme.bg} ${theme.border} ${theme.hoverBorder} ${theme.text} ${
+                                item.completed ? 'opacity-80 ring-1 ring-emerald-500' : ''
+                              }`}
                             >
                               {/* Label formatted exactly as the sample image: 7A4-Chào cờ, 9A5-Toán, 7A4-SHL */}
                               <div className="flex items-center justify-between font-bold text-xs">
@@ -805,7 +1236,16 @@ export const WeeklyTimetableSection: React.FC<WeeklyTimetableSectionProps> = ({
                               )}
                             </div>
                           ) : (
-                            <span className="text-slate-300 text-xs font-light">—</span>
+                            <div
+                              onClick={() => handleOpenAddSlot(day.dayOfWeek, periodNum)}
+                              className="h-10 flex items-center justify-center text-slate-300 hover:text-emerald-700 hover:bg-emerald-50/60 rounded-lg cursor-pointer transition-colors group"
+                              title={`Bấm để thêm tiết dạy vào Thứ ${day.dayOfWeek}, Tiết ${periodNum}`}
+                            >
+                              <span className="group-hover:hidden text-slate-300 text-xs font-light">—</span>
+                              <span className="hidden group-hover:inline-flex items-center gap-0.5 text-[11px] font-bold text-emerald-700">
+                                <Plus className="w-3 h-3" /> Thêm
+                              </span>
+                            </div>
                           )}
                         </td>
                       );
@@ -958,7 +1398,7 @@ export const WeeklyTimetableSection: React.FC<WeeklyTimetableSectionProps> = ({
               (Từ ngày {weekDays[0]?.dateFormatted} đến ngày {weekDays[5]?.dateFormatted}) • Học kỳ {selectedWeek <= 18 ? 'I' : 'II'}
             </p>
             <div className="text-xs font-bold text-slate-800 pt-1">
-              Giáo viên giảng dạy: <u>{currentConfig.teacherName || 'Dương Văn Trong'}</u> • Môn: Toán (Khối 7, Khối 9) & Chủ nhiệm 7A4
+              Giáo viên giảng dạy: <u>{currentConfig.teacherName || 'Dương Văn Trong'}</u> • Môn: Toán ({teachingSummary.gradesText}){teachingSummary.homeroomClass ? ` & Chủ nhiệm ${teachingSummary.homeroomClass}` : ''}
             </div>
           </div>
 
@@ -981,6 +1421,7 @@ export const WeeklyTimetableSection: React.FC<WeeklyTimetableSectionProps> = ({
                 {filteredSchedule.map((item, index) => {
                   const isToday = item.dateStr === todayDateStr;
                   const tietPpctText = item.tietPpctNumber > 0 ? `Tiết ${item.tietPpctNumber}` : '—';
+                  const theme = getClassTheme(item.className);
 
                   return (
                     <tr
@@ -1004,13 +1445,7 @@ export const WeeklyTimetableSection: React.FC<WeeklyTimetableSectionProps> = ({
                         Sáng - Tiết {item.period}
                       </td>
                       <td className="py-2 px-2 border border-slate-800 text-center font-bold">
-                        <span
-                          className={`px-1.5 py-0.5 rounded text-xs ${
-                            item.className === '7A4'
-                              ? 'bg-purple-100 text-purple-900 font-bold'
-                              : 'bg-blue-100 text-blue-900 font-bold'
-                          }`}
-                        >
+                        <span className={`px-1.5 py-0.5 rounded text-xs ${theme.badge}`}>
                           {item.className}
                         </span>
                       </td>
@@ -1069,24 +1504,151 @@ export const WeeklyTimetableSection: React.FC<WeeklyTimetableSectionProps> = ({
       {/* DETAIL LESSON MODAL */}
       {detailPeriod && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg p-6 space-y-4 animate-in fade-in zoom-in-95 duration-200 text-slate-800">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg p-6 space-y-4 animate-in fade-in zoom-in-95 duration-200 text-slate-800 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2">
                 <span className="px-2 py-0.5 bg-emerald-700 text-white rounded text-xs font-bold">
                   {detailPeriod.tietPpctNumber > 0 ? `Tiết ${detailPeriod.tietPpctNumber} PPCT` : detailPeriod.subject}
                 </span>
-                <span className="px-2 py-0.5 bg-blue-100 text-blue-900 rounded text-xs font-bold">
+                <span className={`px-2 py-0.5 rounded text-xs font-bold ${getClassTheme(detailPeriod.className).badge}`}>
                   Lớp {detailPeriod.className}
                 </span>
               </div>
-              <button
-                type="button"
-                onClick={() => setDetailPeriod(null)}
-                className="text-slate-400 hover:text-slate-700 p-1 rounded"
-              >
-                ✕
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleStartEditDetailSlot}
+                  className="text-xs font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-2 py-1 rounded-lg transition-colors flex items-center gap-1"
+                >
+                  <Edit3 className="w-3.5 h-3.5" />
+                  <span>Sửa tiết này</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDetailPeriod(null);
+                    setIsEditingDetailSlot(false);
+                  }}
+                  className="text-slate-400 hover:text-slate-700 p-1 rounded"
+                >
+                  ✕
+                </button>
+              </div>
             </div>
+
+            {/* Inline Slot Editor */}
+            {isEditingDetailSlot ? (
+              <div className="p-4 bg-emerald-50/60 border border-emerald-200 rounded-xl space-y-3">
+                <div className="font-bold text-xs text-emerald-950 flex items-center gap-1.5">
+                  <Edit3 className="w-4 h-4 text-emerald-700" />
+                  <span>Chỉnh sửa thông tin tiết dạy (đồng bộ ngay theo PPCT)</span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 text-xs">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                      Lớp học cụ thể:
+                    </label>
+                    <input
+                      type="text"
+                      value={editSlotClass}
+                      onChange={(e) => setEditSlotClass(e.target.value.toUpperCase())}
+                      placeholder="VD: 7A4, 9A4, 8A1..."
+                      className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg font-bold text-slate-900 focus:ring-1 focus:ring-emerald-500"
+                    />
+                    {/* Quick select from existing classes */}
+                    {distinctClasses.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-1.5">
+                        {distinctClasses.map((c) => (
+                          <button
+                            key={c}
+                            type="button"
+                            onClick={() => setEditSlotClass(c)}
+                            className="px-1.5 py-0.5 text-[10px] font-semibold bg-white border border-slate-300 hover:border-emerald-500 rounded text-slate-700"
+                          >
+                            {c}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                      Môn học / Tiết sinh hoạt:
+                    </label>
+                    <select
+                      value={editSlotSubject}
+                      onChange={(e) => setEditSlotSubject(e.target.value)}
+                      className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-semibold text-slate-900 focus:ring-1 focus:ring-emerald-500"
+                    >
+                      <option value="Toán">Toán</option>
+                      <option value="Chào cờ">Chào cờ</option>
+                      <option value="SHL">Sinh hoạt lớp (SHL)</option>
+                      <option value="HĐTN">Hoạt động trải nghiệm (HĐTN)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 text-xs">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                      Phòng học:
+                    </label>
+                    <input
+                      type="text"
+                      value={editSlotRoom}
+                      onChange={(e) => setEditSlotRoom(e.target.value)}
+                      placeholder="Phòng học..."
+                      className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs text-slate-900 focus:ring-1 focus:ring-emerald-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                      Phạm vi áp dụng:
+                    </label>
+                    <select
+                      value={editSlotScope}
+                      onChange={(e) => setEditSlotScope(e.target.value as 'all' | 'current_week')}
+                      className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs text-slate-900 focus:ring-1 focus:ring-emerald-500"
+                    >
+                      <option value="all">Tất cả các tuần trong năm</option>
+                      <option value="current_week">Chỉ riêng Tuần {selectedWeek}</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between pt-1 border-t border-emerald-200/80">
+                  <button
+                    type="button"
+                    onClick={handleDeleteDetailSlot}
+                    className="flex items-center gap-1 text-xs text-rose-700 hover:text-rose-900 font-semibold px-2 py-1 rounded hover:bg-rose-50"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Xóa tiết này</span>
+                  </button>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setIsEditingDetailSlot(false)}
+                      className="px-3 py-1.5 text-xs text-slate-600 bg-white border border-slate-300 hover:bg-slate-50 rounded-lg font-semibold"
+                    >
+                      Hủy
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSaveDetailSlot}
+                      className="px-3 py-1.5 text-xs text-white bg-emerald-700 hover:bg-emerald-800 rounded-lg font-bold shadow-2xs flex items-center gap-1"
+                    >
+                      <Save className="w-3.5 h-3.5" />
+                      <span>Lưu & Đồng bộ</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : null}
 
             <div className="space-y-2">
               <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
@@ -1138,10 +1700,249 @@ export const WeeklyTimetableSection: React.FC<WeeklyTimetableSectionProps> = ({
 
               <button
                 type="button"
-                onClick={() => setDetailPeriod(null)}
+                onClick={() => {
+                  setDetailPeriod(null);
+                  setIsEditingDetailSlot(false);
+                }}
                 className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold ml-auto"
               >
                 Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* BATCH RENAME MODAL */}
+      {isBatchRenameModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-md p-6 space-y-4 animate-in fade-in zoom-in-95 duration-200 text-slate-800">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <div className="p-2 rounded-xl bg-purple-100 text-purple-900">
+                  <Edit3 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm text-slate-900">Đổi tên lớp hàng loạt</h3>
+                  <p className="text-xs text-slate-500">Đồng bộ toàn bộ tiết dạy và tiến trình bài dạy</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsBatchRenameModalOpen(false)}
+                className="text-slate-400 hover:text-slate-700 p-1 rounded"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">
+                  Chọn lớp hiện tại cần đổi:
+                </label>
+                <select
+                  value={batchOldClass}
+                  onChange={(e) => setBatchOldClass(e.target.value)}
+                  className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl font-bold text-slate-900 focus:ring-1 focus:ring-emerald-500"
+                >
+                  {distinctClasses.map((cls) => (
+                    <option key={cls} value={cls}>
+                      Lớp {cls}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">
+                  Đổi thành tên lớp mới:
+                </label>
+                <input
+                  type="text"
+                  value={batchNewClass}
+                  onChange={(e) => setBatchNewClass(e.target.value.toUpperCase())}
+                  placeholder="Ví dụ: 7A2, 9A1, 8A3..."
+                  autoFocus
+                  className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl font-bold text-slate-900 focus:ring-1 focus:ring-emerald-500 uppercase"
+                />
+                <p className="text-[11px] text-slate-500 mt-1">
+                  Hệ thống sẽ tự động nhận diện khối lớp từ tên lớp mới (VD: 7A2 → Khối 7).
+                </p>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">
+                  Phạm vi áp dụng:
+                </label>
+                <div className="space-y-1.5">
+                  <label className="flex items-center gap-2 cursor-pointer p-2 rounded-lg border border-slate-200 hover:bg-slate-50">
+                    <input
+                      type="radio"
+                      name="batchScope"
+                      checked={batchRenameScope === 'all'}
+                      onChange={() => setBatchRenameScope('all')}
+                      className="text-emerald-700"
+                    />
+                    <div>
+                      <div className="font-bold text-slate-800">Tất cả các tuần (Tuần 1 - 35)</div>
+                      <div className="text-[11px] text-slate-500">Đồng bộ toàn bộ TKB và bảng kế hoạch giáo dục</div>
+                    </div>
+                  </label>
+
+                  <label className="flex items-center gap-2 cursor-pointer p-2 rounded-lg border border-slate-200 hover:bg-slate-50">
+                    <input
+                      type="radio"
+                      name="batchScope"
+                      checked={batchRenameScope === 'current_week'}
+                      onChange={() => setBatchRenameScope('current_week')}
+                      className="text-emerald-700"
+                    />
+                    <div>
+                      <div className="font-bold text-slate-800">Chỉ riêng Tuần {selectedWeek}</div>
+                      <div className="text-[11px] text-slate-500">Các tuần khác giữ nguyên</div>
+                    </div>
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setIsBatchRenameModalOpen(false)}
+                className="px-4 py-2 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl"
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                disabled={!batchNewClass.trim()}
+                onClick={handleExecuteBatchRename}
+                className="px-4 py-2 text-xs font-bold text-white bg-emerald-700 hover:bg-emerald-800 disabled:opacity-50 rounded-xl shadow-xs"
+              >
+                Xác nhận đổi lớp
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ADD SLOT MODAL */}
+      {isAddSlotModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-md p-6 space-y-4 animate-in fade-in zoom-in-95 duration-200 text-slate-800">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <div className="p-2 rounded-xl bg-emerald-100 text-emerald-900">
+                  <Plus className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm text-slate-900">Thêm tiết dạy mới</h3>
+                  <p className="text-xs text-slate-500">Thứ {newSlotDay}, Tiết {newSlotPeriod} buổi Sáng</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsAddSlotModalOpen(false)}
+                className="text-slate-400 hover:text-slate-700 p-1 rounded"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    Lớp học cụ thể:
+                  </label>
+                  <input
+                    type="text"
+                    value={newSlotClass}
+                    onChange={(e) => setNewSlotClass(e.target.value.toUpperCase())}
+                    placeholder="VD: 7A4, 9A4..."
+                    autoFocus
+                    className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl font-bold text-slate-900 uppercase focus:ring-1 focus:ring-emerald-500"
+                  />
+                  {distinctClasses.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-1.5">
+                      {distinctClasses.map((c) => (
+                        <button
+                          key={c}
+                          type="button"
+                          onClick={() => setNewSlotClass(c)}
+                          className="px-1.5 py-0.5 text-[10px] font-semibold bg-slate-100 border border-slate-200 hover:border-emerald-500 rounded text-slate-700"
+                        >
+                          {c}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    Môn học / Tiết:
+                  </label>
+                  <select
+                    value={newSlotSubject}
+                    onChange={(e) => setNewSlotSubject(e.target.value)}
+                    className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl font-semibold text-slate-900 focus:ring-1 focus:ring-emerald-500"
+                  >
+                    <option value="Toán">Toán</option>
+                    <option value="Chào cờ">Chào cờ</option>
+                    <option value="SHL">Sinh hoạt lớp (SHL)</option>
+                    <option value="HĐTN">Hoạt động trải nghiệm (HĐTN)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    Phòng học:
+                  </label>
+                  <input
+                    type="text"
+                    value={newSlotRoom}
+                    onChange={(e) => setNewSlotRoom(e.target.value)}
+                    placeholder="VD: Phòng 7A4..."
+                    className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-900 focus:ring-1 focus:ring-emerald-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    Phạm vi áp dụng:
+                  </label>
+                  <select
+                    value={newSlotScope}
+                    onChange={(e) => setNewSlotScope(e.target.value as 'all' | 'current_week')}
+                    className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl font-medium text-slate-900 focus:ring-1 focus:ring-emerald-500"
+                  >
+                    <option value="all">Tất cả các tuần (1 - 35)</option>
+                    <option value="current_week">Chỉ riêng Tuần {selectedWeek}</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setIsAddSlotModalOpen(false)}
+                className="px-4 py-2 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl"
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                disabled={!newSlotClass.trim()}
+                onClick={handleSaveNewSlot}
+                className="px-4 py-2 text-xs font-bold text-white bg-emerald-700 hover:bg-emerald-800 disabled:opacity-50 rounded-xl shadow-xs"
+              >
+                Thêm tiết dạy & Đồng bộ
               </button>
             </div>
           </div>

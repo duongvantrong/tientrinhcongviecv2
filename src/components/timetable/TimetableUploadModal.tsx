@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
   X,
   Upload,
@@ -17,6 +17,7 @@ import {
   UserCheck,
   Zap,
   ArrowRight,
+  Edit3,
 } from 'lucide-react';
 import { TeacherTimetableConfig, TimetableSlot } from '../../types';
 import { getDefaultTeacherTimetable } from '../../utils/timetableScheduler';
@@ -50,6 +51,13 @@ export const TimetableUploadModal: React.FC<TimetableUploadModalProps> = ({
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState<boolean>(false);
+  const [detectedTeachers, setDetectedTeachers] = useState<Array<{ name: string; subject?: string; slotsCount?: number }>>([]);
+  const [allTeacherSlots, setAllTeacherSlots] = useState<Record<string, TimetableSlot[]>>({});
+
+  // Quick class rename in modal
+  const [isQuickRenameOpen, setIsQuickRenameOpen] = useState<boolean>(false);
+  const [quickOldClass, setQuickOldClass] = useState<string>('');
+  const [quickNewClass, setQuickNewClass] = useState<string>('');
 
   // Form states for editable config
   const [teacherName, setTeacherName] = useState<string>(currentConfig.teacherName || 'Dương Văn Trong');
@@ -74,6 +82,103 @@ export const TimetableUploadModal: React.FC<TimetableUploadModalProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
 
+  // Computed detected classes list
+  const detectedClasses = useMemo(() => {
+    const classSet = new Set<string>();
+    slots.forEach((s) => {
+      if (s.className) classSet.add(s.className);
+    });
+    return Array.from(classSet).sort();
+  }, [slots]);
+
+  // Call AI OCR endpoint on server
+  const handleAnalyzeWithAI = async (
+    customFileUrl?: string,
+    customIsPdf?: boolean,
+    customTeacher?: string
+  ) => {
+    const filePayload = customFileUrl || selectedFileUrl;
+    if (!filePayload) {
+      setErrorMsg('Vui lòng chọn ảnh, tải lên tệp PDF hoặc nhấn Ctrl+V để dán ảnh Thời khóa biểu trước.');
+      return;
+    }
+
+    const checkPdf = customIsPdf !== undefined ? customIsPdf : isPdf;
+    const targetTeacher = (customTeacher !== undefined ? customTeacher : teacherName).trim();
+
+    setIsProcessing(true);
+    setErrorMsg(null);
+    setSuccessMsg(null);
+
+    try {
+      const mimeType = checkPdf
+        ? 'application/pdf'
+        : filePayload.startsWith('data:image/png')
+        ? 'image/png'
+        : 'image/jpeg';
+
+      const res = await fetch('/api/parse-tkb-image', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          imageBase64: filePayload,
+          mimeType,
+          targetTeacherName: targetTeacher || 'Dương Văn Trong',
+          teacherName: targetTeacher,
+          schoolName: schoolName.trim(),
+        }),
+      });
+
+      const data = await res.json();
+
+      if (data.success && Array.isArray(data.slots) && data.slots.length > 0) {
+        setSlots(data.slots);
+        if (data.teacherName) setTeacherName(data.teacherName);
+        if (data.schoolName) setSchoolName(data.schoolName);
+        if (data.appliedDate) setAppliedDate(data.appliedDate);
+        if (typeof data.appliedWeek === 'number' && data.appliedWeek >= 1 && data.appliedWeek <= 35) {
+          setSelectedTargetWeek(data.appliedWeek);
+          setApplyScope('specific');
+        }
+        if (Array.isArray(data.detectedTeachers) && data.detectedTeachers.length > 0) {
+          setDetectedTeachers(data.detectedTeachers);
+        }
+        if (data.allTeacherSlots && typeof data.allTeacherSlots === 'object') {
+          setAllTeacherSlots(data.allTeacherSlots);
+        }
+
+        const classList = Array.from(new Set(data.slots.map((s: any) => s.className).filter(Boolean))).sort().join(', ');
+        setSuccessMsg(
+          data.summary ||
+            `Đã nhận diện thành công TKB môn Toán của giáo viên ${data.teacherName || targetTeacher} (${data.slots.length} tiết: Lớp ${classList})! Bấm nút "Đồng bộ TKB ngay" để áp dụng.`
+        );
+      } else {
+        setErrorMsg(
+          data.message ||
+            'Không tìm thấy tiết dạy trong tệp đính kèm. Thầy/Cô có thể dùng TKB mẫu Khối 7 & 9 hoặc chỉnh sửa trực tiếp bên dưới.'
+        );
+      }
+    } catch (err: any) {
+      setErrorMsg('Lỗi kết nối máy chủ phân tích: ' + (err?.message || 'Thử lại sau.'));
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  // Switch to another teacher detected in Column 1
+  const handleSelectDetectedTeacher = (tName: string) => {
+    setTeacherName(tName);
+    if (allTeacherSlots[tName] && allTeacherSlots[tName].length > 0) {
+      setSlots(allTeacherSlots[tName]);
+      const classList = Array.from(new Set(allTeacherSlots[tName].map((s) => s.className))).sort().join(', ');
+      setSuccessMsg(`Đã nạp TKB của giáo viên ${tName} (${allTeacherSlots[tName].length} tiết: Lớp ${classList}). Bấm "Đồng bộ TKB ngay" để cập nhật.`);
+    } else if (selectedFileUrl) {
+      handleAnalyzeWithAI(selectedFileUrl, isPdf, tName);
+    }
+  };
+
   // Đồng bộ lại khi targetWeek thay đổi
   useEffect(() => {
     if (targetWeek) {
@@ -90,43 +195,10 @@ export const TimetableUploadModal: React.FC<TimetableUploadModalProps> = ({
       setSelectedFileUrl(initialFile.dataUrl);
       setFileName(initialFile.fileName || 'Ảnh từ Clipboard');
       setIsPdf(initialFile.isPdf || false);
-      setSuccessMsg('Đã nạp ảnh dán từ màn hình (Clipboard). Nhấn "Trích xuất TKB bằng AI" để phân tích!');
+      // Automatically trigger AI OCR analysis immediately
+      handleAnalyzeWithAI(initialFile.dataUrl, initialFile.isPdf || false, teacherName);
     }
   }, [initialFile]);
-
-  // Global Ctrl+V clipboard paste listener when modal is open
-  useEffect(() => {
-    if (!isOpen) return;
-
-    const handlePaste = (e: ClipboardEvent) => {
-      // Don't intercept if user is typing into an input or textarea
-      const activeTag = document.activeElement?.tagName?.toLowerCase();
-      if (activeTag === 'input' || activeTag === 'textarea') {
-        return;
-      }
-
-      const items = e.clipboardData?.items;
-      if (!items) return;
-
-      for (let i = 0; i < items.length; i++) {
-        const item = items[i];
-        if (item.type.indexOf('image') !== -1) {
-          const file = item.getAsFile();
-          if (file) {
-            processSelectedFile(file, `Ảnh_chụp_màn_hình_${new Date().toLocaleTimeString('vi-VN').replace(/:/g, '-')}.png`);
-            setSuccessMsg('Đã dán ảnh chụp màn hình (Ctrl+V) thành công! Bấm "Trích xuất TKB bằng AI" để tự động đồng bộ.');
-            e.preventDefault();
-            break;
-          }
-        }
-      }
-    };
-
-    window.addEventListener('paste', handlePaste);
-    return () => window.removeEventListener('paste', handlePaste);
-  }, [isOpen]);
-
-  if (!isOpen) return null;
 
   // Process selected file (Image or PDF)
   const processSelectedFile = (file: File, customName?: string) => {
@@ -151,9 +223,44 @@ export const TimetableUploadModal: React.FC<TimetableUploadModalProps> = ({
     reader.onload = (event) => {
       const base64 = event.target?.result as string;
       setSelectedFileUrl(base64);
+      // Automatically trigger AI OCR analysis immediately
+      handleAnalyzeWithAI(base64, isFilePdf, teacherName);
     };
     reader.readAsDataURL(file);
   };
+
+  // Global Ctrl+V clipboard paste listener when modal is open
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handlePaste = (e: ClipboardEvent) => {
+      // Don't intercept if user is typing into an input or textarea
+      const activeTag = document.activeElement?.tagName?.toLowerCase();
+      if (activeTag === 'input' || activeTag === 'textarea') {
+        return;
+      }
+
+      const items = e.clipboardData?.items;
+      if (!items) return;
+
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (item.type.indexOf('image') !== -1) {
+          const file = item.getAsFile();
+          if (file) {
+            processSelectedFile(file, `Ảnh_chụp_màn_hình_${new Date().toLocaleTimeString('vi-VN').replace(/:/g, '-')}.png`);
+            e.preventDefault();
+            break;
+          }
+        }
+      }
+    };
+
+    window.addEventListener('paste', handlePaste);
+    return () => window.removeEventListener('paste', handlePaste);
+  }, [isOpen, teacherName]);
+
+  if (!isOpen) return null;
 
   // Handle local file selection
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -205,61 +312,6 @@ export const TimetableUploadModal: React.FC<TimetableUploadModalProps> = ({
     }
   };
 
-  // Call AI OCR endpoint on server
-  const handleAnalyzeWithAI = async () => {
-    if (!selectedFileUrl) {
-      setErrorMsg('Vui lòng chọn ảnh, tải lên tệp PDF hoặc nhấn Ctrl+V để dán ảnh Thời khóa biểu trước.');
-      return;
-    }
-
-    setIsProcessing(true);
-    setErrorMsg(null);
-    setSuccessMsg(null);
-
-    try {
-      const mimeType = isPdf ? 'application/pdf' : selectedFileUrl.startsWith('data:image/png') ? 'image/png' : 'image/jpeg';
-      const res = await fetch('/api/parse-tkb-image', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          imageBase64: selectedFileUrl,
-          mimeType,
-          targetTeacherName: teacherName.trim() || 'Dương Văn Trong',
-          teacherName: teacherName.trim(),
-          schoolName: schoolName.trim(),
-        }),
-      });
-
-      const data = await res.json();
-
-      if (data.success && Array.isArray(data.slots) && data.slots.length > 0) {
-        setSlots(data.slots);
-        if (data.teacherName) setTeacherName(data.teacherName);
-        if (data.schoolName) setSchoolName(data.schoolName);
-        if (data.appliedDate) setAppliedDate(data.appliedDate);
-        if (typeof data.appliedWeek === 'number' && data.appliedWeek >= 1 && data.appliedWeek <= 35) {
-          setSelectedTargetWeek(data.appliedWeek);
-          setApplyScope('specific');
-        }
-        setSuccessMsg(
-          data.summary ||
-            `Đã nhận diện chính xác TKB của giáo viên ${data.teacherName || teacherName} (${data.slots.length} tiết/tuần)! Thiết lập cho Tuần ${data.appliedWeek || selectedTargetWeek}. Bấm nút "Đồng bộ TKB ngay" để cập nhật.`
-        );
-      } else {
-        setErrorMsg(
-          data.message ||
-            'Không tìm thấy tiết dạy trong tệp đính kèm. Thầy/Cô có thể dùng TKB mẫu Khối 7 & 9 hoặc chỉnh sửa trực tiếp bên dưới.'
-        );
-      }
-    } catch (err: any) {
-      setErrorMsg('Lỗi kết nối máy chủ phân tích: ' + (err?.message || 'Thử lại sau.'));
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
   // Nạp nhanh TKB mẫu Toán 7 & 9 (theo ảnh TKB năm học 2026-2027)
   const handleLoadDefaultPreset = () => {
     const def = getDefaultTeacherTimetable();
@@ -294,15 +346,44 @@ export const TimetableUploadModal: React.FC<TimetableUploadModalProps> = ({
       prev.map((s) => {
         if (s.id !== id) return s;
         const updated = { ...s, ...updates };
-        if (updates.className) {
-          const num = updates.className.replace(/\D/g, '');
-          if (num.startsWith('6') || num.startsWith('7') || num.startsWith('8') || num.startsWith('9')) {
-            updated.grade = num[0];
+        if (updates.className !== undefined) {
+          const trimmed = updates.className.trim().toUpperCase();
+          updated.className = trimmed;
+          const match = trimmed.match(/\b(1[0-2]|[6-9])|([6-9])/);
+          if (match) {
+            updated.grade = match[0];
+          }
+          if (!s.room || s.room === `Phòng ${s.className}` || s.room === '') {
+            updated.room = `Phòng ${trimmed}`;
           }
         }
         return updated;
       })
     );
+  };
+
+  // Đổi tên lớp hàng loạt trong danh sách slot
+  const handleQuickRenameClass = () => {
+    if (!quickOldClass || !quickNewClass.trim()) return;
+    const trimmed = quickNewClass.trim().toUpperCase();
+    const match = trimmed.match(/\b(1[0-2]|[6-9])|([6-9])/);
+    const inferredGrade = match ? match[0] : '9';
+
+    setSlots((prev) =>
+      prev.map((s) => {
+        if (s.className?.toUpperCase() === quickOldClass.toUpperCase()) {
+          return {
+            ...s,
+            className: trimmed,
+            grade: inferredGrade,
+            room: !s.room || s.room === `Phòng ${s.className}` ? `Phòng ${trimmed}` : s.room,
+          };
+        }
+        return s;
+      })
+    );
+    setIsQuickRenameOpen(false);
+    setQuickNewClass('');
   };
 
   // Xóa 1 slot
@@ -529,14 +610,14 @@ export const TimetableUploadModal: React.FC<TimetableUploadModalProps> = ({
 
                     <button
                       type="button"
-                      onClick={handleAnalyzeWithAI}
+                      onClick={() => handleAnalyzeWithAI()}
                       disabled={isProcessing}
                       className="w-full py-2 px-3 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-xs font-bold transition-all shadow-xs flex items-center justify-center gap-1.5 disabled:opacity-50"
                     >
                       {isProcessing ? (
                         <>
                           <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                          <span>Đang nhận diện TKB Thầy Trong...</span>
+                          <span>Đang nhận diện TKB {teacherName || 'Thầy Trong'}...</span>
                         </>
                       ) : (
                         <>
@@ -556,31 +637,70 @@ export const TimetableUploadModal: React.FC<TimetableUploadModalProps> = ({
               </div>
             </div>
 
-            {/* Target Teacher Identification Callout */}
-            <div className="bg-emerald-50/70 border border-emerald-200/80 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
-                <div className="w-7 h-7 rounded-lg bg-emerald-600 text-white flex items-center justify-center shrink-0">
-                  <UserCheck className="w-4 h-4" />
-                </div>
-                <div>
-                  <div className="text-xs font-bold text-emerald-950 flex items-center gap-1.5">
-                    <span>Đích danh nhận diện: </span>
-                    <input
-                      type="text"
-                      value={teacherName}
-                      onChange={(e) => setTeacherName(e.target.value)}
-                      className="px-2 py-0.5 bg-white border border-emerald-300 rounded font-bold text-emerald-900 text-xs w-44 focus:ring-1 focus:ring-emerald-500"
-                      placeholder="Dương Văn Trong"
-                    />
+            {/* Target Teacher & Column 1 Structure Callout */}
+            <div className="bg-emerald-50/70 border border-emerald-200/80 rounded-xl p-3.5 space-y-2.5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-lg bg-emerald-600 text-white flex items-center justify-center shrink-0">
+                    <UserCheck className="w-4 h-4" />
                   </div>
-                  <p className="text-[11px] text-emerald-800">
-                    AI sẽ tự động lọc đúng hàng của giáo viên này nếu tệp PDF hoặc ảnh chứa TKB toàn trường.
-                  </p>
+                  <div>
+                    <div className="text-xs font-bold text-emerald-950 flex flex-wrap items-center gap-1.5">
+                      <span>Đích danh giáo viên nhận diện (Cột đầu): </span>
+                      <input
+                        type="text"
+                        value={teacherName}
+                        onChange={(e) => setTeacherName(e.target.value)}
+                        className="px-2 py-0.5 bg-white border border-emerald-300 rounded font-bold text-emerald-900 text-xs w-44 focus:ring-1 focus:ring-emerald-500"
+                        placeholder="Dương Văn Trong"
+                      />
+                    </div>
+                    <p className="text-[11px] text-emerald-800">
+                      Cột đầu là Tên giáo viên, các cột tiếp theo là Thứ Hai đến Thứ Bảy, nội dung trong ô là môn Toán và các lớp học cụ thể.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-1.5 shrink-0">
+                  {detectedClasses.map((cls) => (
+                    <span
+                      key={cls}
+                      className="text-[11px] font-bold text-emerald-900 bg-white px-2 py-0.5 rounded border border-emerald-300 shadow-2xs"
+                    >
+                      Toán {cls}
+                    </span>
+                  ))}
+                  <span className="text-[10px] font-bold uppercase text-emerald-800 bg-emerald-100/90 px-2 py-1 rounded border border-emerald-200 shrink-0">
+                    {slots.length} tiết/tuần
+                  </span>
                 </div>
               </div>
-              <span className="text-[10px] font-semibold uppercase text-emerald-800 bg-emerald-100/90 px-2 py-1 rounded border border-emerald-200 shrink-0">
-                Toán 7A4 • 9A4 • 9A5
-              </span>
+
+              {/* Detected Teachers Quick Switcher */}
+              {detectedTeachers.length > 0 && (
+                <div className="pt-2 border-t border-emerald-200/60 flex flex-wrap items-center gap-1.5">
+                  <span className="text-[11px] font-bold text-emerald-900">
+                    Giáo viên tìm thấy ở Cột đầu ({detectedTeachers.length}):
+                  </span>
+                  {detectedTeachers.map((t, idx) => {
+                    const isSelected = teacherName.trim().toLowerCase() === t.name.trim().toLowerCase();
+                    return (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => handleSelectDetectedTeacher(t.name)}
+                        className={`text-xs px-2.5 py-0.5 rounded-full font-semibold transition-all border ${
+                          isSelected
+                            ? 'bg-emerald-700 text-white border-emerald-800 shadow-2xs'
+                            : 'bg-white text-emerald-900 border-emerald-300 hover:bg-emerald-100'
+                        }`}
+                      >
+                        {t.name} {t.slotsCount ? `(${t.slotsCount} tiết)` : ''}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
             {/* Notifications */}
@@ -770,15 +890,81 @@ export const TimetableUploadModal: React.FC<TimetableUploadModalProps> = ({
                 </p>
               </div>
 
-              <button
-                type="button"
-                onClick={handleAddSlot}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-xs font-bold transition-all shrink-0 shadow-xs"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>+ Thêm tiết dạy</span>
-              </button>
+              <div className="flex items-center gap-2">
+                {detectedClasses.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsQuickRenameOpen(!isQuickRenameOpen);
+                      if (!quickOldClass && detectedClasses[0]) {
+                        setQuickOldClass(detectedClasses[0]);
+                      }
+                    }}
+                    className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-purple-50 hover:bg-purple-100 text-purple-900 border border-purple-200 rounded-lg text-xs font-bold transition-all shrink-0 shadow-2xs"
+                  >
+                    <Edit3 className="w-3.5 h-3.5 text-purple-700" />
+                    <span>Đổi tên lớp hàng loạt</span>
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={handleAddSlot}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-xs font-bold transition-all shrink-0 shadow-xs"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>+ Thêm tiết dạy</span>
+                </button>
+              </div>
             </div>
+
+            {/* Quick Class Rename Tool Bar */}
+            {isQuickRenameOpen && (
+              <div className="p-3 bg-purple-50/70 border border-purple-200 rounded-xl space-y-2 animate-in fade-in">
+                <div className="text-xs font-bold text-purple-950 flex items-center justify-between">
+                  <span>Thay thế tên lớp trong bảng TKB:</span>
+                  <button
+                    type="button"
+                    onClick={() => setIsQuickRenameOpen(false)}
+                    className="text-purple-600 hover:text-purple-900 text-xs font-semibold"
+                  >
+                    Đóng ✕
+                  </button>
+                </div>
+                <div className="flex flex-wrap items-center gap-2 text-xs">
+                  <span className="font-semibold text-slate-700">Đổi lớp:</span>
+                  <select
+                    value={quickOldClass}
+                    onChange={(e) => setQuickOldClass(e.target.value)}
+                    className="px-2 py-1 bg-white border border-slate-300 rounded font-bold text-slate-800"
+                  >
+                    {detectedClasses.map((c) => (
+                      <option key={c} value={c}>
+                        Lớp {c}
+                      </option>
+                    ))}
+                  </select>
+
+                  <span className="font-semibold text-slate-700">→ Sang lớp:</span>
+                  <input
+                    type="text"
+                    value={quickNewClass}
+                    onChange={(e) => setQuickNewClass(e.target.value.toUpperCase())}
+                    placeholder="VD: 7A2, 9A1..."
+                    className="w-28 px-2 py-1 bg-white border border-purple-300 rounded font-bold text-purple-950 uppercase"
+                  />
+
+                  <button
+                    type="button"
+                    disabled={!quickNewClass.trim()}
+                    onClick={handleQuickRenameClass}
+                    className="px-3 py-1 bg-purple-700 hover:bg-purple-800 text-white rounded font-bold disabled:opacity-50 shadow-2xs"
+                  >
+                    Đổi ngay
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* Slots Table */}
             <div className="border border-slate-200 rounded-xl overflow-hidden shadow-xs">

@@ -204,6 +204,19 @@ export default function App() {
     return getDefaultTeacherTimetable();
   });
 
+  const handleUpdateTimetableConfig = (newConfig: TeacherTimetableConfig) => {
+    setTimetableConfig(newConfig);
+    if (newConfig.teacherName && newConfig.teacherName.trim()) {
+      const trimmedTeacher = newConfig.teacherName.trim();
+      if (trimmedTeacher !== matrixConfig.teacherName) {
+        setMatrixConfig((prev) => ({
+          ...prev,
+          teacherName: trimmedTeacher,
+        }));
+      }
+    }
+  };
+
   useEffect(() => {
     try {
       localStorage.setItem('teacher_timetable_config', JSON.stringify(timetableConfig));
@@ -536,7 +549,7 @@ export default function App() {
             onLinkSgkToPpct={handleLinkSgkToPpct}
             onApplySgkToMatrix={handleApplySgkToMatrix}
             timetableConfig={timetableConfig}
-            onUpdateTimetableConfig={setTimetableConfig}
+            onUpdateTimetableConfig={handleUpdateTimetableConfig}
           />
         ) : activeTab === 'matrix' ? (
           <MatrixTab
