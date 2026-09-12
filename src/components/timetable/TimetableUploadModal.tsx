@@ -26,6 +26,7 @@ interface TimetableUploadModalProps {
   onClose: () => void;
   currentConfig: TeacherTimetableConfig;
   onSaveConfig: (config: TeacherTimetableConfig) => void;
+  targetWeek?: number;
   initialFile?: {
     dataUrl: string;
     fileName: string;
@@ -38,6 +39,7 @@ export const TimetableUploadModal: React.FC<TimetableUploadModalProps> = ({
   onClose,
   currentConfig,
   onSaveConfig,
+  targetWeek,
   initialFile,
 }) => {
   const [selectedFileUrl, setSelectedFileUrl] = useState<string | null>(null);
@@ -53,7 +55,17 @@ export const TimetableUploadModal: React.FC<TimetableUploadModalProps> = ({
   const [teacherName, setTeacherName] = useState<string>(currentConfig.teacherName || 'Dương Văn Trong');
   const [schoolName, setSchoolName] = useState<string>(currentConfig.schoolName || 'TRƯỜNG THCS VÀ THPT PHÚ THÀNH');
   const [appliedDate, setAppliedDate] = useState<string>(currentConfig.appliedDate || '2026-09-07');
+  
+  // Scope of application (all weeks, specific week, or from week X onwards)
+  const [applyScope, setApplyScope] = useState<'all' | 'specific' | 'from_week'>('specific');
+  const [selectedTargetWeek, setSelectedTargetWeek] = useState<number>(() => targetWeek || currentConfig.appliedWeek || 1);
+
   const [slots, setSlots] = useState<TimetableSlot[]>(() => {
+    // Ưu tiên nạp đúng slots của tuần được chọn nếu đã có
+    const initialWeek = targetWeek || currentConfig.appliedWeek || 1;
+    if (currentConfig.weeklySlots && currentConfig.weeklySlots[initialWeek] && currentConfig.weeklySlots[initialWeek].length > 0) {
+      return currentConfig.weeklySlots[initialWeek];
+    }
     return currentConfig.slots && currentConfig.slots.length > 0
       ? currentConfig.slots
       : getDefaultTeacherTimetable().slots;
@@ -61,6 +73,16 @@ export const TimetableUploadModal: React.FC<TimetableUploadModalProps> = ({
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
+
+  // Đồng bộ lại khi targetWeek thay đổi
+  useEffect(() => {
+    if (targetWeek) {
+      setSelectedTargetWeek(targetWeek);
+      if (currentConfig.weeklySlots && currentConfig.weeklySlots[targetWeek] && currentConfig.weeklySlots[targetWeek].length > 0) {
+        setSlots(currentConfig.weeklySlots[targetWeek]);
+      }
+    }
+  }, [targetWeek, currentConfig.weeklySlots]);
 
   // Handle initialFile prop if provided when modal opens
   useEffect(() => {
@@ -217,9 +239,13 @@ export const TimetableUploadModal: React.FC<TimetableUploadModalProps> = ({
         if (data.teacherName) setTeacherName(data.teacherName);
         if (data.schoolName) setSchoolName(data.schoolName);
         if (data.appliedDate) setAppliedDate(data.appliedDate);
+        if (typeof data.appliedWeek === 'number' && data.appliedWeek >= 1 && data.appliedWeek <= 35) {
+          setSelectedTargetWeek(data.appliedWeek);
+          setApplyScope('specific');
+        }
         setSuccessMsg(
           data.summary ||
-            `Đã nhận diện chính xác TKB của giáo viên ${data.teacherName || teacherName} (${data.slots.length} tiết/tuần)! Nhấn nút "Đồng bộ ngay" để cập nhật vào hệ thống.`
+            `Đã nhận diện chính xác TKB của giáo viên ${data.teacherName || teacherName} (${data.slots.length} tiết/tuần)! Thiết lập cho Tuần ${data.appliedWeek || selectedTargetWeek}. Bấm nút "Đồng bộ TKB ngay" để cập nhật.`
         );
       } else {
         setErrorMsg(
@@ -241,6 +267,8 @@ export const TimetableUploadModal: React.FC<TimetableUploadModalProps> = ({
     setTeacherName(def.teacherName);
     setSchoolName(def.schoolName);
     setAppliedDate(def.appliedDate);
+    setSelectedTargetWeek(1);
+    setApplyScope('all');
     setSuccessMsg('Đã nạp Thời khóa biểu chuẩn theo ảnh mẫu TKB 2026-2027 (7A4, 9A4, 9A5) áp dụng từ 07/09/2026.');
     setErrorMsg(null);
   };
@@ -282,11 +310,34 @@ export const TimetableUploadModal: React.FC<TimetableUploadModalProps> = ({
     setSlots((prev) => prev.filter((s) => s.id !== id));
   };
 
-  // Lưu toàn bộ cấu hình TKB và đồng bộ vào hệ thống
+  // Lưu toàn bộ cấu hình TKB và đồng bộ vào hệ thống theo tuần
   const handleSave = () => {
     if (slots.length === 0) {
       setErrorMsg('Vui lòng thêm ít nhất 1 tiết dạy trong thời khóa biểu.');
       return;
+    }
+
+    const updatedWeeklySlots: Record<number, TimetableSlot[]> = {
+      ...(currentConfig.weeklySlots || {}),
+    };
+    const updatedWeeklyDates: Record<number, string> = {
+      ...(currentConfig.weeklyAppliedDates || {}),
+    };
+
+    if (applyScope === 'specific') {
+      updatedWeeklySlots[selectedTargetWeek] = slots;
+      if (appliedDate) updatedWeeklyDates[selectedTargetWeek] = appliedDate;
+    } else if (applyScope === 'from_week') {
+      for (let w = selectedTargetWeek; w <= 35; w++) {
+        updatedWeeklySlots[w] = slots;
+      }
+      if (appliedDate) updatedWeeklyDates[selectedTargetWeek] = appliedDate;
+    } else {
+      // 'all': áp dụng chung cho tất cả các tuần
+      for (let w = 1; w <= 35; w++) {
+        updatedWeeklySlots[w] = slots;
+      }
+      if (appliedDate) updatedWeeklyDates[1] = appliedDate;
     }
 
     const updatedConfig: TeacherTimetableConfig = {
@@ -294,8 +345,10 @@ export const TimetableUploadModal: React.FC<TimetableUploadModalProps> = ({
       teacherName: teacherName.trim(),
       schoolName: schoolName.trim(),
       appliedDate: appliedDate || '2026-09-07',
-      appliedWeek: 1,
+      appliedWeek: selectedTargetWeek,
       slots,
+      weeklySlots: updatedWeeklySlots,
+      weeklyAppliedDates: updatedWeeklyDates,
       lastPhotoUploadedAt: selectedFileUrl ? new Date().toISOString() : currentConfig.lastPhotoUploadedAt,
       lastPhotoName: fileName || currentConfig.lastPhotoName,
       sourceImageBase64: !isPdf ? (selectedFileUrl || currentConfig.sourceImageBase64) : currentConfig.sourceImageBase64,
@@ -557,45 +610,150 @@ export const TimetableUploadModal: React.FC<TimetableUploadModalProps> = ({
             )}
           </div>
 
-          {/* Section 2: General Information */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-slate-50 border border-slate-200 rounded-2xl p-4">
-            <div>
-              <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">
-                Giáo viên phụ trách
-              </label>
-              <input
-                type="text"
-                value={teacherName}
-                onChange={(e) => setTeacherName(e.target.value)}
-                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-medium focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                placeholder="Ví dụ: Dương Văn Trong"
-              />
+          {/* Section 2: General Information & Application Scope */}
+          <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">
+                  Giáo viên phụ trách
+                </label>
+                <input
+                  type="text"
+                  value={teacherName}
+                  onChange={(e) => setTeacherName(e.target.value)}
+                  className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-medium focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                  placeholder="Ví dụ: Dương Văn Trong"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">
+                  Đơn vị trường học
+                </label>
+                <input
+                  type="text"
+                  value={schoolName}
+                  onChange={(e) => setSchoolName(e.target.value)}
+                  className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-medium focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                  placeholder="Ví dụ: TRƯỜNG THCS VÀ THPT PHÚ THÀNH"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1 flex items-center gap-1">
+                  <Calendar className="w-3.5 h-3.5 text-emerald-700" />
+                  Ngày áp dụng TKB
+                </label>
+                <input
+                  type="date"
+                  value={appliedDate}
+                  onChange={(e) => setAppliedDate(e.target.value)}
+                  className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-bold text-emerald-900 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                />
+              </div>
             </div>
 
-            <div>
-              <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">
-                Đơn vị trường học
-              </label>
-              <input
-                type="text"
-                value={schoolName}
-                onChange={(e) => setSchoolName(e.target.value)}
-                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-medium focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                placeholder="Ví dụ: TRƯỜNG THCS VÀ THPT PHÚ THÀNH"
-              />
-            </div>
+            {/* Scope of Application: Tuần 1, Tuần 2, hay Tất cả các tuần */}
+            <div className="pt-3 border-t border-slate-200">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mb-2.5">
+                <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                  <Calendar className="w-4 h-4 text-emerald-700" />
+                  <span>Tuần áp dụng cho Thời khóa biểu này:</span>
+                </span>
+                <span className="text-[11px] text-slate-500">
+                  (Mở Tuần 1 có TKB Tuần 1, mở Tuần 2 có TKB Tuần 2 - đồng bộ theo PPCT)
+                </span>
+              </div>
 
-            <div>
-              <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1 flex items-center gap-1">
-                <Calendar className="w-3.5 h-3.5 text-emerald-700" />
-                Ngày áp dụng TKB Tuần 1
-              </label>
-              <input
-                type="date"
-                value={appliedDate}
-                onChange={(e) => setAppliedDate(e.target.value)}
-                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-bold text-emerald-900 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-              />
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                <label
+                  className={`flex items-center gap-2.5 p-3 rounded-xl border cursor-pointer transition-all ${
+                    applyScope === 'all'
+                      ? 'bg-emerald-50 border-emerald-500 ring-1 ring-emerald-500 text-emerald-950 font-bold'
+                      : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-100'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="applyScope"
+                    checked={applyScope === 'all'}
+                    onChange={() => setApplyScope('all')}
+                    className="text-emerald-700 focus:ring-emerald-500"
+                  />
+                  <div>
+                    <div className="text-xs font-bold">Chung cả năm (Tuần 1 - 35)</div>
+                    <div className="text-[11px] font-normal text-slate-500">Dùng chung nếu TKB không đổi</div>
+                  </div>
+                </label>
+
+                <label
+                  className={`flex items-center gap-2.5 p-3 rounded-xl border cursor-pointer transition-all ${
+                    applyScope === 'specific'
+                      ? 'bg-emerald-50 border-emerald-500 ring-1 ring-emerald-500 text-emerald-950 font-bold'
+                      : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-100'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="applyScope"
+                    checked={applyScope === 'specific'}
+                    onChange={() => setApplyScope('specific')}
+                    className="text-emerald-700 focus:ring-emerald-500"
+                  />
+                  <div className="flex-1">
+                    <div className="text-xs font-bold flex items-center justify-between gap-1">
+                      <span>Chỉ riêng tuần này:</span>
+                      <select
+                        value={selectedTargetWeek}
+                        onChange={(e) => {
+                          setSelectedTargetWeek(Number(e.target.value));
+                          setApplyScope('specific');
+                        }}
+                        className="px-2 py-0.5 bg-white border border-emerald-400 rounded-md font-bold text-emerald-900 text-xs shadow-2xs"
+                      >
+                        {Array.from({ length: 35 }, (_, i) => i + 1).map((w) => (
+                          <option key={w} value={w}>Tuần {w}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="text-[11px] font-normal text-slate-500 mt-0.5">TKB đặc thù của riêng tuần đã chọn</div>
+                  </div>
+                </label>
+
+                <label
+                  className={`flex items-center gap-2.5 p-3 rounded-xl border cursor-pointer transition-all ${
+                    applyScope === 'from_week'
+                      ? 'bg-emerald-50 border-emerald-500 ring-1 ring-emerald-500 text-emerald-950 font-bold'
+                      : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-100'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="applyScope"
+                    checked={applyScope === 'from_week'}
+                    onChange={() => setApplyScope('from_week')}
+                    className="text-emerald-700 focus:ring-emerald-500"
+                  />
+                  <div className="flex-1">
+                    <div className="text-xs font-bold flex items-center justify-between gap-1">
+                      <span>Áp dụng từ:</span>
+                      <select
+                        value={selectedTargetWeek}
+                        onChange={(e) => {
+                          setSelectedTargetWeek(Number(e.target.value));
+                          setApplyScope('from_week');
+                        }}
+                        className="px-2 py-0.5 bg-white border border-emerald-400 rounded-md font-bold text-emerald-900 text-xs shadow-2xs"
+                      >
+                        {Array.from({ length: 35 }, (_, i) => i + 1).map((w) => (
+                          <option key={w} value={w}>Tuần {w} trở đi</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="text-[11px] font-normal text-slate-500 mt-0.5">Thay đổi TKB từ tuần này đến hết kỳ</div>
+                  </div>
+                </label>
+              </div>
             </div>
           </div>
 
@@ -730,8 +888,15 @@ export const TimetableUploadModal: React.FC<TimetableUploadModalProps> = ({
         {/* Modal Footer */}
         <div className="px-5 sm:px-6 py-4 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0">
           <div className="text-xs text-slate-500">
-            Tổng cộng: <strong className="text-emerald-900">{slots.length} tiết/tuần</strong> • Áp dụng tuần 1 từ{' '}
-            <strong>{appliedDate}</strong>
+            Tổng cộng: <strong className="text-emerald-900">{slots.length} tiết/tuần</strong> • Áp dụng:{' '}
+            <strong className="text-emerald-900">
+              {applyScope === 'all'
+                ? 'Tất cả 35 tuần'
+                : applyScope === 'specific'
+                ? `Tuần ${selectedTargetWeek}`
+                : `Từ Tuần ${selectedTargetWeek} trở đi`}
+            </strong>{' '}
+            • Ngày: <strong>{appliedDate}</strong>
           </div>
           <div className="flex items-center gap-2 sm:gap-3">
             <button

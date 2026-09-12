@@ -190,11 +190,12 @@ export default function App() {
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (parsed && Array.isArray(parsed.slots)) {
-          const has7A4 = parsed.slots.some((s: any) => s.className === '7A4');
-          if (has7A4) {
-            return parsed;
-          }
+        if (parsed && (Array.isArray(parsed.slots) || parsed.weeklySlots)) {
+          return {
+            ...parsed,
+            weeklySlots: parsed.weeklySlots || {},
+            weeklyAppliedDates: parsed.weeklyAppliedDates || {},
+          };
         }
       } catch (e) {
         console.error('Failed to parse saved timetable config', e);

@@ -34,7 +34,10 @@ import {
   getTodayLessons,
   getWeekDates,
   getDefaultTeacherTimetable,
+  getWeeklySlots,
+  hasCustomSlotsForWeek,
 } from '../../utils/timetableScheduler';
+import { deriveStartDateWeek1 } from '../../utils/dateCalculations';
 import { TimetableUploadModal } from './TimetableUploadModal';
 
 interface WeeklyTimetableSectionProps {
@@ -124,24 +127,37 @@ export const WeeklyTimetableSection: React.FC<WeeklyTimetableSectionProps> = ({
   // Today date string (from timeframe config or real Date)
   const todayDateStr = timeframeConfig.currentDate || new Date().toISOString().split('T')[0];
 
+  // Tự động tính toán ngày bắt đầu Tuần 1 chuẩn xác từ ngày áp dụng và tuần áp dụng của TKB
+  const effectiveStartDateWeek1 = useMemo(() => {
+    return deriveStartDateWeek1(
+      currentConfig.appliedDate || timeframeConfig.startDateWeek1 || '2026-09-07',
+      currentConfig.appliedWeek || 1
+    );
+  }, [currentConfig.appliedDate, currentConfig.appliedWeek, timeframeConfig.startDateWeek1]);
+
+  // Các slot đang hoạt động của tuần được chọn
+  const activeSlots = useMemo(() => {
+    return getWeeklySlots(currentConfig, selectedWeek);
+  }, [currentConfig, selectedWeek]);
+
   // Calculate schedule for the selected week
   const weeklySchedule = useMemo(() => {
     return generateWeeklySchedule(
       currentConfig,
       datasets,
       selectedWeek,
-      currentConfig.appliedDate || timeframeConfig.startDateWeek1 || '2026-09-07'
+      effectiveStartDateWeek1
     );
-  }, [currentConfig, datasets, selectedWeek, timeframeConfig.startDateWeek1]);
+  }, [currentConfig, datasets, selectedWeek, effectiveStartDateWeek1]);
 
-  // Distinct classes in the timetable
+  // Distinct classes in the timetable for this week
   const distinctClasses = useMemo(() => {
     const set = new Set<string>();
-    currentConfig.slots.forEach((s) => {
+    activeSlots.forEach((s) => {
       if (s.className) set.add(s.className);
     });
     return Array.from(set).sort();
-  }, [currentConfig.slots]);
+  }, [activeSlots]);
 
   // Filtered periods
   const filteredSchedule = useMemo(() => {
@@ -159,11 +175,11 @@ export const WeeklyTimetableSection: React.FC<WeeklyTimetableSectionProps> = ({
 
   // Week dates info (Monday to Saturday)
   const weekDays = useMemo(() => {
-    return getWeekDates(
-      currentConfig.appliedDate || timeframeConfig.startDateWeek1 || '2026-09-07',
-      selectedWeek
-    );
-  }, [currentConfig.appliedDate, timeframeConfig.startDateWeek1, selectedWeek]);
+    if (currentConfig.weeklyAppliedDates?.[selectedWeek]) {
+      return getWeekDates(currentConfig.weeklyAppliedDates[selectedWeek], 1);
+    }
+    return getWeekDates(effectiveStartDateWeek1, selectedWeek);
+  }, [currentConfig.weeklyAppliedDates, effectiveStartDateWeek1, selectedWeek]);
 
   // Toggle lesson completed status
   const handleToggleCompleted = (className: string, tietPpctNumber: number) => {
@@ -313,72 +329,187 @@ export const WeeklyTimetableSection: React.FC<WeeklyTimetableSectionProps> = ({
       </div>
 
       {/* Real-time Indicator & Week Navigation */}
-      <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
-        {/* Real-time Today Status */}
-        <div className="flex items-center gap-3">
-          <div className="relative flex items-center justify-center">
-            <span className="w-3 h-3 rounded-full bg-emerald-500 animate-ping absolute" />
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-600 relative" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-slate-700">Thời gian thực hôm nay:</span>
-              <span className="text-xs font-bold text-emerald-900 bg-emerald-100 px-2 py-0.5 rounded-md">
-                {todayDateStr === '2026-09-08'
-                  ? 'Thứ Ba, ngày 08/09/2026 (Đang ở Tuần 1)'
-                  : `${todayDateStr}`}
-              </span>
+      <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 sm:p-5 space-y-4">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          {/* Real-time Today Status */}
+          <div className="flex items-center gap-3">
+            <div className="relative flex items-center justify-center">
+              <span className="w-3 h-3 rounded-full bg-emerald-500 animate-ping absolute" />
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-600 relative" />
             </div>
-            <p className="text-[11px] text-slate-500">
-              {todayLessons.length > 0
-                ? `Hôm nay Thầy Trong có ${todayLessons.length} tiết giảng dạy (Lớp 7A4 & 9A5).`
-                : 'Hôm nay không có tiết dạy theo thời khóa biểu.'}
-            </p>
-          </div>
-        </div>
-
-        {/* Week Selector Controls */}
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setSelectedWeek((w) => Math.max(1, w - 1))}
-            disabled={selectedWeek <= 1}
-            className="p-1.5 bg-white hover:bg-slate-100 disabled:opacity-40 border border-slate-300 rounded-lg text-slate-700 transition-colors"
-            title="Tuần trước"
-          >
-            <ChevronLeft className="w-4 h-4" />
-          </button>
-
-          <div className="flex items-center gap-1.5 px-3 py-1 bg-white border border-slate-300 rounded-lg">
-            <Calendar className="w-3.5 h-3.5 text-emerald-700" />
-            <span className="text-xs font-bold text-slate-800">
-              Tuần {selectedWeek}{' '}
-              {selectedWeek <= 18 ? '(Học kỳ I)' : '(Học kỳ II)'}:{' '}
-              <span className="text-emerald-800 font-semibold">
-                {weekDays[0]?.dateFormatted} - {weekDays[5]?.dateFormatted}
-              </span>
-            </span>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-slate-700">Thời gian thực hôm nay:</span>
+                <span className="text-xs font-bold text-emerald-900 bg-emerald-100 px-2 py-0.5 rounded-md">
+                  {todayDateStr === '2026-09-08'
+                    ? 'Thứ Ba, ngày 08/09/2026 (Đang ở Tuần 1)'
+                    : `${todayDateStr}`}
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-500">
+                {todayLessons.length > 0
+                  ? `Hôm nay Thầy Trong có ${todayLessons.length} tiết giảng dạy (Lớp 7A4 & 9A5).`
+                  : 'Hôm nay không có tiết dạy theo thời khóa biểu.'}
+              </p>
+            </div>
           </div>
 
-          <button
-            type="button"
-            onClick={() => setSelectedWeek((w) => Math.min(35, w + 1))}
-            disabled={selectedWeek >= 35}
-            className="p-1.5 bg-white hover:bg-slate-100 disabled:opacity-40 border border-slate-300 rounded-lg text-slate-700 transition-colors"
-            title="Tuần sau"
-          >
-            <ChevronRight className="w-4 h-4" />
-          </button>
-
-          {selectedWeek !== currentWeek && (
+          {/* Quick Target Navigation: Tuần hiện tại vs Tuần sắp tới */}
+          <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
               onClick={() => setSelectedWeek(currentWeek > 0 ? currentWeek : 1)}
-              className="text-xs font-semibold text-emerald-800 hover:text-emerald-950 underline px-2"
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                selectedWeek === currentWeek
+                  ? 'bg-emerald-700 text-white shadow-xs'
+                  : 'bg-white border border-slate-300 text-slate-700 hover:bg-slate-100'
+              }`}
             >
-              Về tuần hiện tại (Tuần {currentWeek})
+              <Calendar className="w-3.5 h-3.5" />
+              <span>Tuần hiện tại (Tuần {currentWeek})</span>
             </button>
-          )}
+
+            <button
+              type="button"
+              onClick={() => setSelectedWeek(Math.min(35, (currentWeek > 0 ? currentWeek : 1) + 1))}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                selectedWeek === (currentWeek > 0 ? currentWeek : 1) + 1
+                  ? 'bg-emerald-700 text-white shadow-xs'
+                  : 'bg-white border border-slate-300 text-slate-700 hover:bg-slate-100'
+              }`}
+            >
+              <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+              <span>Tuần sắp tới (Tuần {Math.min(35, (currentWeek > 0 ? currentWeek : 1) + 1)})</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Interactive Week Selector Bar (Tuần 1, Tuần 2, Tuần 3, ... 35) */}
+        <div className="pt-3 border-t border-slate-200/80 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs font-bold text-slate-700">Chọn tuần xem:</span>
+            
+            {/* Quick buttons for early weeks */}
+            {[1, 2, 3, 4, 5, 6].map((w) => {
+              const hasCustom = hasCustomSlotsForWeek(currentConfig, w);
+              const isCurrent = w === currentWeek;
+              const isSelected = w === selectedWeek;
+
+              return (
+                <button
+                  key={w}
+                  type="button"
+                  onClick={() => setSelectedWeek(w)}
+                  className={`px-2.5 py-1 text-xs font-bold rounded-lg transition-all relative flex items-center gap-1 ${
+                    isSelected
+                      ? 'bg-emerald-700 text-white shadow-xs'
+                      : 'bg-white border border-slate-200 text-slate-700 hover:border-emerald-400'
+                  }`}
+                >
+                  <span>Tuần {w}</span>
+                  {hasCustom && (
+                    <span
+                      className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-amber-300' : 'bg-emerald-600'}`}
+                      title="Có TKB riêng cho tuần này"
+                    />
+                  )}
+                  {isCurrent && (
+                    <span className="text-[9px] font-normal opacity-80">(Hiện tại)</span>
+                  )}
+                </button>
+              );
+            })}
+
+            {/* Dropdown for all 35 weeks */}
+            <div className="inline-flex items-center gap-1.5 ml-1">
+              <span className="text-xs text-slate-400">hoặc</span>
+              <select
+                value={selectedWeek}
+                onChange={(e) => setSelectedWeek(Number(e.target.value))}
+                className="px-2.5 py-1 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-800 focus:ring-2 focus:ring-emerald-500"
+              >
+                {Array.from({ length: 35 }, (_, i) => i + 1).map((w) => {
+                  const hasCustom = hasCustomSlotsForWeek(currentConfig, w);
+                  return (
+                    <option key={w} value={w}>
+                      Tuần {w} {w <= 18 ? '(HK1)' : '(HK2)'} {hasCustom ? '• [TKB riêng]' : ''}
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
+          </div>
+
+          {/* Stepper controls */}
+          <div className="flex items-center gap-2 self-start lg:self-auto">
+            <button
+              type="button"
+              onClick={() => setSelectedWeek((w) => Math.max(1, w - 1))}
+              disabled={selectedWeek <= 1}
+              className="p-1.5 bg-white hover:bg-slate-100 disabled:opacity-40 border border-slate-300 rounded-lg text-slate-700 transition-colors"
+              title="Tuần trước"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+
+            <div className="flex items-center gap-1.5 px-3 py-1 bg-white border border-slate-300 rounded-lg">
+              <Calendar className="w-3.5 h-3.5 text-emerald-700" />
+              <span className="text-xs font-bold text-slate-800">
+                Tuần {selectedWeek}:{' '}
+                <span className="text-emerald-800 font-semibold">
+                  {weekDays[0]?.dateFormatted} - {weekDays[5]?.dateFormatted}
+                </span>
+              </span>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setSelectedWeek((w) => Math.min(35, w + 1))}
+              disabled={selectedWeek >= 35}
+              className="p-1.5 bg-white hover:bg-slate-100 disabled:opacity-40 border border-slate-300 rounded-lg text-slate-700 transition-colors"
+              title="Tuần sau"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+
+        {/* Active Week Status & Synchronization Banner */}
+        <div className="bg-white border border-emerald-200/90 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-800 flex items-center justify-center shrink-0">
+              <CheckCircle2 className="w-4 h-4 text-emerald-700" />
+            </div>
+            <div>
+              <div className="flex flex-wrap items-center gap-2 text-xs font-bold text-slate-800">
+                <span>Đang hiển thị: TKB & Lịch báo giảng Tuần {selectedWeek}</span>
+                <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                  hasCustomSlotsForWeek(currentConfig, selectedWeek)
+                    ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                    : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                }`}>
+                  {hasCustomSlotsForWeek(currentConfig, selectedWeek)
+                    ? `✓ TKB riêng Tuần ${selectedWeek} (${activeSlots.length} tiết)`
+                    : `TKB chuẩn áp dụng (${activeSlots.length} tiết/tuần)`}
+                </span>
+                <span className="text-[11px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                  Đồng bộ PPCT: Tiết {(selectedWeek - 1) * 4 + 1} → {selectedWeek * 4}
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                Thời gian: <strong>{weekDays[0]?.dateFormatted}</strong> đến <strong>{weekDays[5]?.dateFormatted}</strong>
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setIsUploadModalOpen(true)}
+            className="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 shrink-0 self-start sm:self-auto"
+          >
+            <Camera className="w-3.5 h-3.5 text-emerald-200" />
+            <span>Nạp/Sửa TKB Tuần {selectedWeek}</span>
+          </button>
         </div>
       </div>
 
@@ -1026,6 +1157,7 @@ export const WeeklyTimetableSection: React.FC<WeeklyTimetableSectionProps> = ({
         }}
         currentConfig={currentConfig}
         onSaveConfig={onUpdateConfig}
+        targetWeek={selectedWeek}
         initialFile={pastedFilePayload}
       />
     </div>

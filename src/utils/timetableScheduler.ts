@@ -262,6 +262,44 @@ export function findMatchingPpct(datasets: PpctDataset[], grade: string, classNa
   return defaultPpctDataset9;
 }
 
+// Lấy danh sách tiết học áp dụng cho một tuần cụ thể
+export function getWeeklySlots(
+  timetableConfig: TeacherTimetableConfig,
+  weekNumber: number
+): TimetableSlot[] {
+  if (!timetableConfig) return [];
+  // 1. Kiểm tra xem có TKB riêng được lưu cho chính tuần này không
+  if (
+    timetableConfig.weeklySlots &&
+    timetableConfig.weeklySlots[weekNumber] &&
+    timetableConfig.weeklySlots[weekNumber].length > 0
+  ) {
+    return timetableConfig.weeklySlots[weekNumber];
+  }
+  // 2. Tìm TKB tuần gần nhất trước đó (nếu được thiết lập kiểu 'áp dụng từ tuần X trở đi')
+  if (timetableConfig.weeklySlots) {
+    for (let w = weekNumber - 1; w >= 1; w--) {
+      if (timetableConfig.weeklySlots[w] && timetableConfig.weeklySlots[w].length > 0) {
+        return timetableConfig.weeklySlots[w];
+      }
+    }
+  }
+  // 3. Mặc định dùng TKB chung
+  return timetableConfig.slots || [];
+}
+
+// Kiểm tra xem tuần này có TKB riêng biệt hay đang dùng chung
+export function hasCustomSlotsForWeek(
+  timetableConfig: TeacherTimetableConfig,
+  weekNumber: number
+): boolean {
+  return !!(
+    timetableConfig?.weeklySlots &&
+    timetableConfig.weeklySlots[weekNumber] &&
+    timetableConfig.weeklySlots[weekNumber].length > 0
+  );
+}
+
 // Xếp nội dung PPCT trực tiếp vào Thời khóa biểu cho 1 tuần cụ thể
 export function generateWeeklySchedule(
   timetableConfig: TeacherTimetableConfig,
@@ -269,16 +307,26 @@ export function generateWeeklySchedule(
   weekNumber: number,
   startDateWeek1: string = '2026-09-07'
 ): WeeklyScheduledPeriod[] {
-  if (!timetableConfig || !timetableConfig.slots || timetableConfig.slots.length === 0) {
+  if (!timetableConfig) {
     return [];
   }
 
-  const weekDates = getWeekDates(startDateWeek1, weekNumber);
+  // Lấy danh sách tiết học áp dụng cho đúng tuần được chọn
+  const activeSlots = getWeeklySlots(timetableConfig, weekNumber);
+  if (!activeSlots || activeSlots.length === 0) {
+    return [];
+  }
+
+  // Xác định ngày tháng trong tuần: ưu tiên ngày áp dụng riêng nếu có
+  const customWeekDate = timetableConfig.weeklyAppliedDates?.[weekNumber];
+  const weekDates = customWeekDate
+    ? getWeekDates(customWeekDate, 1)
+    : getWeekDates(startDateWeek1, weekNumber);
   const dateMap = new Map(weekDates.map((d) => [d.dayOfWeek, d]));
 
   // Nhóm các slot theo từng Lớp (e.g. 9A1, 7A1)
   const slotsByClass = new Map<string, TimetableSlot[]>();
-  timetableConfig.slots.forEach((slot) => {
+  activeSlots.forEach((slot) => {
     const cls = slot.className || 'Toán';
     if (!slotsByClass.has(cls)) {
       slotsByClass.set(cls, []);
@@ -349,7 +397,24 @@ export function generateWeeklySchedule(
         const currentPeriodNumber = basePeriodOffset + mathRunningIndex + 1;
         mathRunningIndex++;
 
-        const lessonInfo = expandedMap.get(currentPeriodNumber);
+        let lessonInfo = expandedMap.get(currentPeriodNumber);
+
+        // Fallback thông minh: nếu không tìm thấy theo số tiết tuần tự, tìm theo trường tuần của bài học trong PPCT
+        if (!lessonInfo && ppct && ppct.lessons && ppct.lessons.length > 0) {
+          const weekLessons = ppct.lessons.filter((l) => l.tuan === weekNumber);
+          if (weekLessons.length > 0) {
+            const matchedLesson = weekLessons[Math.min(mathRunningIndex - 1, weekLessons.length - 1)];
+            if (matchedLesson) {
+              lessonInfo = {
+                periodNumber: currentPeriodNumber,
+                lesson: matchedLesson,
+                subPeriod: Math.min(mathRunningIndex, matchedLesson.soTiet || 1),
+                totalSubPeriods: matchedLesson.soTiet || 1,
+              };
+            }
+          }
+        }
+
         const isCompleted = !!timetableConfig.completedLessons?.[`${className}_tiet_${currentPeriodNumber}`];
 
         let baiHocText = lessonInfo ? lessonInfo.lesson.baiHoc : `Tiết ${currentPeriodNumber} (Theo PPCT Toán ${grade})`;

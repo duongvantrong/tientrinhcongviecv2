@@ -93,6 +93,19 @@ export function calculateCurrentWeek(startDateWeek1Str: string, currentDateStr: 
   return { week, term, isBeforeTerm: false };
 }
 
+// Tính ngày bắt đầu Tuần 1 từ ngày áp dụng và số tuần của TKB
+export function deriveStartDateWeek1(appliedDate?: string, appliedWeek: number = 1): string {
+  if (!appliedDate) return '2026-09-07';
+  const app = parseDate(appliedDate);
+  const weekOffset = Math.max(0, appliedWeek - 1);
+  const week1Time = app.getTime() - weekOffset * 7 * 24 * 60 * 60 * 1000;
+  const w1Date = new Date(week1Time);
+  const y = w1Date.getFullYear();
+  const m = (w1Date.getMonth() + 1).toString().padStart(2, '0');
+  const d = w1Date.getDate().toString().padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
 export function calculateDaysRemaining(targetDate: Date, currentDateStr: string): number {
   const current = parseDate(currentDateStr);
   const diffTime = targetDate.getTime() - current.getTime();

@@ -740,7 +740,9 @@ export interface TeacherTimetableConfig {
   academicYear: string;
   appliedDate: string; // e.g. "2026-09-07"
   appliedWeek: number; // 1
-  slots: TimetableSlot[];
+  slots: TimetableSlot[]; // TKB mặc định / áp dụng chung
+  weeklySlots?: Record<number, TimetableSlot[]>; // TKB riêng từng tuần (e.g. Tuần 1, Tuần 2...)
+  weeklyAppliedDates?: Record<number, string>; // Ngày áp dụng riêng từng tuần
   completedLessons?: Record<string, boolean>; // key: `${className}_tiet_${tietPpctNumber}` -> boolean
   lastPhotoUploadedAt?: string;
   lastPhotoName?: string;
