@@ -250,6 +250,31 @@ export const GvcnDashboardTab: React.FC = () => {
     setStudents(updatedList);
   };
 
+  // Handler to delete a student from class and remove from seating chart
+  const handleDeleteStudent = (studentId: string) => {
+    const updatedList = students.filter((s) => s.id !== studentId);
+    setStudents(updatedList);
+
+    // Remove from seating chart if assigned
+    if (seatingChart.seats) {
+      const updatedSeats = { ...seatingChart.seats };
+      let hasSeatChange = false;
+      Object.entries(updatedSeats).forEach(([key, seatPos]) => {
+        if (seatPos?.studentId === studentId) {
+          updatedSeats[key] = { ...seatPos, studentId: undefined };
+          hasSeatChange = true;
+        }
+      });
+      if (hasSeatChange) {
+        setSeatingChart({
+          ...seatingChart,
+          seats: updatedSeats,
+          updatedAt: new Date().toLocaleDateString('vi-VN'),
+        });
+      }
+    }
+  };
+
   const handleSaveClassInfo = (newInfo: GvcnClassInfo) => {
     const oldGrade = getGradeFromClassInfo(classInfo);
     const newGrade = getGradeFromClassInfo(newInfo);
@@ -957,6 +982,11 @@ export const GvcnDashboardTab: React.FC = () => {
             onUpdateSeatingChart={handleUpdateSeatingChart}
             onSelectStudent={handleSelectStudent}
             onEditStudent={handleOpenEditStudent}
+            onAddStudent={handleAddStudent}
+            onDeleteStudent={handleDeleteStudent}
+            onUpdateStudent={handleUpdateStudent}
+            onUpdateStudents={handleUpdateStudents}
+            onOpenAddStudent={() => setShowAddStudentModal(true)}
           />
         )}
 

@@ -26,7 +26,24 @@ import {
   Calendar,
   UserCheck,
   Edit3,
+  Layers,
+  Crown,
+  UserPlus,
+  Move,
+  Search,
+  Filter,
+  Check,
+  Plus,
 } from 'lucide-react';
+import {
+  getBanCanSuInfo,
+  BAN_CAN_SU_ROLE_PRESETS,
+  formatSeatPositionLabel,
+} from './gvcnSeatingUtils';
+import { GvcnRoleAssignmentModal } from './GvcnRoleAssignmentModal';
+import { GvcnStudentHoverCard, HoverStudentData } from './GvcnStudentHoverCard';
+import { GvcnDeleteStudentModal } from './GvcnDeleteStudentModal';
+import { GvcnQuickAddStudentModal } from './GvcnQuickAddStudentModal';
 
 interface GvcnSeatingChartSectionProps {
   classInfo: GvcnClassInfo;
@@ -35,27 +52,54 @@ interface GvcnSeatingChartSectionProps {
   onUpdateSeatingChart: (newChart: GvcnSeatingChartConfig) => void;
   onSelectStudent?: (student: GvcnStudent) => void;
   onEditStudent?: (student: GvcnStudent) => void;
+  onAddStudent?: (newStudent: GvcnStudent) => void;
+  onDeleteStudent?: (studentId: string) => void;
+  onUpdateStudent?: (student: GvcnStudent) => void;
+  onUpdateStudents?: (students: GvcnStudent[]) => void;
+  onOpenAddStudent?: () => void;
 }
+
+export type SeatingNameMode = 'full' | 'middle_first' | 'first_only';
 
 /**
  * Định dạng tên học sinh hiển thị trên sơ đồ lớp:
- * - Chỉ hiển thị chữ lót và tên (ví dụ: "Nguyễn Văn An" -> "Văn An")
- * - Nếu trùng cả chữ lót và tên với bạn khác trong lớp -> hiển thị đầy đủ Họ và tên
+ * - 'full': Hiển thị đầy đủ Họ và Tên (mặc định, rõ ràng nhất)
+ * - 'middle_first': Hiển thị chữ lót và tên (ví dụ: "Văn An")
+ * - 'first_only': Chỉ hiển thị tên chính (ví dụ: "An")
+ * - Tự động hiển thị thêm chữ lót/họ nếu trùng tên với bạn khác trong lớp.
  */
 export const formatSeatingStudentName = (
   student: GvcnStudent,
-  allStudents: GvcnStudent[]
+  allStudents: GvcnStudent[],
+  mode: SeatingNameMode = 'full'
 ): { displayName: string; isFullName: boolean } => {
   if (!student || !student.name) return { displayName: '', isFullName: false };
 
   const fullName = student.name.trim();
   const words = fullName.split(/\s+/).filter(Boolean);
 
-  if (words.length <= 1) {
+  if (words.length <= 1 || mode === 'full') {
     return { displayName: fullName, isFullName: true };
   }
 
-  // Chữ lót và tên: bỏ từ đầu tiên (Họ)
+  if (mode === 'first_only') {
+    const firstName = words[words.length - 1];
+    // Kiểm tra có học sinh khác trùng tên trong lớp không
+    const duplicateCount = allStudents.filter((s) => {
+      if (!s || !s.name) return false;
+      const sWords = s.name.trim().split(/\s+/).filter(Boolean);
+      return sWords.length > 0 && sWords[sWords.length - 1].toLowerCase() === firstName.toLowerCase();
+    }).length;
+
+    if (duplicateCount > 1) {
+      // Trùng tên -> hiển thị chữ lót + tên hoặc cả họ tên để phân biệt rõ
+      const middleAndLast = words.slice(Math.max(0, words.length - 2)).join(' ');
+      return { displayName: middleAndLast, isFullName: false };
+    }
+    return { displayName: firstName, isFullName: false };
+  }
+
+  // mode === 'middle_first': Chữ lót và tên (bỏ từ đầu tiên là Họ)
   const middleAndLastName = words.slice(1).join(' ');
 
   // Kiểm tra trùng lặp chữ lót và tên trong toàn bộ danh sách lớp
@@ -77,17 +121,17 @@ export const formatSeatingStudentName = (
 
 /**
  * Tự động tính kích thước font chữ giúp tên hiển thị rõ ràng,
- * có thể thu nhỏ hơn một chút nếu tên học sinh quá dài.
+ * co giãn linh hoạt theo độ dài tên để không bao giờ bị cắt cụt.
  */
 export const getSeatingNameFontSize = (displayName: string): string => {
   const len = displayName.length;
-  if (len > 16) {
-    return 'text-[9px] leading-tight font-black';
+  if (len > 18) {
+    return 'text-[10px] leading-snug font-bold';
   }
-  if (len > 12) {
-    return 'text-[10px] leading-tight font-black';
+  if (len > 13) {
+    return 'text-[11px] leading-snug font-bold';
   }
-  return 'text-[11.5px] leading-tight font-black';
+  return 'text-[12px] leading-snug font-bold';
 };
 
 export const GvcnSeatingChartSection: React.FC<GvcnSeatingChartSectionProps> = ({
@@ -97,14 +141,66 @@ export const GvcnSeatingChartSection: React.FC<GvcnSeatingChartSectionProps> = (
   onUpdateSeatingChart,
   onSelectStudent,
   onEditStudent,
+  onAddStudent,
+  onDeleteStudent,
+  onUpdateStudent,
+  onUpdateStudents,
+  onOpenAddStudent,
 }) => {
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   const [selectedSeatKey, setSelectedSeatKey] = useState<string | null>(null);
   const [draggedStudentId, setDraggedStudentId] = useState<string | null>(null);
+
+  // Drag-and-drop state between seats and lists
+  interface DragItem {
+    type: 'seat' | 'unassigned' | 'list';
+    studentId: string;
+    fromRow?: number;
+    fromCol?: number;
+    fromIdx?: number;
+    seatKey?: string;
+  }
+  const [dragSource, setDragSource] = useState<DragItem | null>(null);
+  const [dragOverSeatKey, setDragOverSeatKey] = useState<string | null>(null);
+
+  // Modal states for role, delete, quick add
+  const [roleModalStudent, setRoleModalStudent] = useState<GvcnStudent | null>(null);
+  const [deleteModalStudent, setDeleteModalStudent] = useState<GvcnStudent | null>(null);
+  const [showQuickAddModal, setShowQuickAddModal] = useState<boolean>(false);
+
+  // Hover mini-card state and highlighted seat state
+  const [hoveredData, setHoveredData] = useState<HoverStudentData | null>(null);
+  const [hoveredStudentId, setHoveredStudentId] = useState<string | null>(null);
+
+  // Student list filter and search states
+  const [studentListFilter, setStudentListFilter] = useState<'all' | 'unseated' | 'seated' | 'leaders' | 1 | 2 | 3 | 4>('all');
+  const [studentSearchQuery, setStudentSearchQuery] = useState<string>('');
+  const [showStudentListSection, setShowStudentListSection] = useState<boolean>(true);
+
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showPrintModal, setShowPrintModal] = useState(false);
   const [seatNoteModal, setSeatNoteModal] = useState<{ seatKey: string; currentNote: string } | null>(null);
   const [notification, setNotification] = useState<string | null>(null);
+  const [nameDisplayMode, setNameDisplayMode] = useState<SeatingNameMode>(() => {
+    const saved = localStorage.getItem('gvcn_seating_name_mode');
+    if (saved === 'full' || saved === 'middle_first' || saved === 'first_only') return saved as SeatingNameMode;
+    return 'full';
+  });
+  const [cardDensity, setCardDensity] = useState<'standard' | 'spacious'>(() => {
+    const saved = localStorage.getItem('gvcn_seating_card_density');
+    if (saved === 'standard' || saved === 'spacious') return saved;
+    return 'standard';
+  });
+
+  const handleSetNameDisplayMode = (mode: SeatingNameMode) => {
+    setNameDisplayMode(mode);
+    localStorage.setItem('gvcn_seating_name_mode', mode);
+  };
+
+  const handleSetCardDensity = (density: 'standard' | 'spacious') => {
+    setCardDensity(density);
+    localStorage.setItem('gvcn_seating_card_density', density);
+  };
 
   // Map nhanh học sinh theo ID
   const studentMap = useMemo(() => {
@@ -142,6 +238,33 @@ export const GvcnSeatingChartSection: React.FC<GvcnSeatingChartSectionProps> = (
   const unassignedStudents = useMemo(() => {
     return students.filter((s) => !seatedStudentIds.has(s.id));
   }, [students, seatedStudentIds]);
+
+  // Danh sách học sinh theo bộ lọc và tìm kiếm
+  const filteredStudentList = useMemo(() => {
+    return students.filter((s) => {
+      // Bộ lọc danh mục
+      if (studentListFilter === 'unseated') {
+        if (seatedStudentIds.has(s.id)) return false;
+      } else if (studentListFilter === 'seated') {
+        if (!seatedStudentIds.has(s.id)) return false;
+      } else if (studentListFilter === 'leaders') {
+        if (!getBanCanSuInfo(s.role).isLeader) return false;
+      } else if (typeof studentListFilter === 'number') {
+        if (s.group !== studentListFilter) return false;
+      }
+
+      // Ô tìm kiếm
+      if (studentSearchQuery.trim()) {
+        const q = studentSearchQuery.toLowerCase().trim();
+        const matchName = s.name.toLowerCase().includes(q);
+        const matchStt = s.stt.toString().includes(q);
+        const matchRole = (s.role || '').toLowerCase().includes(q);
+        return matchName || matchStt || matchRole;
+      }
+
+      return true;
+    });
+  }, [students, studentListFilter, studentSearchQuery, seatedStudentIds]);
 
   const showToast = (msg: string) => {
     setNotification(msg);
@@ -252,23 +375,226 @@ export const GvcnSeatingChartSection: React.FC<GvcnSeatingChartSectionProps> = (
     }
   };
 
-  // Drag and drop
-  const handleDragStart = (studentId: string) => {
-    setDraggedStudentId(studentId);
+  // Ban cán sự list
+  const banCanSuStudents = useMemo(() => {
+    return students.filter((s) => getBanCanSuInfo(s.role).isLeader);
+  }, [students]);
+
+  // Drag and drop handlers (kéo thả giữa các ghế và từ danh sách)
+  const handleDragStartFromSeat = (row: number, col: number, idx: number, studentId: string, e: React.DragEvent) => {
+    e.dataTransfer.setData('text/plain', studentId);
+    e.dataTransfer.effectAllowed = 'move';
+    setDragSource({
+      type: 'seat',
+      studentId,
+      fromRow: row,
+      fromCol: col,
+      fromIdx: idx,
+      seatKey: `${row}-${col}-${idx}`,
+    });
   };
 
-  const handleDragOver = (e: React.DragEvent) => {
+  const handleDragStartFromList = (studentId: string, e: React.DragEvent) => {
+    e.dataTransfer.setData('text/plain', studentId);
+    e.dataTransfer.effectAllowed = 'move';
+    setDragSource({
+      type: 'list',
+      studentId,
+    });
+  };
+
+  const handleDragStartFromUnassigned = (studentId: string, e: React.DragEvent) => {
+    e.dataTransfer.setData('text/plain', studentId);
+    e.dataTransfer.effectAllowed = 'move';
+    setDragSource({
+      type: 'unassigned',
+      studentId,
+    });
+  };
+
+  const handleDragOverSeat = (key: string, e: React.DragEvent) => {
     e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (dragOverSeatKey !== key) {
+      setDragOverSeatKey(key);
+    }
   };
 
-  const handleDrop = (row: number, col: number, seatIdx: number) => {
-    if (draggedStudentId) {
-      updateSeat(row, col, seatIdx, draggedStudentId);
-      const student = studentMap.get(draggedStudentId);
-      showToast(`Đã kéo thả em ${student?.name || ''} vào Bàn ${row}, Dãy ${col}`);
-      setDraggedStudentId(null);
-      setSelectedStudentId(null);
+  const handleDropOnSeat = (row: number, col: number, seatIdx: number) => {
+    const targetKey = `${row}-${col}-${seatIdx}`;
+    setDragOverSeatKey(null);
+
+    // Fallback for legacy draggedStudentId
+    if (!dragSource) {
+      if (draggedStudentId) {
+        updateSeat(row, col, seatIdx, draggedStudentId);
+        const student = studentMap.get(draggedStudentId);
+        showToast(`Đã xếp em ${student?.name || ''} vào Bàn ${row}, Dãy ${col}`);
+        setDraggedStudentId(null);
+        setSelectedStudentId(null);
+      }
+      return;
     }
+
+    const { studentId, type, fromRow, fromCol, fromIdx, seatKey: sourceSeatKey } = dragSource;
+    const targetSeat = getSeat(row, col, seatIdx);
+    const targetStudentId = targetSeat.studentId;
+    const sourceStudent = studentMap.get(studentId);
+    const targetStudent = targetStudentId ? studentMap.get(targetStudentId) : null;
+
+    // Dropped on exactly the same seat -> do nothing
+    if (type === 'seat' && sourceSeatKey === targetKey) {
+      setDragSource(null);
+      return;
+    }
+
+    // Case 1: Dragged from another seat -> SWAP (hoán đổi) hoặc MOVE
+    if (type === 'seat' && sourceSeatKey) {
+      const newSeats = { ...(seatingChart.seats || {}) };
+      const sourceSeat = getSeat(fromRow!, fromCol!, fromIdx!);
+
+      newSeats[sourceSeatKey] = {
+        ...sourceSeat,
+        studentId: targetStudentId,
+      };
+      newSeats[targetKey] = {
+        ...targetSeat,
+        studentId: studentId,
+      };
+
+      onUpdateSeatingChart({
+        ...seatingChart,
+        seats: newSeats,
+        updatedAt: new Date().toLocaleDateString('vi-VN'),
+      });
+
+      if (targetStudent) {
+        showToast(`Đã hoán đổi vị trí: ${sourceStudent?.name || 'HS'} ⇄ ${targetStudent.name}`);
+      } else {
+        showToast(`Đã chuyển em ${sourceStudent?.name || 'HS'} sang Bàn ${row}, Dãy ${col} (Ghế ${seatIdx + 1})`);
+      }
+
+      setDragSource(null);
+      setSelectedSeatKey(null);
+      return;
+    }
+
+    // Case 2: Dragged from list or unassigned
+    updateSeat(row, col, seatIdx, studentId);
+    if (targetStudent) {
+      showToast(`Đã xếp em ${sourceStudent?.name || 'HS'} vào ghế, em ${targetStudent.name} chuyển về danh sách chưa xếp chỗ`);
+    } else {
+      showToast(`Đã xếp em ${sourceStudent?.name || 'HS'} vào Bàn ${row}, Dãy ${col} (Ghế ${seatIdx + 1})`);
+    }
+
+    setDragSource(null);
+    setSelectedStudentId(null);
+    setSelectedSeatKey(null);
+  };
+
+  // Drop on unassigned area to unseat a student
+  const handleDropOnUnassignedZone = () => {
+    if (dragSource && dragSource.type === 'seat' && dragSource.seatKey) {
+      const { fromRow, fromCol, fromIdx, studentId } = dragSource;
+      updateSeat(fromRow!, fromCol!, fromIdx!, undefined);
+      const s = studentMap.get(studentId);
+      showToast(`Đã gỡ em ${s?.name || 'HS'} khỏi sơ đồ về danh sách chưa xếp chỗ`);
+      setDragSource(null);
+    }
+  };
+
+  // Lưu chức vụ ban cán sự
+  const handleSaveRole = (student: GvcnStudent, newRole: string) => {
+    const updated = { ...student, role: newRole };
+    if (onUpdateStudent) {
+      onUpdateStudent(updated);
+    } else if (onUpdateStudents) {
+      onUpdateStudents(students.map((s) => (s.id === student.id ? updated : s)));
+    }
+    showToast(`Đã cập nhật chức vụ của em ${student.name}: ${newRole || 'Học sinh'}`);
+    setRoleModalStudent(null);
+  };
+
+  // Xóa học sinh khỏi lớp
+  const handleConfirmDeleteStudent = (studentId: string) => {
+    const s = studentMap.get(studentId);
+    const name = s?.name || 'học sinh';
+
+    // Xóa khỏi sơ đồ ghế nếu đang ngồi
+    const newSeats = { ...(seatingChart.seats || {}) };
+    let seatChanged = false;
+    Object.entries(newSeats).forEach(([k, seat]) => {
+      if (seat && seat.studentId === studentId) {
+        newSeats[k] = { ...seat, studentId: undefined };
+        seatChanged = true;
+      }
+    });
+    if (seatChanged) {
+      onUpdateSeatingChart({
+        ...seatingChart,
+        seats: newSeats,
+        updatedAt: new Date().toLocaleDateString('vi-VN'),
+      });
+    }
+
+    if (onDeleteStudent) {
+      onDeleteStudent(studentId);
+    } else if (onUpdateStudents) {
+      onUpdateStudents(students.filter((st) => st.id !== studentId));
+    }
+
+    showToast(`Đã xóa học sinh ${name} khỏi danh sách lớp`);
+    setDeleteModalStudent(null);
+    if (selectedSeatData?.student?.id === studentId) {
+      setSelectedSeatKey(null);
+    }
+  };
+
+  // Thêm học sinh mới
+  const handleAddStudent = (newStudent: GvcnStudent) => {
+    if (onAddStudent) {
+      onAddStudent(newStudent);
+    } else if (onUpdateStudents) {
+      onUpdateStudents([...students, newStudent].sort((a, b) => (a.stt || 0) - (b.stt || 0)));
+    }
+    showToast(`Đã thêm em ${newStudent.name} vào danh sách lớp!`);
+    setShowQuickAddModal(false);
+  };
+
+  // Hover xem thông tin và vị trí học sinh
+  const handleStudentMouseEnter = (student: GvcnStudent, e: React.MouseEvent) => {
+    let seatInfo = null;
+    const allSeats = Object.entries(seatingChart.seats || {}) as [string, GvcnSeatPosition][];
+    for (const [key, pos] of allSeats) {
+      if (pos.studentId === student.id) {
+        const otherIdx = pos.seatIndex === 0 ? 1 : 0;
+        const otherKey = `${pos.deskRow}-${pos.deskCol}-${otherIdx}`;
+        const otherSeat = seatingChart.seats?.[otherKey];
+        const seatmate = otherSeat?.studentId ? studentMap.get(otherSeat.studentId) : null;
+        seatInfo = {
+          col: pos.deskCol,
+          row: pos.deskRow,
+          seatIdx: pos.seatIndex,
+          seatKey: key,
+          seatmateName: seatmate?.name,
+          note: pos.note,
+        };
+        break;
+      }
+    }
+
+    setHoveredData({
+      student,
+      x: e.clientX,
+      y: e.clientY,
+      seatInfo,
+    });
+    setHoveredStudentId(student.id);
+  };
+
+  const handleStudentMouseLeave = () => {
+    setHoveredData(null);
+    setHoveredStudentId(null);
   };
 
   // ========================================================
@@ -473,7 +799,12 @@ export const GvcnSeatingChartSection: React.FC<GvcnSeatingChartSectionProps> = (
               </span>
               <span>•</span>
               <span>
-                <strong>Sĩ số:</strong> {students.length} học sinh (Đã xếp: {seatedStudentIds.size}/{students.length} em)
+                <strong>Sĩ số:</strong> {students.length} học sinh (Đã xếp: {seatedStudentIds.size}/{students.length})
+              </span>
+              <span>•</span>
+              <span className="text-amber-300 font-bold flex items-center gap-1">
+                <Crown className="w-3.5 h-3.5 text-amber-300" />
+                <span>Ban cán sự: {banCanSuStudents.length} em</span>
               </span>
               <span>•</span>
               <span>
@@ -484,6 +815,18 @@ export const GvcnSeatingChartSection: React.FC<GvcnSeatingChartSectionProps> = (
 
           {/* Action buttons */}
           <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => {
+                if (onOpenAddStudent) onOpenAddStudent();
+                else setShowQuickAddModal(true);
+              }}
+              className="px-3.5 py-2 bg-emerald-400 hover:bg-emerald-300 text-emerald-950 font-black rounded-xl text-xs flex items-center gap-1.5 shadow-md shadow-emerald-900/30 transition-all hover:scale-[1.02]"
+              title="Thêm học sinh mới vào lớp"
+            >
+              <UserPlus className="w-4 h-4" />
+              <span>+ Thêm Học Sinh</span>
+            </button>
+
             <button
               onClick={() => setShowPrintModal(true)}
               className="px-3.5 py-2 bg-white text-slate-800 hover:bg-slate-100 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all"
@@ -564,9 +907,6 @@ export const GvcnSeatingChartSection: React.FC<GvcnSeatingChartSectionProps> = (
           </div>
 
           <div className="flex items-center gap-3">
-            <span className="text-[10px] bg-emerald-50 text-emerald-800 px-2 py-0.5 rounded-md border border-emerald-200 font-semibold" title="Tự động hiển thị chữ lót & tên; nếu trùng trong lớp sẽ hiển thị cả họ tên; tự co chữ nếu tên dài">
-              Tên: Chữ lót & Tên (Trùng hiện đủ Họ Tên)
-            </span>
             <span className="flex items-center gap-1">
               <span className="w-2.5 h-2.5 rounded-full bg-blue-500"></span> Nam
             </span>
@@ -579,6 +919,83 @@ export const GvcnSeatingChartSection: React.FC<GvcnSeatingChartSectionProps> = (
             <span className="flex items-center gap-1">
               <Eye className="w-3 h-3 text-emerald-600" /> Có ghi chú
             </span>
+          </div>
+        </div>
+
+        {/* Thanh tùy chọn hiển thị tên học sinh & kích cỡ ô ghế */}
+        <div className="mt-2.5 pt-2.5 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3 text-xs bg-slate-50/70 p-2 rounded-xl">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[11px] font-bold text-slate-700 flex items-center gap-1">
+              <Layers className="w-3.5 h-3.5 text-emerald-600" />
+              <span>Hiển thị tên học sinh:</span>
+            </span>
+            <div className="inline-flex rounded-lg bg-white p-0.5 border border-slate-200 shadow-2xs">
+              <button
+                type="button"
+                onClick={() => handleSetNameDisplayMode('full')}
+                className={`px-3 py-1 text-[11px] font-bold rounded-md transition-all ${
+                  nameDisplayMode === 'full'
+                    ? 'bg-emerald-800 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+                title="Hiển thị đầy đủ Họ và Tên rõ ràng, không cắt xén (Khuyên dùng)"
+              >
+                Họ và Tên đầy đủ
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSetNameDisplayMode('middle_first')}
+                className={`px-3 py-1 text-[11px] font-bold rounded-md transition-all ${
+                  nameDisplayMode === 'middle_first'
+                    ? 'bg-emerald-800 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+                title="Bỏ từ đầu tiên (Họ), hiển thị Chữ lót & Tên (Ví dụ: Văn An)"
+              >
+                Chữ lót & Tên
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSetNameDisplayMode('first_only')}
+                className={`px-3 py-1 text-[11px] font-bold rounded-md transition-all ${
+                  nameDisplayMode === 'first_only'
+                    ? 'bg-emerald-800 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+                title="Chỉ hiển thị Tên chính (Ví dụ: An)"
+              >
+                Tên chính
+              </button>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-bold text-slate-700">Kích cỡ ô:</span>
+            <div className="inline-flex rounded-lg bg-white p-0.5 border border-slate-200 shadow-2xs">
+              <button
+                type="button"
+                onClick={() => handleSetCardDensity('standard')}
+                className={`px-2.5 py-1 text-[11px] font-bold rounded-md transition-all ${
+                  cardDensity === 'standard'
+                    ? 'bg-emerald-800 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Tiêu chuẩn
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSetCardDensity('spacious')}
+                className={`px-2.5 py-1 text-[11px] font-bold rounded-md transition-all ${
+                  cardDensity === 'spacious'
+                    ? 'bg-emerald-800 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+                title="Tăng khoảng đệm để tên hiển thị to rõ nhất"
+              >
+                Rộng rãi (Chữ to)
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -622,185 +1039,277 @@ export const GvcnSeatingChartSection: React.FC<GvcnSeatingChartSectionProps> = (
         </div>
 
         {/* LƯỚI CÁC DÃY BÀN HỌC SINH (4 DÃY TƯƠNG ỨNG 4 TỔ) */}
-        <div
-          className="grid gap-4 max-w-6xl mx-auto"
-          style={{
-            gridTemplateColumns: `repeat(${seatingChart.columns || 4}, minmax(0, 1fr))`,
-          }}
-        >
-          {Array.from({ length: seatingChart.columns || 4 }).map((_, colIdx) => {
-            const col = colIdx + 1;
-            const groupLeader = students.find((s) => s.group === col && s.role?.includes('Tổ trưởng'));
+        <div className="overflow-x-auto pb-4 pt-1">
+          <div
+            className="grid gap-4 max-w-6xl mx-auto min-w-[860px]"
+            style={{
+              gridTemplateColumns: `repeat(${seatingChart.columns || 4}, minmax(210px, 1fr))`,
+            }}
+          >
+            {Array.from({ length: seatingChart.columns || 4 }).map((_, colIdx) => {
+              const col = colIdx + 1;
+              const groupLeader = students.find((s) => s.group === col && s.role?.includes('Tổ trưởng'));
 
-            return (
-              <div
-                key={col}
-                className="bg-white/90 backdrop-blur-xs rounded-2xl p-3 border border-slate-200 shadow-sm flex flex-col"
-              >
-                {/* Header dãy bàn */}
-                <div className="pb-2.5 mb-2.5 border-b border-slate-200 flex items-center justify-between">
-                  <div>
-                    <span className="text-xs font-black text-emerald-900 uppercase">
-                      DÃY {col} (TỔ {col})
-                    </span>
-                    {groupLeader && (
-                      <div className="text-[10px] text-slate-500 truncate max-w-[140px]">
-                        Tổ trưởng: {groupLeader.name}
-                      </div>
-                    )}
-                  </div>
-                  <span className="text-[10px] font-bold px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded-full">
-                    {students.filter((s) => s.group === col).length} HS
-                  </span>
-                </div>
-
-                {/* Các hàng bàn của dãy này */}
-                <div className="space-y-2.5 flex-1">
-                  {Array.from({ length: seatingChart.rows || 6 }).map((_, rowIdx) => {
-                    const row = rowIdx + 1;
-                    const seatsPerDesk = seatingChart.seatsPerDesk || 2;
-
-                    return (
-                      <div
-                        key={row}
-                        className="bg-slate-50/90 rounded-xl p-1.5 border border-slate-200 relative group/desk hover:border-emerald-300 transition-all"
-                      >
-                        {/* Nhãn hàng bàn */}
-                        <div className="text-[9px] font-bold text-slate-400 mb-1 px-1 flex items-center justify-between">
-                          <span>BÀN {row}</span>
-                          {row === 1 && (
-                            <span className="text-[8px] text-emerald-600 font-semibold">Gần bảng</span>
-                          )}
+              return (
+                <div
+                  key={col}
+                  className="bg-white/95 backdrop-blur-xs rounded-2xl p-3 border border-slate-200 shadow-sm flex flex-col"
+                >
+                  {/* Header dãy bàn */}
+                  <div className="pb-2.5 mb-2.5 border-b border-slate-200 flex items-center justify-between">
+                    <div>
+                      <span className="text-xs font-black text-emerald-900 uppercase">
+                        DÃY {col} (TỔ {col})
+                      </span>
+                      {groupLeader && (
+                        <div className="text-[10px] text-slate-500 truncate max-w-[140px]">
+                          Tổ trưởng: {groupLeader.name}
                         </div>
+                      )}
+                    </div>
+                    <span className="text-[10px] font-bold px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded-full">
+                      {students.filter((s) => s.group === col).length} HS
+                    </span>
+                  </div>
 
-                        {/* Các chỗ ngồi trong bàn (2 ghế / bàn) */}
+                  {/* Các hàng bàn của dãy này */}
+                  <div className="space-y-2.5 flex-1">
+                    {Array.from({ length: seatingChart.rows || 6 }).map((_, rowIdx) => {
+                      const row = rowIdx + 1;
+                      const seatsPerDesk = seatingChart.seatsPerDesk || 2;
+
+                      return (
                         <div
-                          className="grid gap-1.5"
-                          style={{
-                            gridTemplateColumns: `repeat(${seatsPerDesk}, minmax(0, 1fr))`,
-                          }}
+                          key={row}
+                          className="bg-slate-50/90 rounded-xl p-1.5 border border-slate-200 relative group/desk hover:border-emerald-300 transition-all"
                         >
-                          {Array.from({ length: seatsPerDesk }).map((_, sIdx) => {
-                            const seat = getSeat(row, col, sIdx);
-                            const key = `${row}-${col}-${sIdx}`;
-                            const student = seat.studentId ? studentMap.get(seat.studentId) : undefined;
-                            const isSelected = selectedSeatKey === key;
-                            const nameInfo = student ? formatSeatingStudentName(student, students) : null;
-                            const fontClass = nameInfo ? getSeatingNameFontSize(nameInfo.displayName) : '';
+                          {/* Nhãn hàng bàn */}
+                          <div className="text-[9px] font-bold text-slate-400 mb-1 px-1 flex items-center justify-between">
+                            <span>BÀN {row}</span>
+                            {row === 1 && (
+                              <span className="text-[8px] text-emerald-600 font-semibold">Gần bảng</span>
+                            )}
+                          </div>
 
-                            return (
-                              <div
-                                key={sIdx}
-                                onClick={() => handleSeatClick(row, col, sIdx)}
-                                onDragOver={handleDragOver}
-                                onDrop={() => handleDrop(row, col, sIdx)}
-                                className={`min-h-[58px] p-1.5 rounded-lg border text-left cursor-pointer transition-all relative flex flex-col justify-between ${
-                                  isSelected
-                                    ? 'ring-2 ring-emerald-600 bg-emerald-50 border-emerald-500 shadow-md scale-[1.02]'
-                                    : student
-                                    ? student.gender === 'Nam'
-                                      ? 'bg-blue-50/70 border-blue-200 hover:bg-blue-100/70 hover:border-blue-300 shadow-2xs'
-                                      : 'bg-rose-50/70 border-rose-200 hover:bg-rose-100/70 hover:border-rose-300 shadow-2xs'
-                                    : 'bg-white border-dashed border-slate-300 hover:bg-emerald-50/50 hover:border-emerald-400'
-                                }`}
-                                title={
-                                  student
-                                    ? `${student.name} (${student.gender}) - ${student.role || 'Học sinh'}${nameInfo?.isFullName ? ' [Hiển thị đầy đủ Họ & Tên do trùng tên & chữ lót trong lớp]' : ' [Hiển thị chữ lót & tên]'}\n${seat.note ? `Ghi chú: ${seat.note}` : ''}`
-                                    : 'Ghế trống - Nhấp để xếp học sinh'
-                                }
-                              >
-                                {student ? (
-                                  <>
-                                    <div className="flex items-start justify-between gap-1">
-                                      <div className="flex items-center gap-1 min-w-0 flex-1">
-                                        <span
-                                          className={`text-[9px] font-black px-1 py-0.2 rounded shrink-0 ${
-                                            student.gender === 'Nam'
-                                              ? 'bg-blue-200 text-blue-900'
-                                              : 'bg-rose-200 text-rose-900'
-                                          }`}
-                                        >
-                                          #{student.stt}
-                                        </span>
-                                        <span
-                                          className={`font-bold text-slate-900 tracking-tight truncate flex-1 ${fontClass}`}
-                                          title={
-                                            nameInfo?.isFullName
-                                              ? `Họ và tên: ${student.name} (Hiển thị đầy đủ do trùng tên & chữ lót)`
-                                              : `Học sinh: ${student.name}`
-                                          }
-                                        >
-                                          {nameInfo?.displayName}
-                                        </span>
-                                      </div>
+                          {/* Các chỗ ngồi trong bàn (2 ghế / bàn) */}
+                          <div
+                            className="grid gap-1.5"
+                            style={{
+                              gridTemplateColumns: `repeat(${seatsPerDesk}, minmax(0, 1fr))`,
+                            }}
+                          >
+                            {Array.from({ length: seatsPerDesk }).map((_, sIdx) => {
+                              const seat = getSeat(row, col, sIdx);
+                              const key = `${row}-${col}-${sIdx}`;
+                              const student = seat.studentId ? studentMap.get(seat.studentId) : undefined;
+                              const isSelected = selectedSeatKey === key;
+                              const isHovered = hoveredStudentId === student?.id;
+                              const isDragTarget = dragOverSeatKey === key;
+                              const roleInfo = student ? getBanCanSuInfo(student.role) : null;
+                              const nameInfo = student ? formatSeatingStudentName(student, students, nameDisplayMode) : null;
+                              const fontClass = nameInfo ? getSeatingNameFontSize(nameInfo.displayName) : '';
 
-                                      {/* Nút thao tác: Sửa & Gỡ */}
-                                      <div className="flex items-center gap-0.5 shrink-0">
-                                        {onEditStudent && (
+                              return (
+                                <div
+                                  key={sIdx}
+                                  draggable={!!student}
+                                  onDragStart={(e) => {
+                                    if (student) handleDragStartFromSeat(row, col, sIdx, student.id, e);
+                                  }}
+                                  onDragEnd={() => {
+                                    setDragSource(null);
+                                    setDragOverSeatKey(null);
+                                  }}
+                                  onDragOver={(e) => handleDragOverSeat(key, e)}
+                                  onDragLeave={() => {
+                                    if (dragOverSeatKey === key) setDragOverSeatKey(null);
+                                  }}
+                                  onDrop={(e) => {
+                                    e.preventDefault();
+                                    handleDropOnSeat(row, col, sIdx);
+                                  }}
+                                  onClick={() => handleSeatClick(row, col, sIdx)}
+                                  className={`${
+                                    cardDensity === 'spacious' ? 'min-h-[76px] p-2' : 'min-h-[64px] p-1.5'
+                                  } rounded-xl border text-left cursor-pointer transition-all relative flex flex-col justify-between group/seat ${
+                                    isHovered
+                                      ? 'ring-4 ring-emerald-500 scale-[1.05] z-30 shadow-2xl bg-emerald-100/95 border-emerald-600 animate-pulse'
+                                      : isDragTarget
+                                      ? 'ring-4 ring-amber-500 scale-[1.03] z-20 bg-amber-100 border-amber-600 shadow-xl'
+                                      : isSelected
+                                      ? 'ring-2 ring-emerald-600 bg-emerald-50 border-emerald-500 shadow-md scale-[1.02]'
+                                      : student
+                                      ? roleInfo?.isLeader
+                                        ? `${roleInfo.borderClass} ${roleInfo.glowBg}`
+                                        : student.gender === 'Nam'
+                                        ? 'bg-blue-50/80 border-blue-200 hover:bg-blue-100/90 hover:border-blue-300 shadow-2xs'
+                                        : 'bg-rose-50/80 border-rose-200 hover:bg-rose-100/90 hover:border-rose-300 shadow-2xs'
+                                      : 'bg-white border-dashed border-slate-300 hover:bg-emerald-50/50 hover:border-emerald-400'
+                                  }`}
+                                  title={
+                                    student
+                                      ? `Kéo em này để đổi chỗ ngồi!\nHọ và tên: ${student.name} (${student.gender || 'Học sinh'})\nChức vụ: ${student.role || 'Học sinh'}\n${seat.note ? `Ghi chú: ${seat.note}` : ''}`
+                                      : 'Ghế trống - Nhấp hoặc kéo học sinh thả vào đây'
+                                  }
+                                >
+                                  {/* Hiệu ứng nổi bật khi rê chuột ở danh sách học sinh */}
+                                  {isHovered && (
+                                    <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 z-40 bg-emerald-700 text-white text-[9px] font-black px-2 py-0.5 rounded-full shadow-lg whitespace-nowrap animate-bounce flex items-center gap-1">
+                                      <MapPin className="w-2.5 h-2.5" />
+                                      <span>VỊ TRÍ CỦA EM</span>
+                                    </div>
+                                  )}
+
+                                  {student ? (
+                                    <>
+                                      {/* Dòng 1: STT và các nút thao tác nhanh (Chức vụ, Sửa, Xóa khỏi lớp, Gỡ ghế) */}
+                                      <div className="flex items-center justify-between gap-1 leading-none">
+                                        <div className="flex items-center gap-1">
+                                          <span
+                                            className={`text-[9.5px] font-black px-1.5 py-0.5 rounded shrink-0 shadow-2xs ${
+                                              student.gender === 'Nam'
+                                                ? 'bg-blue-200 text-blue-900 border border-blue-300/60'
+                                                : 'bg-rose-200 text-rose-900 border border-rose-300/60'
+                                            }`}
+                                          >
+                                            #{student.stt}
+                                          </span>
+
+                                          {/* Huy hiệu Ban cán sự trên thẻ (nếu có) */}
+                                          {roleInfo?.isLeader && (
+                                            <span className="text-[11px] leading-none" title={roleInfo.label}>
+                                              {roleInfo.emoji}
+                                            </span>
+                                          )}
+                                        </div>
+
+                                        {/* Cụm nút thao tác */}
+                                        <div className="flex items-center gap-0.5 opacity-60 group-hover/seat:opacity-100 hover:opacity-100 transition-opacity">
+                                          {/* Nút phân công / sửa chức vụ */}
                                           <button
                                             type="button"
                                             onClick={(e) => {
                                               e.stopPropagation();
-                                              onEditStudent(student);
+                                              setRoleModalStudent(student);
                                             }}
-                                            className="text-slate-400 hover:text-indigo-600 rounded p-0.5 transition-colors"
-                                            title={`Tùy chỉnh thông tin ${student.name}`}
+                                            className="text-slate-400 hover:text-amber-600 rounded p-0.5 hover:bg-white/90 transition-colors"
+                                            title={`Gán / Đổi chức vụ cho ${student.name}`}
                                           >
-                                            <Edit3 className="w-3 h-3" />
+                                            <Crown className="w-3 h-3 text-amber-600" />
+                                          </button>
+
+                                          {onEditStudent && (
+                                            <button
+                                              type="button"
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                onEditStudent(student);
+                                              }}
+                                              className="text-slate-400 hover:text-indigo-600 rounded p-0.5 hover:bg-white/80 transition-colors"
+                                              title={`Tùy chỉnh thông tin ${student.name}`}
+                                            >
+                                              <Edit3 className="w-3 h-3" />
+                                            </button>
+                                          )}
+
+                                          {/* Nút xóa học sinh khỏi danh sách lớp */}
+                                          <button
+                                            type="button"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              setDeleteModalStudent(student);
+                                            }}
+                                            className="text-slate-400 hover:text-rose-600 rounded p-0.5 hover:bg-white/80 transition-colors"
+                                            title={`Xóa ${student.name} khỏi danh sách lớp`}
+                                          >
+                                            <Trash2 className="w-3 h-3 text-rose-500" />
+                                          </button>
+
+                                          {/* Nút gỡ học sinh khỏi ghế */}
+                                          <button
+                                            type="button"
+                                            onClick={(e) => handleRemoveFromSeat(row, col, sIdx, e)}
+                                            className="text-slate-400 hover:text-rose-700 rounded p-0.5 hover:bg-white/80 transition-colors"
+                                            title="Gỡ học sinh khỏi ghế này"
+                                          >
+                                            <X className="w-3 h-3" />
+                                          </button>
+                                        </div>
+                                      </div>
+
+                                      {/* Dòng 2: TÊN HỌC SINH HIỂN THỊ TRỌN VẸN VÀ RÕ RÀNG */}
+                                      <div className="flex-1 flex flex-col justify-center my-0.5">
+                                        <div
+                                          className={`text-slate-900 tracking-tight leading-snug break-words ${fontClass}`}
+                                          title={`Họ và tên: ${student.name} (Có thể kéo thả để đổi chỗ)`}
+                                        >
+                                          {nameInfo?.displayName}
+                                        </div>
+                                      </div>
+
+                                      {/* Dòng 3: Chức vụ Cán sự / Tổ / Ghi chú */}
+                                      <div className="flex items-center justify-between mt-0.5 pt-1 border-t border-slate-200/50 text-[9px]">
+                                        {roleInfo?.isLeader ? (
+                                          <button
+                                            type="button"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              setRoleModalStudent(student);
+                                            }}
+                                            className={`px-1.5 py-0.2 rounded text-[8.5px] font-black flex items-center gap-0.5 max-w-[95px] truncate shadow-2xs hover:scale-105 transition-transform ${roleInfo.badgeClass}`}
+                                            title={`Nhấp để đổi chức vụ của ${student.name}`}
+                                          >
+                                            <span className="truncate">{roleInfo.shortLabel}</span>
+                                          </button>
+                                        ) : (
+                                          <button
+                                            type="button"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              setRoleModalStudent(student);
+                                            }}
+                                            className="text-slate-500 hover:text-amber-700 font-medium flex items-center gap-0.5 hover:bg-amber-50 px-1 py-0.2 rounded transition-colors group/role"
+                                            title={`Bấm để gán chức vụ cho ${student.name}`}
+                                          >
+                                            <span>Tổ {student.group}</span>
+                                            <Crown className="w-2.5 h-2.5 text-slate-300 group-hover/role:text-amber-600 ml-0.5" />
                                           </button>
                                         )}
-                                        <button
-                                          onClick={(e) => handleRemoveFromSeat(row, col, sIdx, e)}
-                                          className="text-slate-400 hover:text-rose-600 rounded p-0.5"
-                                          title="Gỡ học sinh khỏi ghế"
-                                        >
-                                          <X className="w-3 h-3" />
-                                        </button>
+
+                                        {seat.note ? (
+                                          <span
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              setSeatNoteModal({ seatKey: key, currentNote: seat.note || '' });
+                                            }}
+                                            className="text-emerald-700 bg-emerald-100/90 px-1 py-0.2 rounded font-semibold truncate max-w-[65px] hover:bg-emerald-200 cursor-pointer"
+                                            title={seat.note}
+                                          >
+                                            {seat.note}
+                                          </span>
+                                        ) : (
+                                          <span className="text-[8px] text-slate-400">G{sIdx + 1}</span>
+                                        )}
                                       </div>
+                                    </>
+                                  ) : (
+                                    <div className="flex flex-col items-center justify-center h-full text-slate-400 py-1.5">
+                                      <span className="text-[10px] font-semibold text-slate-400">Trống</span>
+                                      <span className="text-[8px] text-slate-400">G{sIdx + 1}</span>
                                     </div>
-
-                                    {/* Dòng vai trò / ghi chú */}
-                                    <div className="flex items-center justify-between mt-1 text-[9px]">
-                                      {student.role && student.role !== 'Học sinh' ? (
-                                        <span className="text-amber-700 font-bold flex items-center gap-0.5 truncate">
-                                          <Award className="w-2.5 h-2.5 shrink-0" />
-                                          <span className="truncate">{student.role}</span>
-                                        </span>
-                                      ) : (
-                                        <span className="text-slate-500 font-medium">Tổ {student.group}</span>
-                                      )}
-
-                                      {seat.note && (
-                                        <span
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            setSeatNoteModal({ seatKey: key, currentNote: seat.note || '' });
-                                          }}
-                                          className="text-emerald-700 bg-emerald-100 px-1 py-0.2 rounded font-medium truncate max-w-[65px]"
-                                          title={seat.note}
-                                        >
-                                          {seat.note}
-                                        </span>
-                                      )}
-                                    </div>
-                                  </>
-                                ) : (
-                                  <div className="flex flex-col items-center justify-center h-full text-slate-400 py-1.5">
-                                    <span className="text-[10px] font-semibold text-slate-400">Trống</span>
-                                    <span className="text-[8px] text-slate-400">G{sIdx + 1}</span>
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          })}
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
 
         {/* Cửa sổ thông gió / Phía sau lớp */}
@@ -1215,8 +1724,8 @@ export const GvcnSeatingChartSection: React.FC<GvcnSeatingChartSectionProps> = (
                           const s1 = getSeat(row, col, 1);
                           const st0 = s0.studentId ? studentMap.get(s0.studentId) : null;
                           const st1 = s1.studentId ? studentMap.get(s1.studentId) : null;
-                          const st0Info = st0 ? formatSeatingStudentName(st0, students) : null;
-                          const st1Info = st1 ? formatSeatingStudentName(st1, students) : null;
+                          const st0Info = st0 ? formatSeatingStudentName(st0, students, nameDisplayMode) : null;
+                          const st1Info = st1 ? formatSeatingStudentName(st1, students, nameDisplayMode) : null;
                           const st0Font = st0Info ? getSeatingNameFontSize(st0Info.displayName) : 'text-[10px]';
                           const st1Font = st1Info ? getSeatingNameFontSize(st1Info.displayName) : 'text-[10px]';
 
@@ -1225,14 +1734,14 @@ export const GvcnSeatingChartSection: React.FC<GvcnSeatingChartSectionProps> = (
                               <div className="text-[8px] text-slate-400 font-bold mb-0.5">BÀN {row}</div>
                               <div className="grid grid-cols-2 gap-1 text-center font-medium">
                                 <div
-                                  className={`border border-slate-200 p-1 bg-white rounded truncate font-bold text-slate-800 ${st0Font}`}
-                                  title={st0 ? `Họ tên: ${st0.name}${st0Info?.isFullName ? ' (Hiển thị đầy đủ Họ và Tên do trùng tên & chữ lót)' : ''}` : undefined}
+                                  className={`border border-slate-200 p-1 bg-white rounded break-words leading-snug font-bold text-slate-900 ${st0Font}`}
+                                  title={st0 ? `Họ tên: ${st0.name}` : undefined}
                                 >
                                   {st0 ? `${st0.stt}. ${st0Info?.displayName}` : '-'}
                                 </div>
                                 <div
-                                  className={`border border-slate-200 p-1 bg-white rounded truncate font-bold text-slate-800 ${st1Font}`}
-                                  title={st1 ? `Họ tên: ${st1.name}${st1Info?.isFullName ? ' (Hiển thị đầy đủ Họ và Tên do trùng tên & chữ lót)' : ''}` : undefined}
+                                  className={`border border-slate-200 p-1 bg-white rounded break-words leading-snug font-bold text-slate-900 ${st1Font}`}
+                                  title={st1 ? `Họ tên: ${st1.name}` : undefined}
                                 >
                                   {st1 ? `${st1.stt}. ${st1Info?.displayName}` : '-'}
                                 </div>

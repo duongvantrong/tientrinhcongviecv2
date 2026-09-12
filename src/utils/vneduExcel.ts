@@ -632,12 +632,21 @@ export async function parseVnEduStudentList(file: File): Promise<GvcnStudent[]> 
 
     // Lấy tên học sinh
     let name = '';
-    if (colIndex.fullName !== -1 && row[colIndex.fullName]) {
-      name = String(row[colIndex.fullName]).trim();
-    } else if (colIndex.lastName !== -1 && colIndex.firstName !== -1) {
-      const last = String(row[colIndex.lastName] || '').trim();
-      const first = String(row[colIndex.firstName] || '').trim();
-      name = `${last} ${first}`.trim();
+    const rawFullName = colIndex.fullName !== -1 && row[colIndex.fullName] ? String(row[colIndex.fullName]).trim() : '';
+    const rawLastName = colIndex.lastName !== -1 && row[colIndex.lastName] ? String(row[colIndex.lastName]).trim() : '';
+    const rawFirstName = colIndex.firstName !== -1 && row[colIndex.firstName] ? String(row[colIndex.firstName]).trim() : '';
+
+    if (rawLastName && rawFirstName) {
+      name = `${rawLastName} ${rawFirstName}`.trim();
+    } else if (rawFullName) {
+      // Nếu có cột firstName riêng nhưng fullName chưa bao gồm firstName (ví dụ fullName là Họ đệm)
+      if (rawFirstName && !rawFullName.toLowerCase().endsWith(rawFirstName.toLowerCase())) {
+        name = `${rawFullName} ${rawFirstName}`.trim();
+      } else {
+        name = rawFullName;
+      }
+    } else if (rawFirstName) {
+      name = rawFirstName;
     } else {
       // Thử tìm ô chuỗi có độ dài hợp lý
       for (const cell of row) {
