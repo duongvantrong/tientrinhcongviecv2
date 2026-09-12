@@ -521,7 +521,7 @@ export const GvcnSeatingChartSection: React.FC<GvcnSeatingChartSectionProps> = (
     const name = s?.name || 'học sinh';
 
     // Xóa khỏi sơ đồ ghế nếu đang ngồi
-    const newSeats = { ...(seatingChart.seats || {}) };
+    const newSeats: Record<string, GvcnSeatPosition> = { ...(seatingChart.seats || {}) };
     let seatChanged = false;
     Object.entries(newSeats).forEach(([k, seat]) => {
       if (seat && seat.studentId === studentId) {
@@ -1129,6 +1129,10 @@ export const GvcnSeatingChartSection: React.FC<GvcnSeatingChartSectionProps> = (
                                     handleDropOnSeat(row, col, sIdx);
                                   }}
                                   onClick={() => handleSeatClick(row, col, sIdx)}
+                                  onMouseEnter={(e) => {
+                                    if (student) handleStudentMouseEnter(student, e);
+                                  }}
+                                  onMouseLeave={handleStudentMouseLeave}
                                   className={`${
                                     cardDensity === 'spacious' ? 'min-h-[76px] p-2' : 'min-h-[64px] p-1.5'
                                   } rounded-xl border text-left cursor-pointer transition-all relative flex flex-col justify-between group/seat ${
@@ -1403,60 +1407,372 @@ export const GvcnSeatingChartSection: React.FC<GvcnSeatingChartSectionProps> = (
         </div>
       )}
 
-      {/* DANH SÁCH HỌC SINH CHƯA XẾP CHỖ (NẾU CÓ) */}
-      {unassignedStudents.length > 0 && (
-        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 shadow-sm">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
+      {/* KHU VỰC HỌC SINH CHƯA XẾP CHỖ (HỖ TRỢ KÉO THẢ TỪ GHẾ VỀ ĐÂY) */}
+      <div
+        onDragOver={(e) => {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'move';
+        }}
+        onDrop={handleDropOnUnassignedZone}
+        className={`rounded-2xl p-4 shadow-xs transition-all ${
+          unassignedStudents.length > 0
+            ? 'bg-amber-50/90 border-2 border-dashed border-amber-300'
+            : 'bg-emerald-50/50 border border-dashed border-emerald-200 py-3'
+        }`}
+      >
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-2.5">
+          <div className="flex items-center gap-2">
+            {unassignedStudents.length > 0 ? (
               <AlertCircle className="w-4 h-4 text-amber-600" />
-              <h3 className="text-xs font-bold text-amber-900 uppercase tracking-wide">
-                Học Sinh Chưa Xếp Chỗ ({unassignedStudents.length} em):
-              </h3>
-            </div>
-            <span className="text-[11px] text-amber-700">
-              Nhấp chọn 1 em dưới đây rồi nhấp vào ghế trống bất kỳ để xếp
+            ) : (
+              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+            )}
+            <h3 className="text-xs font-bold uppercase tracking-wide text-slate-800">
+              Học Sinh Chưa Xếp Chỗ ({unassignedStudents.length} em):
+            </h3>
+            <span className="text-[10px] text-slate-500 font-medium hidden sm:inline">
+              (Có thể kéo thả học sinh từ ghế trên sơ đồ thả vào đây để gỡ khỏi ghế)
             </span>
           </div>
 
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                if (onOpenAddStudent) onOpenAddStudent();
+                else setShowQuickAddModal(true);
+              }}
+              className="px-2.5 py-1 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-[11px] font-bold flex items-center gap-1 shadow-2xs"
+            >
+              <UserPlus className="w-3 h-3" />
+              <span>+ Thêm Học Sinh</span>
+            </button>
+          </div>
+        </div>
+
+        {unassignedStudents.length > 0 ? (
           <div className="flex flex-wrap gap-2">
             {unassignedStudents.map((s) => {
               const isSelected = selectedStudentId === s.id;
+              const roleInfo = getBanCanSuInfo(s.role);
               return (
                 <div
                   key={s.id}
                   draggable
-                  onDragStart={() => handleDragStart(s.id)}
+                  onDragStart={(e) => handleDragStartFromUnassigned(s.id, e)}
+                  onMouseEnter={(e) => handleStudentMouseEnter(s, e)}
+                  onMouseLeave={handleStudentMouseLeave}
                   onClick={() => setSelectedStudentId(isSelected ? null : s.id)}
-                  className={`px-3 py-1.5 rounded-xl border text-xs font-bold cursor-pointer transition-all flex items-center gap-1.5 ${
+                  className={`px-3 py-1.5 rounded-xl border text-xs font-bold cursor-grab active:cursor-grabbing transition-all flex items-center gap-2 shadow-2xs ${
                     isSelected
-                      ? 'bg-amber-600 text-white border-amber-700 ring-2 ring-amber-400 shadow-md'
+                      ? 'bg-amber-600 text-white border-amber-700 ring-2 ring-amber-400 shadow-md scale-105'
                       : s.gender === 'Nam'
-                      ? 'bg-blue-100 text-blue-900 border-blue-300 hover:bg-blue-200'
-                      : 'bg-rose-100 text-rose-900 border-rose-300 hover:bg-rose-200'
+                      ? 'bg-blue-100/90 text-blue-900 border-blue-300 hover:bg-blue-200/90'
+                      : 'bg-rose-100/90 text-rose-900 border-rose-300 hover:bg-rose-200/90'
                   }`}
+                  title={`Kéo thả vào ghế trống để xếp chỗ\nRê chuột để xem thông tin`}
                 >
-                  <span>#{s.stt}</span>
+                  <span className="font-mono text-[10px] opacity-80">#{s.stt}</span>
                   <span>{s.name}</span>
-                  <span className="text-[10px] font-normal opacity-80">(Tổ {s.group})</span>
-                  {onEditStudent && (
+                  {roleInfo.isLeader && (
+                    <span className="text-[11px]" title={roleInfo.label}>
+                      {roleInfo.emoji}
+                    </span>
+                  )}
+                  <span className="text-[10px] font-normal opacity-75">T{s.group}</span>
+
+                  <div className="flex items-center gap-0.5 ml-1" onClick={(e) => e.stopPropagation()}>
                     <button
                       type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onEditStudent(s);
-                      }}
-                      className="opacity-60 hover:opacity-100 hover:text-indigo-950 p-0.5 ml-0.5"
-                      title={`Tùy chỉnh thông tin ${s.name}`}
+                      onClick={() => setRoleModalStudent(s)}
+                      className="text-slate-400 hover:text-amber-600 p-0.5 rounded hover:bg-white/60"
+                      title={`Phân công chức vụ cho ${s.name}`}
                     >
-                      <Edit3 className="w-3 h-3" />
+                      <Crown className="w-3 h-3 text-amber-600" />
                     </button>
-                  )}
+                    {onEditStudent && (
+                      <button
+                        type="button"
+                        onClick={() => onEditStudent(s)}
+                        className="text-slate-400 hover:text-indigo-600 p-0.5 rounded hover:bg-white/60"
+                        title={`Tùy chỉnh thông tin ${s.name}`}
+                      >
+                        <Edit3 className="w-3 h-3" />
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setDeleteModalStudent(s)}
+                      className="text-slate-400 hover:text-rose-600 p-0.5 rounded hover:bg-white/60"
+                      title={`Xóa ${s.name} khỏi danh sách lớp`}
+                    >
+                      <Trash2 className="w-3 h-3 text-rose-500" />
+                    </button>
+                  </div>
                 </div>
               );
             })}
           </div>
+        ) : (
+          <p className="text-xs text-emerald-800 font-medium">
+            Toàn bộ <strong>{students.length}</strong> học sinh trong lớp đều đã được xếp chỗ ngồi trên sơ đồ!
+          </p>
+        )}
+      </div>
+
+      {/* DANH SÁCH HỌC SINH TOÀN DIỆN KÈM VỊ TRÍ SƠ ĐỒ & KÉO THẢ */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 space-y-3.5">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+          <div className="flex items-center gap-2">
+            <Users className="w-4 h-4 text-emerald-700" />
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900">
+              Danh Sách Học Sinh & Vị Trí Ghế Ngồi ({filteredStudentList.length}/{students.length} em)
+            </h3>
+            <span className="text-[10px] text-slate-500 hidden sm:inline">
+              (Rê chuột vào bất kỳ học sinh nào để xem bảng nhỏ thông tin và vị trí ghế)
+            </span>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative w-full sm:w-56">
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                placeholder="Tìm tên, STT, chức vụ..."
+                value={studentSearchQuery}
+                onChange={(e) => setStudentSearchQuery(e.target.value)}
+                className="w-full pl-8 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-hidden"
+              />
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                if (onOpenAddStudent) onOpenAddStudent();
+                else setShowQuickAddModal(true);
+              }}
+              className="px-3 py-1.5 bg-emerald-800 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-1 shadow-2xs cursor-pointer"
+            >
+              <UserPlus className="w-3.5 h-3.5" />
+              <span>+ Thêm Học Sinh</span>
+            </button>
+          </div>
         </div>
-      )}
+
+        {/* Bộ lọc học sinh */}
+        <div className="flex flex-wrap items-center gap-1.5 text-xs">
+          <span className="text-[11px] font-bold text-slate-500 mr-1 flex items-center gap-1">
+            <Filter className="w-3 h-3 text-slate-400" />
+            Bộ lọc:
+          </span>
+
+          <button
+            type="button"
+            onClick={() => setStudentListFilter('all')}
+            className={`px-2.5 py-1 rounded-lg font-bold transition-all ${
+              studentListFilter === 'all'
+                ? 'bg-emerald-800 text-white shadow-2xs'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            }`}
+          >
+            Tất cả ({students.length})
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setStudentListFilter('unseated')}
+            className={`px-2.5 py-1 rounded-lg font-bold transition-all ${
+              studentListFilter === 'unseated'
+                ? 'bg-amber-600 text-white shadow-2xs'
+                : 'bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200'
+            }`}
+          >
+            Chưa xếp chỗ ({unassignedStudents.length})
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setStudentListFilter('seated')}
+            className={`px-2.5 py-1 rounded-lg font-bold transition-all ${
+              studentListFilter === 'seated'
+                ? 'bg-emerald-800 text-white shadow-2xs'
+                : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-200'
+            }`}
+          >
+            Đã có chỗ ({seatedStudentIds.size})
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setStudentListFilter('leaders')}
+            className={`px-2.5 py-1 rounded-lg font-bold transition-all ${
+              studentListFilter === 'leaders'
+                ? 'bg-amber-500 text-white shadow-2xs'
+                : 'bg-amber-50 text-amber-900 hover:bg-amber-100 border border-amber-200'
+            }`}
+          >
+            Ban cán sự ({banCanSuStudents.length})
+          </button>
+
+          {[1, 2, 3, 4].map((g) => (
+            <button
+              key={g}
+              type="button"
+              onClick={() => setStudentListFilter(g as 1 | 2 | 3 | 4)}
+              className={`px-2.5 py-1 rounded-lg font-bold transition-all ${
+                studentListFilter === g
+                  ? 'bg-emerald-800 text-white shadow-2xs'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              Tổ {g}
+            </button>
+          ))}
+        </div>
+
+        {/* Lưới học sinh */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5 max-h-[420px] overflow-y-auto pr-1">
+          {filteredStudentList.map((s) => {
+            const roleInfo = getBanCanSuInfo(s.role);
+            const isHovered = hoveredStudentId === s.id;
+
+            // Tìm vị trí ghế hiện tại của học sinh
+            let currentSeatInfo: { row: number; col: number; seatIdx: number; seatKey: string } | null = null;
+            const allSeats = Object.entries(seatingChart.seats || {}) as [string, GvcnSeatPosition][];
+            for (const [key, pos] of allSeats) {
+              if (pos.studentId === s.id) {
+                currentSeatInfo = {
+                  row: pos.deskRow,
+                  col: pos.deskCol,
+                  seatIdx: pos.seatIndex,
+                  seatKey: key,
+                };
+                break;
+              }
+            }
+
+            return (
+              <div
+                key={s.id}
+                draggable
+                onDragStart={(e) => handleDragStartFromList(s.id, e)}
+                onMouseEnter={(e) => handleStudentMouseEnter(s, e)}
+                onMouseLeave={handleStudentMouseLeave}
+                className={`p-2.5 rounded-xl border text-left transition-all cursor-grab active:cursor-grabbing relative flex flex-col justify-between ${
+                  isHovered
+                    ? 'ring-2 ring-emerald-500 bg-emerald-50 border-emerald-400 shadow-md scale-[1.02]'
+                    : roleInfo.isLeader
+                    ? `${roleInfo.borderClass} ${roleInfo.glowBg}`
+                    : 'bg-slate-50/70 border-slate-200 hover:bg-white hover:border-slate-300 shadow-2xs'
+                }`}
+                title={`Kéo thả học sinh vào sơ đồ để đổi hoặc xếp ghế\nRê chuột để xem bảng nhỏ`}
+              >
+                <div>
+                  <div className="flex items-center justify-between gap-1 mb-1">
+                    <div className="flex items-center gap-1.5">
+                      <span
+                        className={`text-[9.5px] font-black px-1.5 py-0.2 rounded font-mono ${
+                          s.gender === 'Nam'
+                            ? 'bg-blue-100 text-blue-900 border border-blue-200'
+                            : 'bg-rose-100 text-rose-900 border border-rose-200'
+                        }`}
+                      >
+                        #{s.stt}
+                      </span>
+                      <span className="text-xs font-bold text-slate-900 truncate max-w-[130px]">
+                        {s.name}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        type="button"
+                        onClick={() => setRoleModalStudent(s)}
+                        className="p-1 text-slate-400 hover:text-amber-600 rounded hover:bg-white transition-colors"
+                        title={`Gán / Đổi chức vụ cho ${s.name}`}
+                      >
+                        <Crown className="w-3 h-3 text-amber-600" />
+                      </button>
+                      {onEditStudent && (
+                        <button
+                          type="button"
+                          onClick={() => onEditStudent(s)}
+                          className="p-1 text-slate-400 hover:text-indigo-600 rounded hover:bg-white transition-colors"
+                          title={`Sửa thông tin ${s.name}`}
+                        >
+                          <Edit3 className="w-3 h-3" />
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setDeleteModalStudent(s)}
+                        className="p-1 text-slate-400 hover:text-rose-600 rounded hover:bg-white transition-colors"
+                        title={`Xóa ${s.name} khỏi danh sách lớp`}
+                      >
+                        <Trash2 className="w-3 h-3 text-rose-500" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Chức vụ ban cán sự */}
+                  <div className="flex items-center gap-1.5 mb-1.5">
+                    {roleInfo.isLeader ? (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setRoleModalStudent(s);
+                        }}
+                        className={`px-2 py-0.5 rounded text-[9px] font-black flex items-center gap-1 shadow-2xs ${roleInfo.badgeClass}`}
+                        title="Bấm để chỉnh sửa chức vụ"
+                      >
+                        <span>{roleInfo.emoji}</span>
+                        <span className="truncate">{roleInfo.shortLabel}</span>
+                      </button>
+                    ) : (
+                      <span className="text-[10px] text-slate-500 bg-white px-1.5 py-0.2 rounded border border-slate-200">
+                        Tổ {s.group} • Học sinh
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Vị trí trên sơ đồ lớp */}
+                <div className="pt-1.5 border-t border-slate-200/70 flex items-center justify-between text-[10px]">
+                  {currentSeatInfo ? (
+                    <div className="flex items-center gap-1 text-emerald-800 font-bold">
+                      <MapPin className="w-3 h-3 text-emerald-600 shrink-0" />
+                      <span>
+                        Dãy {currentSeatInfo.col} — Bàn {currentSeatInfo.row} (G{currentSeatInfo.seatIdx + 1})
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1 text-amber-700 font-semibold">
+                      <AlertCircle className="w-3 h-3 text-amber-500 shrink-0" />
+                      <span>Chưa xếp chỗ</span>
+                    </div>
+                  )}
+
+                  {currentSeatInfo && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        updateSeat(currentSeatInfo!.row, currentSeatInfo!.col, currentSeatInfo!.seatIdx, undefined);
+                        showToast(`Đã gỡ em ${s.name} khỏi chỗ ngồi`);
+                      }}
+                      className="text-slate-400 hover:text-rose-600 px-1 py-0.2 rounded hover:bg-rose-50 text-[9px]"
+                      title="Gỡ khỏi ghế này"
+                    >
+                      Gỡ ghế
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
 
       {/* MODAL CÀI ĐẶT BỐ TRÍ PHÒNG HỌC */}
       {showSettingsModal && (
@@ -1780,6 +2096,33 @@ export const GvcnSeatingChartSection: React.FC<GvcnSeatingChartSectionProps> = (
           </div>
         </div>
       )}
+
+      {/* MODAL PHÂN CÔNG / ĐỔI CHỨC VỤ BAN CÁN SỰ */}
+      <GvcnRoleAssignmentModal
+        isOpen={!!roleModalStudent}
+        student={roleModalStudent}
+        onClose={() => setRoleModalStudent(null)}
+        onSaveRole={handleSaveRole}
+      />
+
+      {/* MODAL XÁC NHẬN XÓA HỌC SINH KHỎI LỚP */}
+      <GvcnDeleteStudentModal
+        isOpen={!!deleteModalStudent}
+        student={deleteModalStudent}
+        onClose={() => setDeleteModalStudent(null)}
+        onConfirmDelete={handleConfirmDeleteStudent}
+      />
+
+      {/* MODAL THÊM HỌC SINH NHANH */}
+      <GvcnQuickAddStudentModal
+        isOpen={showQuickAddModal}
+        onClose={() => setShowQuickAddModal(false)}
+        onAddStudent={handleAddStudent}
+        existingStudents={students}
+      />
+
+      {/* BẢNG NHỎ THÔNG TIN & VỊ TRÍ HỌC SINH KHI RÊ CHUỘT */}
+      <GvcnStudentHoverCard data={hoveredData} />
     </div>
   );
 };

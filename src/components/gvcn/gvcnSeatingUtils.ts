@@ -2,7 +2,7 @@ import { GvcnSeatPosition } from '../../types';
 
 export interface BanCanSuInfo {
   isLeader: boolean;
-  roleType: 'monitor' | 'vice_monitor' | 'secretary' | 'group_leader' | 'group_vice' | 'treasurer' | 'red_flag' | 'other_leader' | 'member';
+  roleType: 'monitor' | 'vice_monitor' | 'secretary' | 'group_leader' | 'group_vice' | 'treasurer' | 'red_flag' | 'officer' | 'other_leader' | 'member';
   label: string;
   shortLabel: string;
   badgeClass: string;

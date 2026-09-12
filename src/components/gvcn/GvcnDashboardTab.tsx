@@ -36,6 +36,7 @@ import {
   GvcnMonthlyTask,
   GvcnLogEntry,
   GvcnSeatingChartConfig,
+  GvcnSeatPosition,
 } from '../../types';
 import {
   defaultGvcnClassInfo,
@@ -257,7 +258,7 @@ export const GvcnDashboardTab: React.FC = () => {
 
     // Remove from seating chart if assigned
     if (seatingChart.seats) {
-      const updatedSeats = { ...seatingChart.seats };
+      const updatedSeats: Record<string, GvcnSeatPosition> = { ...seatingChart.seats };
       let hasSeatChange = false;
       Object.entries(updatedSeats).forEach(([key, seatPos]) => {
         if (seatPos?.studentId === studentId) {
@@ -967,10 +968,13 @@ export const GvcnDashboardTab: React.FC = () => {
           <GvcnStudentGradesSection
             students={students}
             classInfo={classInfo}
+            seatingChart={seatingChart}
             onUpdateStudents={handleUpdateStudents}
             onSelectStudent={handleSelectStudent}
             onOpenAddStudent={() => setShowAddStudentModal(true)}
             onEditStudent={handleOpenEditStudent}
+            onDeleteStudent={handleDeleteStudent}
+            onUpdateStudent={handleUpdateStudent}
           />
         )}
 

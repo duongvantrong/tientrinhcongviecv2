@@ -14,8 +14,11 @@ import {
   Sparkles,
   BookOpen,
   UserPlus,
+  Crown,
+  Trash2,
+  MapPin,
 } from 'lucide-react';
-import { GvcnStudent, GvcnClassInfo } from '../../types';
+import { GvcnStudent, GvcnClassInfo, GvcnSeatingChartConfig, GvcnSeatPosition } from '../../types';
 import {
   parseVnEduStudentList,
   parseVnEduGradeSheet,
@@ -23,23 +26,33 @@ import {
   generateSampleVnEduGradeExcel,
 } from '../../utils/vneduExcel';
 import { GvcnEditStudentModal } from './GvcnEditStudentModal';
+import { GvcnRoleAssignmentModal } from './GvcnRoleAssignmentModal';
+import { GvcnDeleteStudentModal } from './GvcnDeleteStudentModal';
+import { GvcnStudentHoverCard, HoverStudentData } from './GvcnStudentHoverCard';
+import { getBanCanSuInfo } from './gvcnSeatingUtils';
 
 interface GvcnStudentGradesSectionProps {
   students: GvcnStudent[];
   classInfo: GvcnClassInfo;
+  seatingChart?: GvcnSeatingChartConfig;
   onUpdateStudents: (updated: GvcnStudent[]) => void;
   onSelectStudent: (student: GvcnStudent) => void;
   onOpenAddStudent?: () => void;
   onEditStudent?: (student: GvcnStudent) => void;
+  onDeleteStudent?: (studentId: string) => void;
+  onUpdateStudent?: (student: GvcnStudent) => void;
 }
 
 export const GvcnStudentGradesSection: React.FC<GvcnStudentGradesSectionProps> = ({
   students,
   classInfo,
+  seatingChart,
   onUpdateStudents,
   onSelectStudent,
   onOpenAddStudent,
   onEditStudent,
+  onDeleteStudent,
+  onUpdateStudent,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedGroup, setSelectedGroup] = useState<number | 'all'>('all');
@@ -47,6 +60,9 @@ export const GvcnStudentGradesSection: React.FC<GvcnStudentGradesSectionProps> =
   const [isProcessing, setIsProcessing] = useState(false);
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [editingStudent, setEditingStudent] = useState<GvcnStudent | null>(null);
+  const [hoveredData, setHoveredData] = useState<HoverStudentData | null>(null);
+  const [deleteModalStudent, setDeleteModalStudent] = useState<GvcnStudent | null>(null);
+  const [roleModalStudent, setRoleModalStudent] = useState<GvcnStudent | null>(null);
 
   const studentFileInputRef = useRef<HTMLInputElement>(null);
   const gradeFileInputRef = useRef<HTMLInputElement>(null);
@@ -54,6 +70,67 @@ export const GvcnStudentGradesSection: React.FC<GvcnStudentGradesSectionProps> =
   const showNotification = (type: 'success' | 'error', message: string) => {
     setNotification({ type, message });
     setTimeout(() => setNotification(null), 5000);
+  };
+
+  // Hover xem thông tin và vị trí học sinh
+  const handleStudentMouseEnter = (student: GvcnStudent, e: React.MouseEvent) => {
+    let seatInfo = null;
+    if (seatingChart?.seats) {
+      const allSeats = Object.entries(seatingChart.seats) as [string, GvcnSeatPosition][];
+      for (const [key, pos] of allSeats) {
+        if (pos.studentId === student.id) {
+          const otherIdx = pos.seatIndex === 0 ? 1 : 0;
+          const otherKey = `${pos.deskRow}-${pos.deskCol}-${otherIdx}`;
+          const otherSeat = seatingChart.seats[otherKey];
+          const neighbor = otherSeat?.studentId ? students.find((st) => st.id === otherSeat.studentId) : null;
+          seatInfo = {
+            deskRow: pos.deskRow,
+            deskCol: pos.deskCol,
+            seatIndex: pos.seatIndex,
+            side: pos.seatIndex === 0 ? ('Trái' as const) : ('Phải' as const),
+            neighborName: neighbor?.name,
+            note: pos.note,
+          };
+          break;
+        }
+      }
+    }
+
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    setHoveredData({
+      student,
+      seatInfo,
+      x: rect.left + rect.width / 2,
+      y: rect.top,
+    });
+  };
+
+  const handleStudentMouseLeave = () => {
+    setHoveredData(null);
+  };
+
+  // Lưu chức vụ ban cán sự
+  const handleSaveRole = (student: GvcnStudent, newRole: string) => {
+    const updated = { ...student, role: newRole };
+    if (onUpdateStudent) {
+      onUpdateStudent(updated);
+    } else {
+      onUpdateStudents(students.map((s) => (s.id === student.id ? updated : s)));
+    }
+    showNotification('success', `Đã cập nhật chức vụ của em ${student.name}: ${newRole || 'Học sinh'}`);
+    setRoleModalStudent(null);
+  };
+
+  // Xóa học sinh khỏi lớp
+  const handleConfirmDeleteStudent = (studentId: string) => {
+    const target = students.find((s) => s.id === studentId);
+    if (onDeleteStudent) {
+      onDeleteStudent(studentId);
+    } else {
+      onUpdateStudents(students.filter((s) => s.id !== studentId));
+    }
+    showNotification('success', `Đã xóa học sinh ${target?.name || ''} khỏi danh sách lớp`);
+    setDeleteModalStudent(null);
   };
 
   // Upload danh sách học sinh từ file Excel VnEdu
@@ -354,12 +431,15 @@ export const GvcnStudentGradesSection: React.FC<GvcnStudentGradesSectionProps> =
                   const dtb = hasGrades ? s.grades!.dtbChung! : null;
                   const hocLuc = hasGrades ? (evalData?.hocTap || (dtb! >= 8.0 ? 'Tốt' : dtb! >= 6.5 ? 'Khá' : dtb! >= 5.0 ? 'Đạt' : 'Chưa đạt')) : null;
                   const renLuyen = evalData?.renLuyen || 'Tốt';
+                  const roleInfo = getBanCanSuInfo(s.role);
 
                   return (
                     <tr
                       key={s.id}
                       onClick={() => onSelectStudent(s)}
-                      className="hover:bg-emerald-50/50 transition-colors cursor-pointer group"
+                      onMouseEnter={(e) => handleStudentMouseEnter(s, e)}
+                      onMouseLeave={handleStudentMouseLeave}
+                      className="hover:bg-emerald-50/60 transition-colors cursor-pointer group relative"
                     >
                       <td className="px-3.5 py-3 text-center font-bold text-slate-500">
                         {s.stt}
@@ -405,8 +485,30 @@ export const GvcnStudentGradesSection: React.FC<GvcnStudentGradesSectionProps> =
                         Tổ {s.group}
                       </td>
 
-                      <td className="px-3.5 py-3 text-slate-600 font-medium">
-                        {s.role || 'Học sinh'}
+                      <td className="px-3.5 py-3" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center gap-1.5">
+                          {roleInfo.isLeader ? (
+                            <button
+                              type="button"
+                              onClick={() => setRoleModalStudent(s)}
+                              className={`px-2 py-0.5 rounded-md text-[10px] font-black flex items-center gap-1 shadow-2xs transition-all hover:scale-105 cursor-pointer ${roleInfo.badgeClass}`}
+                              title="Bấm để chỉnh sửa chức vụ ban cán sự"
+                            >
+                              <span>{roleInfo.emoji}</span>
+                              <span className="whitespace-nowrap">{roleInfo.label}</span>
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => setRoleModalStudent(s)}
+                              className="text-slate-600 hover:text-emerald-700 text-xs font-medium flex items-center gap-1 group/role cursor-pointer"
+                              title="Bấm để gán chức vụ ban cán sự"
+                            >
+                              <span>{s.role || 'Học sinh'}</span>
+                              <Crown className="w-3 h-3 text-slate-300 group-hover/role:text-amber-500 transition-colors" />
+                            </button>
+                          )}
+                        </div>
                       </td>
 
                       <td className="px-3.5 py-3 text-center font-mono">
@@ -479,6 +581,15 @@ export const GvcnStudentGradesSection: React.FC<GvcnStudentGradesSectionProps> =
                           </button>
                           <button
                             type="button"
+                            onClick={() => setRoleModalStudent(s)}
+                            className="px-2 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 rounded-lg font-bold text-[11px] flex items-center gap-1 transition-all shadow-2xs border border-amber-200 cursor-pointer"
+                            title="Gán hoặc chỉnh sửa chức vụ ban cán sự"
+                          >
+                            <Crown className="w-3.5 h-3.5 text-amber-600" />
+                            <span className="hidden md:inline">Chức vụ</span>
+                          </button>
+                          <button
+                            type="button"
                             onClick={() => {
                               if (onEditStudent) {
                                 onEditStudent(s);
@@ -491,6 +602,15 @@ export const GvcnStudentGradesSection: React.FC<GvcnStudentGradesSectionProps> =
                           >
                             <Edit3 className="w-3.5 h-3.5 text-indigo-600" />
                             <span>Sửa</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setDeleteModalStudent(s)}
+                            className="px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-lg font-bold text-[11px] flex items-center gap-1 transition-all shadow-2xs border border-rose-200 cursor-pointer"
+                            title="Xóa học sinh khỏi danh sách lớp"
+                          >
+                            <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                            <span className="hidden md:inline">Xóa</span>
                           </button>
                         </div>
                       </td>
@@ -527,6 +647,25 @@ export const GvcnStudentGradesSection: React.FC<GvcnStudentGradesSectionProps> =
         }}
         classInfo={classInfo}
       />
+
+      {/* Modal Phân công / Đổi chức vụ ban cán sự */}
+      <GvcnRoleAssignmentModal
+        isOpen={!!roleModalStudent}
+        student={roleModalStudent}
+        onClose={() => setRoleModalStudent(null)}
+        onSaveRole={handleSaveRole}
+      />
+
+      {/* Modal Xác nhận xóa học sinh */}
+      <GvcnDeleteStudentModal
+        isOpen={!!deleteModalStudent}
+        student={deleteModalStudent}
+        onClose={() => setDeleteModalStudent(null)}
+        onConfirmDelete={handleConfirmDeleteStudent}
+      />
+
+      {/* Bảng nhỏ thông tin & vị trí học sinh khi rê chuột */}
+      <GvcnStudentHoverCard data={hoveredData} />
     </div>
   );
 };
