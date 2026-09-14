@@ -46,24 +46,27 @@ export const PHU_THO_GRADE_PLANS: Record<6 | 7 | 8 | 9, GvcnMonthlyTask[]> = {
       monthName: 'Tháng 9/2026',
       theme: 'Chủ điểm: Khởi đầu mới tại trường THCS & An toàn mùa lũ sông Tiền (Xã Phú Thọ)',
       tasks: [
-        { id: 'k6-t9-1', title: 'Giúp học sinh làm quen với môi trường học tập THCS nhiều thầy cô bộ môn', targetWeek: 1, completed: true, note: 'Tổ chức giới thiệu giáo viên bộ môn & hướng dẫn phương pháp học' },
-        { id: 'k6-t9-2', title: 'Tuyên truyền đặc biệt phòng chống đuối nước mùa nước nổi tại xã Phú Thọ (ký cam kết 100% mặc áo phao qua sông, đò)', targetWeek: 1, completed: true, note: 'Địa bàn Phú Thọ sông rạch chằng chịt, ưu tiên hàng đầu' },
+        { id: 'k6-t9-1', title: 'Giúp học sinh làm quen với môi trường học tập THCS nhiều thầy cô bộ môn', targetWeek: 1, completed: true, note: 'Tổ chức giới thiệu giáo viên bộ môn & hướng dẫn phương pháp học theo CT GDPT 2018' },
+        { id: 'k6-t9-2', title: 'Tuyên truyền đặc biệt phòng chống đuối nước mùa nước nổi tại xã Phú Thọ (ký cam kết 100% mặc áo phao qua sông, đò)', targetWeek: 1, completed: true, note: 'Địa bàn Phú Thọ sông rạch chằng chịt, ưu tiên an toàn hàng đầu theo chỉ đạo Sở GD&ĐT Đồng Tháp' },
         { id: 'k6-t9-3', title: 'Bầu Ban cán sự lớp, Ban cán sự bộ môn và 4 Tổ trưởng', targetWeek: 1, completed: true, note: 'Rèn tính tự quản cho học sinh mới vào lớp 6' },
-        { id: 'k6-t9-4', title: 'Rà soát hoàn cảnh gia đình học sinh hộ nghèo, cận nghèo, gia đình vùng ngập lũ xã Phú Thọ', targetWeek: 2, completed: true, note: 'Lập danh sách học sinh cần hỗ trợ sách vở, xe đạp, phao cứu sinh' },
-        { id: 'k6-t9-5', title: 'Tổ chức Đại hội Chi đội khối 6 nhiệm kỳ 2026 - 2027', targetWeek: 2, completed: true, note: 'Bầu BCH Chi đội mới' },
-        { id: 'k6-t9-6', title: 'Họp Cha mẹ học sinh đầu năm: Hướng dẫn phụ huynh đồng hành cùng con chuyển cấp THCS', targetWeek: 3, completed: false, note: 'Nhấn mạnh đổi mới đánh giá theo Thông tư 22/BGDĐT' },
-        { id: 'k6-t9-7', title: 'Khảo sát chất lượng đầu năm môn Toán, Tiếng Việt (chuyển sang Ngữ văn) và Tiếng Anh', targetWeek: 4, completed: false, note: 'Nắm chắc năng lực từng em để có kế hoạch kèm cặp' },
+        { id: 'k6-t9-4', title: 'Triển khai tiêu chí xây dựng "Trường học thân thiện, học sinh tích cực" và "Trường học hạnh phúc" Đất Sen Hồng', targetWeek: 2, completed: true, note: 'Tạo môi trường học đường an toàn, yêu thương, không bạo lực' },
+        { id: 'k6-t9-5', title: 'Rà soát hoàn cảnh gia đình học sinh hộ nghèo, cận nghèo, gia đình vùng ngập lũ xã Phú Thọ', targetWeek: 2, completed: true, note: 'Lập danh sách học sinh nhận học bổng và hỗ trợ sách vở, áo phao' },
+        { id: 'k6-t9-6', title: 'Tổ chức Đại hội Chi đội khối 6 nhiệm kỳ 2026 - 2027', targetWeek: 2, completed: true, note: 'Bầu BCH Chi đội mới' },
+        { id: 'k6-t9-7', title: 'Họp Cha mẹ học sinh đầu năm: Hướng dẫn phụ huynh đồng hành cùng con chuyển cấp THCS', targetWeek: 3, completed: false, note: 'Nhấn mạnh đổi mới đánh giá theo Thông tư 22/BGDĐT' },
+        { id: 'k6-t9-8', title: 'Khảo sát chất lượng đầu năm môn Toán, Tiếng Việt (chuyển sang Ngữ văn) và Tiếng Anh', targetWeek: 4, completed: false, note: 'Nắm chắc năng lực từng em để có kế hoạch kèm cặp' },
       ],
     },
     {
       month: 10,
       monthName: 'Tháng 10/2026',
-      theme: 'Chủ điểm: Chăm ngoan học giỏi — Em yêu Vườn Quốc gia Tràm Chim Đất Sen Hồng',
+      theme: 'Chủ điểm: Chăm ngoan học giỏi — Em yêu Vườn Quốc gia Tràm Chim Đất Sen Hồng & Phòng chống tệ nạn học đường',
       tasks: [
         { id: 'k6-t10-1', title: 'Phát động phong trào thi đua "Hoa điểm 10 tặng Mẹ và Cô" chào mừng 20/10', targetWeek: 6, completed: false, note: 'Rèn thói quen chuẩn bị bài chu đáo trước khi đến lớp' },
-        { id: 'k6-t10-2', title: 'Sinh hoạt chuyên đề: Tìm hiểu hệ sinh thái Vườn Quốc gia Tràm Chim (Tam Nông) và bảo vệ loài Sếu đầu đỏ', targetWeek: 7, completed: false, note: 'Giáo dục lòng tự hào và tình yêu thiên nhiên quê hương Phú Thọ - Tam Nông' },
-        { id: 'k6-t10-3', title: 'Hướng dẫn kỹ năng đọc sách tại thư viện và phương pháp ghi chép vở khoa học môn Toán & KHTN 6', targetWeek: 8, completed: false },
-        { id: 'k6-t10-4', title: 'Tập dượt ôn tập và hướng dẫn kỹ năng làm bài kiểm tra Giữa kỳ I cho học sinh lớp 6', targetWeek: 9, completed: false, note: 'Giảm áp lực tâm lý bài thi trắc nghiệm kết hợp tự luận' },
+        { id: 'k6-t10-2', title: 'Sinh hoạt chuyên đề: Tìm hiểu hệ sinh thái Vườn Quốc gia Tràm Chim (Tam Nông) và bảo vệ loài Sếu đầu đỏ', targetWeek: 7, completed: false, note: 'Giáo dục lòng tự hào và tình yêu thiên nhiên quê hương Phú Thọ - Tam Nông - Đồng Tháp' },
+        { id: 'k6-t10-3', title: 'Tuyên truyền phòng chống bạo lực học đường và ngăn chặn triệt để thuốc lá điện tử trong học sinh', targetWeek: 7, completed: false, note: 'Quán triệt theo văn bản chỉ đạo mới của Sở GD&ĐT Đồng Tháp' },
+        { id: 'k6-t10-4', title: 'Phát động phong trào làm sản phẩm STEM mini từ vật liệu tái chế và sen Đồng Tháp', targetWeek: 8, completed: false, note: 'Khơi gợi niềm đam mê nghiên cứu khoa học từ lớp 6' },
+        { id: 'k6-t10-5', title: 'Hướng dẫn kỹ năng đọc sách tại thư viện và phương pháp ghi chép vở khoa học môn Toán & KHTN 6', targetWeek: 8, completed: false },
+        { id: 'k6-t10-6', title: 'Tập dượt ôn tập và hướng dẫn kỹ năng làm bài kiểm tra Giữa kỳ I cho học sinh lớp 6', targetWeek: 9, completed: false, note: 'Giảm áp lực tâm lý bài thi trắc nghiệm kết hợp tự luận' },
       ],
     },
     {
@@ -73,8 +76,9 @@ export const PHU_THO_GRADE_PLANS: Record<6 | 7 | 8 | 9, GvcnMonthlyTask[]> = {
       tasks: [
         { id: 'k6-t11-1', title: 'Phát động thi đua "Tuần học tốt — Bông hoa điểm 10" chào mừng ngày Nhà giáo VN 20/11', targetWeek: 10, completed: false },
         { id: 'k6-t11-2', title: 'Hướng dẫn Chi đội làm báo tường / bưu thiếp tri ân thầy cô giáo dạy các bộ môn lớp 6', targetWeek: 11, completed: false },
-        { id: 'k6-t11-3', title: 'Lồng ghép sinh hoạt truyền thống nhân Lễ giỗ Cụ Phó bảng Nguyễn Sinh Sắc (biểu tượng hiếu học Đồng Tháp)', targetWeek: 11, completed: false, note: 'Giáo dục đạo làm người và tinh thần hiếu học xứ Sen' },
-        { id: 'k6-t11-4', title: 'Sơ kết đợt thi đua 20/11, khen thưởng các cá nhân và tổ tích cực trong học tập', targetWeek: 12, completed: false },
+        { id: 'k6-t11-3', title: 'Sinh hoạt truyền thống nhân Lễ giỗ Cụ Phó bảng Nguyễn Sinh Sắc (biểu tượng hiếu học Đồng Tháp)', targetWeek: 11, completed: false, note: 'Giáo dục đạo làm người và tinh thần vượt khó học tập xứ Sen Hồng' },
+        { id: 'k6-t11-4', title: 'Hoàn thành kiểm tra Giữa học kỳ I theo đúng tiến độ phân phối chương trình', targetWeek: 11, completed: false },
+        { id: 'k6-t11-5', title: 'Sơ kết đợt thi đua 20/11, khen thưởng các cá nhân và tổ tích cực trong học tập', targetWeek: 12, completed: false },
       ],
     },
     {
@@ -84,8 +88,9 @@ export const PHU_THO_GRADE_PLANS: Record<6 | 7 | 8 | 9, GvcnMonthlyTask[]> = {
       tasks: [
         { id: 'k6-t12-1', title: 'Sinh hoạt truyền thống kỷ niệm 22/12: Giao lưu hoặc nghe kể chuyện truyền thống anh hùng xã Phú Thọ', targetWeek: 15, completed: false },
         { id: 'k6-t12-2', title: 'Thành lập các nhóm "Đôi bạn cùng tiến" ôn tập môn Toán và KHTN 6', targetWeek: 16, completed: false },
-        { id: 'k6-t12-3', title: 'Đôn đốc học sinh tham gia nghiêm túc kỳ thi Cuối học kỳ I môn tập trung', targetWeek: 18, completed: false },
-        { id: 'k6-t12-4', title: 'Đánh giá, xếp loại kết quả rèn luyện và học tập HK1 theo Thông tư 22/BGDĐT', targetWeek: 18, completed: false },
+        { id: 'k6-t12-3', title: 'Quán triệt quy chế thi cử nghiêm túc, trung thực trong kiểm tra Cuối kỳ I', targetWeek: 17, completed: false },
+        { id: 'k6-t12-4', title: 'Đôn đốc học sinh tham gia nghiêm túc kỳ thi Cuối học kỳ I môn tập trung', targetWeek: 18, completed: false },
+        { id: 'k6-t12-5', title: 'Đánh giá, xếp loại kết quả rèn luyện và học tập HK1 theo Thông tư 22/BGDĐT', targetWeek: 18, completed: false },
       ],
     },
     {
@@ -94,8 +99,8 @@ export const PHU_THO_GRADE_PLANS: Record<6 | 7 | 8 | 9, GvcnMonthlyTask[]> = {
       theme: 'Chủ điểm: Sơ kết Học kỳ I & Tết Đất Sen Hồng an toàn, sum vầy',
       tasks: [
         { id: 'k6-t1-1', title: 'Tổ chức Hội nghị Cha mẹ học sinh Sơ kết Học kỳ I lớp 6', targetWeek: 19, completed: false, note: 'Trao đổi kỹ sự thích ứng của từng học sinh chuyển cấp' },
-        { id: 'k6-t1-2', title: 'Tuyên truyền nghiêm cấm pháo nổ, an toàn giao thông đường bộ và đường thủy dịp Tết tại xã Phú Thọ', targetWeek: 20, completed: false },
-        { id: 'k6-t1-3', title: 'Vận động ủng hộ phong trào "Cây mùa xuân — Áo mới cho bạn nghèo" trong chi đội', targetWeek: 20, completed: false },
+        { id: 'k6-t1-2', title: 'Vận động ủng hộ phong trào "Cây mùa xuân — Áo mới cho bạn nghèo / Nụ cười Đất Sen" trong chi đội', targetWeek: 20, completed: false },
+        { id: 'k6-t1-3', title: 'Tuyên truyền nghiêm cấm pháo nổ, an toàn giao thông đường bộ và đường thủy dịp Tết tại xã Phú Thọ', targetWeek: 20, completed: false },
         { id: 'k6-t1-4', title: 'Ký cam kết nghỉ Tết Nguyên đán an toàn, văn minh cho 100% học sinh', targetWeek: 20, completed: false },
       ],
     },
@@ -104,29 +109,31 @@ export const PHU_THO_GRADE_PLANS: Record<6 | 7 | 8 | 9, GvcnMonthlyTask[]> = {
       monthName: 'Tháng 2/2027',
       theme: 'Chủ điểm: Mừng Đảng quang vinh — Khởi động Học kỳ II & Tết trồng cây',
       tasks: [
-        { id: 'k6-t2-1', title: 'Nắm chắc sĩ số học sinh lớp 6 ngay sau Tết, ngăn chặn tình trạng học sinh theo cha mẹ đi làm ăn xa bỏ học', targetWeek: 21, completed: false },
+        { id: 'k6-t2-1', title: 'Nắm chắc sĩ số học sinh lớp 6 ngay sau Tết, ngăn chặn tình trạng học sinh theo cha mẹ đi làm ăn xa bỏ học', targetWeek: 21, completed: false, note: 'Phối hợp Trưởng ấp xã Phú Thọ vận động ngay nếu có nguy cơ vắng học' },
         { id: 'k6-t2-2', title: 'Ổn định nề nếp truy bài 15 phút đầu giờ, kiểm tra sách vở, đồ dùng học tập HK2', targetWeek: 21, completed: false },
         { id: 'k6-t2-3', title: 'Tham gia phong trào "Tết trồng cây đời đời nhớ ơn Bác" và làm vệ sinh khuôn viên trường, đường quê Phú Thọ', targetWeek: 22, completed: false },
+        { id: 'k6-t2-4', title: 'Phát động phong trào đọc sách và chuyển đổi số trong học tập môn Toán & Ngữ văn', targetWeek: 23, completed: false },
       ],
     },
     {
       month: 3,
       monthName: 'Tháng 3/2027',
-      theme: 'Chủ điểm: Tiến bước lên Đoàn & Ngày hội Thiếu nhi vui khỏe',
+      theme: 'Chủ điểm: Tiến bước lên Đoàn & Ngày hội Thiếu nhi vui khỏe — Phòng chống đuối nước mùa khô',
       tasks: [
-        { id: 'k6-t3-1', title: 'Tập luyện tham gia Hội thao dân gian miền Tây chào mừng 26/3 (kéo co, nhảy bao bố, trò chơi tập thể)', targetWeek: 24, completed: false },
-        { id: 'k6-t3-2', title: 'Tuyên truyền phổ cập bơi lội an toàn và phòng chống tai nạn thương tích mùa khô cho học sinh lớp 6', targetWeek: 25, completed: false },
+        { id: 'k6-t3-1', title: 'Tập luyện tham gia Ngày hội "Thiếu nhi vui khỏe — Tiến bước lên Đoàn" chào mừng 26/3', targetWeek: 24, completed: false },
+        { id: 'k6-t3-2', title: 'Tuyên truyền phổ cập bơi lội an toàn và phòng chống tai nạn thương tích mùa khô cho học sinh lớp 6', targetWeek: 25, completed: false, note: 'Đăng ký danh sách học sinh chưa biết bơi để học bơi phòng đuối nước' },
         { id: 'k6-t3-3', title: 'Ôn tập và kiểm tra Giữa học kỳ II các môn học', targetWeek: 26, completed: false },
+        { id: 'k6-t3-4', title: 'Sinh hoạt chuyên đề: Sử dụng mạng xã hội thông minh và phòng tránh lừa đảo trên không gian mạng', targetWeek: 27, completed: false },
       ],
     },
     {
       month: 4,
       monthName: 'Tháng 4/2027',
-      theme: 'Chủ điểm: Non sông liền một dải — Tăng tốc hoàn thành chương trình lớp 6',
+      theme: 'Chủ điểm: Hào khí Đất Sen Hồng — Tăng tốc hoàn thành chương trình lớp 6',
       tasks: [
-        { id: 'k6-t4-1', title: 'Sinh hoạt truyền thống kỷ niệm 30/4 Ngày Giải phóng miền Nam & 1/5 Ngày Quốc tế Lao động', targetWeek: 28, completed: false },
+        { id: 'k6-t4-1', title: 'Sinh hoạt truyền thống kỷ niệm Giỗ Tổ Hùng Vương, 30/4 Ngày Giải phóng miền Nam & 1/5 Ngày Quốc tế Lao động', targetWeek: 28, completed: false, note: 'Tìm hiểu di tích lịch sử Gò Tháp và truyền thống cách mạng tỉnh Đồng Tháp' },
         { id: 'k6-t4-2', title: 'Rà soát các chỉ tiêu học tập, tăng cường phụ đạo cho các em học sinh có nguy cơ chưa Đạt môn Toán / KHTN 6', targetWeek: 29, completed: false },
-        { id: 'k6-t4-3', title: 'Chuẩn bị kế hoạch kiểm tra Cuối kỳ II theo lịch chỉ đạo của Phòng GD&ĐT Tam Nông', targetWeek: 30, completed: false },
+        { id: 'k6-t4-3', title: 'Chuẩn bị kế hoạch kiểm tra Cuối kỳ II theo lịch chỉ đạo của Phòng/Sở GD&ĐT Đồng Tháp', targetWeek: 30, completed: false },
       ],
     },
     {
@@ -135,12 +142,24 @@ export const PHU_THO_GRADE_PLANS: Record<6 | 7 | 8 | 9, GvcnMonthlyTask[]> = {
       theme: 'Chủ điểm: Bác Hồ kính yêu — Tổng kết năm học & An toàn tuyệt đối mùa hè sông nước',
       tasks: [
         { id: 'k6-t5-1', title: 'Đôn đốc học sinh thi nghiêm túc kỳ kiểm tra Cuối học kỳ II', targetWeek: 33, completed: false },
-        { id: 'k6-t5-2', title: 'Đánh giá, xếp loại kết quả Rèn luyện và Học tập cả năm theo Thông tư 22/BGDĐT', targetWeek: 34, completed: false },
+        { id: 'k6-t5-2', title: 'Đánh giá, xếp loại kết quả Rèn luyện và Học tập cả năm theo Thông tư 22/BGDĐT; Hoàn thiện học bạ điện tử', targetWeek: 34, completed: false },
         { id: 'k6-t5-3', title: 'Họp Cha mẹ học sinh Tổng kết năm học; Thông báo kết quả học tập và rèn luyện', targetWeek: 35, completed: false },
-        { id: 'k6-t5-4', title: 'Bàn giao 100% học sinh về sinh hoạt hè tại Đoàn thanh niên xã Phú Thọ; Tuyệt đối nhắc nhở phòng tránh đuối nước sông ngòi hè', targetWeek: 35, completed: false },
+        { id: 'k6-t5-4', title: 'Lễ Tổng kết năm học và Bàn giao 100% học sinh về sinh hoạt hè tại Đoàn thanh niên xã Phú Thọ', targetWeek: 35, completed: false },
+        { id: 'k6-t5-5', title: 'Ký cam kết 100% gia đình quản lý con em phòng tránh tai nạn đuối nước mùa hè sông nước miền Tây', targetWeek: 35, completed: false, note: 'Nhắc nhở không tắm sông, kênh rạch tự phát khi không có người lớn' },
+      ],
+    },
+    {
+      month: 6,
+      monthName: 'Tháng 6/2027',
+      theme: 'Chủ điểm: Mùa hè tình nguyện Đất Sen Hồng — Rèn luyện kỹ năng sống & An toàn sông nước',
+      tasks: [
+        { id: 'k6-t6-1', title: 'Phối hợp Đoàn xã Phú Thọ tổ chức các lớp phổ cập bơi miễn phí cho học sinh', targetWeek: 36, completed: false, note: 'Xóa mù bơi cho học sinh vùng sông nước' },
+        { id: 'k6-t6-2', title: 'Lập danh sách và thông báo kế hoạch rèn luyện thêm trong hè cho học sinh chưa đạt chuẩn (nếu có)', targetWeek: 37, completed: false },
+        { id: 'k6-t6-3', title: 'Khuyến khích học sinh đọc sách hè và tham gia các hoạt động thiện nguyện tại ấp', targetWeek: 38, completed: false },
       ],
     },
   ],
+
 
   // ==========================================
   // KHỐI 7 THCS (Tâm lý dậy thì 12-13 tuổi, tình bạn học đường, an toàn mạng xã hội)
@@ -243,6 +262,17 @@ export const PHU_THO_GRADE_PLANS: Record<6 | 7 | 8 | 9, GvcnMonthlyTask[]> = {
         { id: 'k7-t5-2', title: 'Đánh giá xếp loại kết quả Rèn luyện và Học tập cả năm theo Thông tư 22/BGDĐT', targetWeek: 34, completed: false },
         { id: 'k7-t5-3', title: 'Họp Cha mẹ học sinh Tổng kết năm học 2026 - 2027', targetWeek: 35, completed: false },
         { id: 'k7-t5-4', title: 'Bàn giao học sinh về sinh hoạt hè tại Đoàn thanh niên xã Phú Thọ; Dặn dò an toàn bơi lội mùa hè sông Tiền', targetWeek: 35, completed: false },
+        { id: 'k7-t5-5', title: 'Ký cam kết phòng chống đuối nước mùa hè sông nước giữa nhà trường - gia đình - xã', targetWeek: 35, completed: false },
+      ],
+    },
+    {
+      month: 6,
+      monthName: 'Tháng 6/2027',
+      theme: 'Chủ điểm: Sinh hoạt hè an toàn tại địa phương & Ôn tập củng cố hè',
+      tasks: [
+        { id: 'k7-t6-1', title: 'Phối hợp Đoàn xã Phú Thọ tổ chức sinh hoạt hè, văn hóa thể thao lành mạnh cho thiếu nhi', targetWeek: 36, completed: false },
+        { id: 'k7-t6-2', title: 'Đôn đốc học sinh tham gia các lớp bơi phòng chống đuối nước do huyện Tam Nông phát động', targetWeek: 37, completed: false },
+        { id: 'k7-t6-3', title: 'Thông báo lịch và kế hoạch bồi dưỡng trong hè cho học sinh cần rèn luyện thêm (nếu có)', targetWeek: 38, completed: false },
       ],
     },
   ],
@@ -350,6 +380,15 @@ export const PHU_THO_GRADE_PLANS: Record<6 | 7 | 8 | 9, GvcnMonthlyTask[]> = {
         { id: 'k8-t5-4', title: 'Bàn giao học sinh về sinh hoạt hè tại Đoàn xã Phú Thọ; Tuyên truyền phòng chống đuối nước sông rạch hè', targetWeek: 35, completed: false },
       ],
     },
+    {
+      month: 6,
+      monthName: 'Tháng 6/2027',
+      theme: 'Chủ điểm: Nghỉ hè an toàn & Khởi động lộ trình tự học chuẩn bị Khối 9 then chốt',
+      tasks: [
+        { id: 'k8-t6-1', title: 'Hướng dẫn tài liệu tự đọc, củng cố kiến thức hè môn Toán, Văn, Tiếng Anh chuẩn bị bước vào lớp 9', targetWeek: 36, completed: false },
+        { id: 'k8-t6-2', title: 'Phối hợp gia đình và Đoàn xã Phú Thọ quản lý học sinh hè, phổ cập bơi lội an toàn', targetWeek: 37, completed: false },
+      ],
+    },
   ],
 
   // ==========================================
@@ -438,9 +477,10 @@ export const PHU_THO_GRADE_PLANS: Record<6 | 7 | 8 | 9, GvcnMonthlyTask[]> = {
       monthName: 'Tháng 4/2027',
       theme: 'Chủ điểm: Hoàn thiện hồ sơ tuyển sinh vào lớp 10 & Tư vấn chọn nguyện vọng trường THPT',
       tasks: [
-        { id: 'k9-t4-1', title: 'Tư vấn hướng nghiệp, phân luồng chọn trường THPT vừa sức tại huyện Tam Nông / Đồng Tháp', targetWeek: 28, completed: false },
-        { id: 'k9-t4-2', title: 'Hướng dẫn học sinh và phụ huynh làm hồ sơ đăng ký dự thi tuyển sinh vào lớp 10', targetWeek: 29, completed: false },
-        { id: 'k9-t4-3', title: 'Rà soát 100% hồ sơ học sinh (Giấy khai sinh, học bạ, điểm ưu tiên, hộ khẩu) chính xác tuyệt đối', targetWeek: 30, completed: false },
+        { id: 'k9-t4-1', title: 'Tư vấn hướng nghiệp, phân luồng chọn trường THPT vừa sức tại Tam Nông / Đồng Tháp (THPT Tràm Chim, THPT Tam Nông, trường Chuyên hoặc học nghề)', targetWeek: 28, completed: false },
+        { id: 'k9-t4-2', title: 'Hướng dẫn học sinh và phụ huynh làm hồ sơ đăng ký dự thi tuyển sinh vào lớp 10 trực tuyến & trực tiếp', targetWeek: 29, completed: false },
+        { id: 'k9-t4-3', title: 'Tổ chức thi thử tuyển sinh lớp 10 đợt 2 theo ma trận và cấu trúc đề của Sở GD&ĐT Đồng Tháp', targetWeek: 29, completed: false },
+        { id: 'k9-t4-4', title: 'Rà soát 100% hồ sơ học sinh (Giấy khai sinh, học bạ, điểm ưu tiên, hộ khẩu) chính xác tuyệt đối', targetWeek: 30, completed: false },
       ],
     },
     {
@@ -449,10 +489,21 @@ export const PHU_THO_GRADE_PLANS: Record<6 | 7 | 8 | 9, GvcnMonthlyTask[]> = {
       theme: 'Chủ điểm: Về đích vinh quang — Xét tốt nghiệp THCS & Lễ Tri ân — Trưởng thành ra trường',
       tasks: [
         { id: 'k9-t5-1', title: 'Đôn đốc học sinh thi Cuối học kỳ II nghiêm túc, đạt kết quả cao nhất', targetWeek: 33, completed: false },
-        { id: 'k9-t5-2', title: 'Đánh giá xếp loại cả năm Thông tư 22/BGDĐT; Hoàn tất hồ sơ xét công nhận tốt nghiệp THCS', targetWeek: 34, completed: false },
+        { id: 'k9-t5-2', title: 'Đánh giá xếp loại cả năm Thông tư 22/BGDĐT; Hoàn tất hồ sơ xét công nhận tốt nghiệp THCS đạt 100%', targetWeek: 34, completed: false },
         { id: 'k9-t5-3', title: 'Tổ chức Lễ Tri ân và Trưởng thành cho học sinh lớp 9 (niên khóa 2023 - 2027) ấm áp nghĩa tình', targetWeek: 35, completed: false },
         { id: 'k9-t5-4', title: 'Họp Cha mẹ học sinh Tổng kết năm học; Động viên tinh thần học sinh tự tin bước vào kỳ thi tuyển sinh 10', targetWeek: 35, completed: false },
         { id: 'k9-t5-5', title: 'Bàn giao học sinh về sinh hoạt hè tại Đoàn thanh niên xã Phú Thọ; Tuyệt đối chú ý phòng tránh đuối nước hè', targetWeek: 35, completed: false },
+      ],
+    },
+    {
+      month: 6,
+      monthName: 'Tháng 6/2027',
+      theme: 'Chủ điểm: Tiếp sức mùa thi vào lớp 10 THPT tỉnh Đồng Tháp & Hướng dẫn phân luồng',
+      tasks: [
+        { id: 'k9-t6-1', title: 'Đồng hành, nhắc nhở lịch thi và tiếp sức tinh thần cho học sinh trong kỳ thi tuyển sinh vào lớp 10 THPT tỉnh Đồng Tháp', targetWeek: 36, completed: false, note: 'Hỗ trợ thí sinh về thẻ dự thi, tâm lý, đồ dùng phòng thi' },
+        { id: 'k9-t6-2', title: 'Hướng dẫn học sinh và phụ huynh tra cứu điểm thi, hướng dẫn thủ tục nộp đơn phúc khảo (nếu có)', targetWeek: 37, completed: false },
+        { id: 'k9-t6-3', title: 'Hướng dẫn làm thủ tục nộp hồ sơ nhập học nguyện vọng 1 hoặc xét tuyển nguyện vọng 2 / trường nghề tại Tam Nông', targetWeek: 38, completed: false },
+        { id: 'k9-t6-4', title: 'Phối hợp Đoàn xã Phú Thọ quản lý học sinh trong dịp hè, tuyên truyền an toàn sông nước', targetWeek: 38, completed: false },
       ],
     },
   ],
@@ -730,7 +781,35 @@ export function getPhuThoMonthlySuggestions(grade: 6 | 7 | 8 | 9, month: number)
         rationale: 'Báo cáo công khai kết quả giáo dục toàn diện của lớp và tri ân sự đồng hành của phụ huynh.',
       },
     ],
+    6: [
+      {
+        id: `sug-6-local-1`,
+        title: grade === 9 ? 'Tiếp sức mùa thi: Động viên, nhắc nhở học sinh tham gia kỳ thi tuyển sinh vào lớp 10 THPT tỉnh Đồng Tháp' : 'Phối hợp Đoàn xã Phú Thọ tổ chức các hoạt động hè và lớp dạy bơi an toàn cho học sinh',
+        category: 'local',
+        categoryLabel: 'Địa phương Xã Phú Thọ',
+        targetWeek: 36,
+        rationale: grade === 9 ? 'Kỳ thi tuyển sinh lớp 10 là mốc quan trọng nhất của học sinh THCS, GVCN giữ liên lạc thông suốt hỗ trợ các em.' : 'Đảm bảo an toàn sông nước cho thiếu nhi trong dịp hè.',
+        localHighlight: grade === 9 ? 'Tuyển sinh 10 Sở GD&ĐT Đồng Tháp' : 'Phổ cập bơi lội an toàn',
+      },
+      {
+        id: `sug-6-study-1`,
+        title: grade === 9 ? 'Hướng dẫn tra cứu điểm thi tuyển sinh 10, hướng dẫn làm đơn phúc khảo và nộp hồ sơ nhập học' : 'Thông báo kế hoạch và phân công ôn tập củng cố hè cho học sinh có kết quả rèn luyện trong hè',
+        category: 'study',
+        categoryLabel: 'Chuyên môn & Học tập',
+        targetWeek: 37,
+        rationale: grade === 9 ? 'Giúp học sinh và phụ huynh nắm rõ lịch xét tuyển bổ sung, nhập học nguyện vọng hoặc đăng ký trường nghề.' : 'Nâng cao chất lượng giáo dục, củng cố kiến thức.',
+      },
+      {
+        id: `sug-6-family-1`,
+        title: 'Phối hợp phụ huynh học sinh quản lý việc sử dụng mạng xã hội, phòng chống đuối nước và tai nạn thương tích hè',
+        category: 'family',
+        categoryLabel: 'Phối hợp Phụ huynh',
+        targetWeek: 38,
+        rationale: 'Kỳ nghỉ hè cần sự giám sát chặt chẽ từ gia đình để tránh tai nạn thương tâm vùng sông nước.',
+      },
+    ],
   };
 
   return baseSuggestions[month] || baseSuggestions[9];
 }
+

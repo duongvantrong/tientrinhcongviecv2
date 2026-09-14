@@ -179,6 +179,8 @@ export const GvcnSeatingChartSection: React.FC<GvcnSeatingChartSectionProps> = (
 
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showPrintModal, setShowPrintModal] = useState(false);
+  const [printOrientation, setPrintOrientation] = useState<'landscape' | 'portrait'>('landscape');
+  const [printIncludeHeaderFooter, setPrintIncludeHeaderFooter] = useState<boolean>(false);
   const [seatNoteModal, setSeatNoteModal] = useState<{ seatKey: string; currentNote: string } | null>(null);
   const [notification, setNotification] = useState<string | null>(null);
   const [nameDisplayMode, setNameDisplayMode] = useState<SeatingNameMode>(() => {
@@ -757,6 +759,98 @@ export const GvcnSeatingChartSection: React.FC<GvcnSeatingChartSectionProps> = (
       setSelectedStudentId(null);
       showToast('Đã xóa toàn bộ sơ đồ chỗ ngồi');
     }
+  };
+
+  // 5. In sơ đồ lớp học độc lập - Đảm bảo chính xác 1 trang A4 rõ nét
+  const handleDirectPrintSinglePage = () => {
+    const isLandscape = printOrientation === 'landscape';
+    const existingIframe = document.getElementById('seating-print-iframe');
+    if (existingIframe) {
+      existingIframe.remove();
+    }
+
+    const iframe = document.createElement('iframe');
+    iframe.id = 'seating-print-iframe';
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = '0';
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentWindow?.document;
+    if (!doc) {
+      window.print();
+      return;
+    }
+
+    const printElement = document.getElementById('printable-seating-chart');
+    if (!printElement) {
+      window.print();
+      return;
+    }
+
+    doc.open();
+    doc.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8">
+          <title>Sơ đồ chỗ ngồi lớp ${classInfo.className || ''}</title>
+          <style>
+            @page {
+              size: A4 ${isLandscape ? 'landscape' : 'portrait'};
+              margin: 4mm 5mm;
+            }
+            * {
+              box-sizing: border-box;
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+            }
+            html, body {
+              width: 100%;
+              height: 100%;
+              margin: 0;
+              padding: 0;
+              background: #ffffff;
+              color: #000000;
+              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            }
+            .print-page-box {
+              width: 100%;
+              height: 98vh;
+              max-height: 98vh;
+              display: flex;
+              flex-direction: column;
+              justify-content: space-between;
+              page-break-after: avoid;
+              break-after: avoid;
+              page-break-inside: avoid;
+              break-inside: avoid;
+              overflow: hidden;
+              box-sizing: border-box;
+            }
+          </style>
+          <script src="https://cdn.tailwindcss.com"></script>
+        </head>
+        <body class="p-0 m-0">
+          <div class="print-page-box">
+            ${printElement.innerHTML}
+          </div>
+        </body>
+      </html>
+    `);
+    doc.close();
+
+    setTimeout(() => {
+      try {
+        iframe.contentWindow?.focus();
+        iframe.contentWindow?.print();
+      } catch {
+        window.print();
+      }
+    }, 350);
   };
 
   return (
@@ -1950,77 +2044,202 @@ export const GvcnSeatingChartSection: React.FC<GvcnSeatingChartSectionProps> = (
 
       {/* MODAL IN SƠ ĐỒ LỚP HỌC (PRINT PREVIEW A4) */}
       {showPrintModal && (
-        <div className="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-xs flex flex-col p-4 overflow-y-auto">
-          <div className="max-w-5xl w-full mx-auto bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden my-auto">
-            {/* Header modal */}
-            <div className="bg-slate-900 text-white px-6 py-3.5 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Printer className="w-5 h-5 text-emerald-400" />
-                <span className="text-sm font-bold">Bản In Sơ Đồ Chỗ Ngồi Lớp Học (Chuẩn Trang A4)</span>
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex flex-col p-2 sm:p-4 overflow-y-auto">
+          <div className="max-w-5xl w-full mx-auto bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden my-auto border border-slate-700">
+            {/* Header modal & Print toolbar */}
+            <div className="bg-slate-900 text-white px-5 py-3.5 flex flex-wrap items-center justify-between gap-3 border-b border-slate-800">
+              <div className="flex items-center gap-2.5">
+                <div className="p-1.5 bg-emerald-500/20 text-emerald-400 rounded-lg border border-emerald-500/30">
+                  <Printer className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                    <span>In Sơ Đồ Chỗ Ngồi Lớp Học</span>
+                    <span className="px-2 py-0.5 text-[10px] bg-emerald-600/30 text-emerald-300 rounded-full border border-emerald-500/30 font-semibold">
+                      Chuẩn A4 • 1 Trang duy nhất
+                    </span>
+                  </h3>
+                  <p className="text-[11px] text-slate-400">
+                    Chỉ in cấu trúc sơ đồ lớp, cửa vào, bàn giáo viên, bảng và vị trí học sinh rõ nét
+                  </p>
+                </div>
               </div>
 
-              <div className="flex items-center gap-3">
+              {/* Toolbar controls */}
+              <div className="flex flex-wrap items-center gap-2">
+                {/* Orientation toggle */}
+                <div className="flex items-center bg-slate-800 p-1 rounded-xl border border-slate-700 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setPrintOrientation('landscape')}
+                    className={`px-2.5 py-1 rounded-lg font-bold transition-all ${
+                      printOrientation === 'landscape'
+                        ? 'bg-emerald-600 text-white shadow-xs'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                    title="Khổ ngang: Rộng rãi nhất cho 4 dãy bàn"
+                  >
+                    Khổ Ngang (A4)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPrintOrientation('portrait')}
+                    className={`px-2.5 py-1 rounded-lg font-bold transition-all ${
+                      printOrientation === 'portrait'
+                        ? 'bg-emerald-600 text-white shadow-xs'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                    title="Khổ dọc"
+                  >
+                    Khổ Dọc (A4)
+                  </button>
+                </div>
+
+                {/* Scope toggle: Classroom only vs Full official */}
                 <button
-                  onClick={() => window.print()}
-                  className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm"
+                  type="button"
+                  onClick={() => setPrintIncludeHeaderFooter(!printIncludeHeaderFooter)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${
+                    !printIncludeHeaderFooter
+                      ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                      : 'bg-slate-800 text-slate-300 border-slate-700 hover:text-white'
+                  }`}
+                  title="Bấm để chuyển đổi giữa chỉ in sơ đồ lớp tối giản hoặc kèm quốc hiệu/chữ ký"
+                >
+                  {!printIncludeHeaderFooter ? 'Chỉ sơ đồ lớp (Khuyên dùng)' : 'Kèm Quốc hiệu & Chữ ký'}
+                </button>
+
+                {/* Print button */}
+                <button
+                  type="button"
+                  onClick={handleDirectPrintSinglePage}
+                  className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black flex items-center gap-1.5 shadow-md active:scale-95 transition-all"
+                  title="In trực tiếp 1 bản duy nhất ra máy in hoặc lưu PDF"
                 >
                   <Printer className="w-4 h-4" />
-                  <span>In Ngay</span>
+                  <span>In Đúng 1 Bản</span>
                 </button>
+
+                {/* Close modal */}
                 <button
+                  type="button"
                   onClick={() => setShowPrintModal(false)}
-                  className="text-slate-400 hover:text-white"
+                  className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"
                 >
-                  <X className="w-6 h-6" />
+                  <X className="w-5 h-5" />
                 </button>
               </div>
             </div>
 
-            {/* Khung trang A4 để in */}
-            <div className="p-8 bg-white text-slate-900 print:p-0 print:m-0" id="printable-seating-chart">
-              {/* Quốc hiệu & Tên trường */}
-              <div className="flex justify-between items-start pb-4 border-b-2 border-slate-900 mb-4 text-center">
-                <div>
-                  <div className="text-xs uppercase font-bold tracking-wider">
-                    {classInfo.schoolName || 'TRƯỜNG THCS VÀ THPT PHÚ THÀNH'}
+            {/* Khung trang A4 để in (Clean Single-Page Printable Layout) */}
+            <div
+              className={`p-6 bg-white text-slate-950 print:p-0 print:m-0 overflow-auto flex flex-col justify-between ${
+                printOrientation === 'landscape' ? 'aspect-[1.414/1] min-h-[580px]' : 'aspect-[1/1.414] min-h-[720px]'
+              }`}
+              id="printable-seating-chart"
+            >
+              {/* PHẦN TIÊU ĐỀ BẢN IN */}
+              {printIncludeHeaderFooter ? (
+                /* Quốc hiệu & Tên trường đầy đủ */
+                <div className="flex justify-between items-start pb-2 border-b-2 border-slate-900 mb-2.5 text-center">
+                  <div className="text-left">
+                    <div className="text-[10px] uppercase font-bold tracking-wider text-slate-700">
+                      {classInfo.schoolName || 'TRƯỜNG THCS VÀ THPT PHÚ THÀNH'}
+                    </div>
+                    <div className="text-xs font-black text-slate-900 uppercase">
+                      LỚP: {classInfo.className || '9A1'} — NĂM HỌC {classInfo.academicYear || '2026 - 2027'}
+                    </div>
+                    <div className="text-[9px] text-slate-600 font-semibold">
+                      Phòng: {classInfo.room || 'Phòng 4 — Dãy cũ, Tầng trệt'}
+                    </div>
                   </div>
-                  <div className="text-sm font-black text-emerald-900 uppercase">
-                    LỚP: {classInfo.className || '9A1'} — NĂM HỌC {classInfo.academicYear || '2026 - 2027'}
+
+                  <div className="text-center">
+                    <h1 className="text-sm font-black uppercase tracking-wider text-slate-900">
+                      SƠ ĐỒ BỐ TRÍ CHỖ NGỒI HỌC SINH
+                    </h1>
+                    <p className="text-[9px] text-slate-600 italic">
+                      GVCN: <strong>{classInfo.homeroomTeacher || 'Dương Văn Trong'}</strong> | Sĩ số:{' '}
+                      <strong>{students.length}</strong> học sinh (Nam: {classInfo.maleCount || 20}, Nữ:{' '}
+                      {classInfo.femaleCount || 22})
+                    </p>
                   </div>
-                  <div className="text-xs text-slate-600 font-semibold">
-                    Phòng học: {classInfo.room || 'Dãy cũ, Tầng trệt, Phòng 4'}
+
+                  <div className="text-right">
+                    <div className="text-[9px] font-bold uppercase">CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</div>
+                    <div className="text-[8.5px] font-semibold text-slate-700">Độc lập - Tự do - Hạnh phúc</div>
+                    <div className="text-[8px] text-slate-500 italic mt-0.5">
+                      Ban hành: {seatingChart.updatedAt || new Date().toLocaleDateString('vi-VN')}
+                    </div>
                   </div>
                 </div>
+              ) : (
+                /* Tiêu đề tối giản: Tối ưu 100% diện tích cho sơ đồ lớp */
+                <div className="flex justify-between items-center pb-2 border-b-2 border-slate-900 mb-2 px-1">
+                  <div className="text-left">
+                    <span className="text-xs uppercase font-extrabold text-slate-700 mr-2">
+                      {classInfo.schoolName || 'TRƯỜNG THCS VÀ THPT PHÚ THÀNH'}
+                    </span>
+                    <span className="text-xs font-bold text-slate-500">
+                      • Phòng: {classInfo.room || 'Phòng 4'}
+                    </span>
+                  </div>
 
-                <div>
-                  <div className="text-xs font-bold uppercase">CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</div>
-                  <div className="text-xs font-semibold text-slate-700">Độc lập - Tự do - Hạnh phúc</div>
-                  <div className="text-xs text-slate-500 italic mt-0.5">
-                    Ngày cập nhật: {seatingChart.updatedAt || new Date().toLocaleDateString('vi-VN')}
+                  <div className="text-center">
+                    <h1 className="text-sm font-black uppercase tracking-widest text-slate-950">
+                      SƠ ĐỒ CHỖ NGỒI LỚP {classInfo.className || '9A1'}
+                    </h1>
+                    <div className="text-[9px] text-slate-600 font-semibold">
+                      Năm học {classInfo.academicYear || '2026 - 2027'}
+                    </div>
+                  </div>
+
+                  <div className="text-right text-[10px] text-slate-700 font-bold">
+                    GVCN: <span className="text-slate-950 font-black">{classInfo.homeroomTeacher || 'Dương Văn Trong'}</span> | Sĩ số:{' '}
+                    <span className="font-black">{students.length}</span> HS
                   </div>
                 </div>
+              )}
+
+              {/* KHU VỰC PHÍA TRƯỚC PHÒNG HỌC: CỬA VÀO, BÀN GIÁO VIÊN VÀ BẢNG LỚP HỌC */}
+              <div className="mb-2.5 bg-slate-100 border-2 border-slate-900 rounded-lg p-1.5 flex items-center justify-between gap-2 shadow-2xs">
+                {/* 1. Cửa vào bên Trái (nếu cấu hình doorPosition === 'left') */}
+                {seatingChart.doorPosition === 'left' && (
+                  <div className="flex-shrink-0 px-3 py-1 bg-amber-100 border-2 border-amber-800 rounded text-[9.5px] font-black text-amber-950 flex items-center gap-1.5 uppercase">
+                    <span>🚪 CỬA RA VÀO CHÍNH (VÀO ➡️)</span>
+                  </div>
+                )}
+
+                {/* 2. Bàn Giáo Viên bên Trái (nếu cấu hình teacherDeskPosition === 'left') */}
+                {seatingChart.teacherDeskPosition === 'left' && (
+                  <div className="flex-shrink-0 px-3 py-1 bg-slate-200 border-2 border-slate-800 rounded text-[9.5px] font-black text-slate-900 flex items-center gap-1.5">
+                    <span>🪑 BÀN GIÁO VIÊN: {classInfo.homeroomTeacher || 'Dương Văn Trong'}</span>
+                  </div>
+                )}
+
+                {/* 3. BẢNG PHẤN & BỤC GIẢNG CHÍNH GIỮA */}
+                <div className="flex-1 bg-emerald-900 border-2 border-emerald-950 rounded py-1 px-4 text-center text-emerald-100 font-black text-[10.5px] uppercase tracking-wider shadow-2xs">
+                  [ BỤC GIẢNG & BẢNG LỚP HỌC ]
+                </div>
+
+                {/* 4. Bàn Giáo Viên bên Phải (nếu cấu hình teacherDeskPosition === 'right') */}
+                {seatingChart.teacherDeskPosition === 'right' && (
+                  <div className="flex-shrink-0 px-3 py-1 bg-slate-200 border-2 border-slate-800 rounded text-[9.5px] font-black text-slate-900 flex items-center gap-1.5">
+                    <span>🪑 BÀN GIÁO VIÊN: {classInfo.homeroomTeacher || 'Dương Văn Trong'}</span>
+                  </div>
+                )}
+
+                {/* 5. Cửa vào bên Phải (nếu cấu hình doorPosition === 'right' hoặc mặc định) */}
+                {seatingChart.doorPosition !== 'left' && (
+                  <div className="flex-shrink-0 px-3 py-1 bg-amber-100 border-2 border-amber-800 rounded text-[9.5px] font-black text-amber-950 flex items-center gap-1.5 uppercase">
+                    <span>(⬅️ VÀO) 🚪 CỬA RA VÀO CHÍNH</span>
+                  </div>
+                )}
               </div>
 
-              {/* Tựa đề */}
-              <div className="text-center my-4">
-                <h1 className="text-lg font-black uppercase tracking-wide text-slate-900">
-                  SƠ ĐỒ BỐ TRÍ CHỖ NGỒI HỌC SINH
-                </h1>
-                <p className="text-xs text-slate-600 italic">
-                  Giáo viên chủ nhiệm: <strong>{classInfo.homeroomTeacher || 'Dương Văn Trong'}</strong> | Sĩ số:{' '}
-                  <strong>{students.length}</strong> học sinh (Nam: {classInfo.maleCount || 20}, Nữ:{' '}
-                  {classInfo.femaleCount || 22})
-                </p>
-              </div>
-
-              {/* Mô phỏng bục giảng trên giấy */}
-              <div className="border-2 border-slate-800 bg-slate-100 text-center py-2 px-4 font-bold text-xs uppercase mb-4 rounded">
-                [ BỤC GIẢNG & BẢNG LỚP HỌC ]
-              </div>
-
-              {/* Bảng sơ đồ in */}
+              {/* BẢNG LƯỚI CÁC DÃY BÀN VÀ VỊ TRÍ HỌC SINH */}
               <div
-                className="grid gap-3"
+                className="grid gap-2.5 flex-1 mb-2"
                 style={{
                   gridTemplateColumns: `repeat(${seatingChart.columns || 4}, minmax(0, 1fr))`,
                 }}
@@ -2028,12 +2247,17 @@ export const GvcnSeatingChartSection: React.FC<GvcnSeatingChartSectionProps> = (
                 {Array.from({ length: seatingChart.columns || 4 }).map((_, colIdx) => {
                   const col = colIdx + 1;
                   return (
-                    <div key={col} className="border border-slate-400 p-2 rounded">
-                      <div className="text-center font-bold text-xs bg-slate-200 py-1 mb-2 uppercase">
-                        DÃY {col} (TỔ {col})
+                    <div
+                      key={col}
+                      className="border-2 border-slate-900 rounded-lg p-1.5 bg-white flex flex-col justify-between"
+                    >
+                      {/* Tiêu đề Dãy / Tổ */}
+                      <div className="text-center font-black text-[10px] bg-slate-200 border border-slate-800 py-0.5 mb-1.5 uppercase tracking-wide rounded">
+                        DÃY {col} • TỔ {col}
                       </div>
 
-                      <div className="space-y-2">
+                      {/* Các bàn trong dãy */}
+                      <div className="space-y-1.5 flex-1 flex flex-col justify-between">
                         {Array.from({ length: seatingChart.rows || 6 }).map((_, rowIdx) => {
                           const row = rowIdx + 1;
                           const s0 = getSeat(row, col, 0);
@@ -2042,24 +2266,58 @@ export const GvcnSeatingChartSection: React.FC<GvcnSeatingChartSectionProps> = (
                           const st1 = s1.studentId ? studentMap.get(s1.studentId) : null;
                           const st0Info = st0 ? formatSeatingStudentName(st0, students, nameDisplayMode) : null;
                           const st1Info = st1 ? formatSeatingStudentName(st1, students, nameDisplayMode) : null;
-                          const st0Font = st0Info ? getSeatingNameFontSize(st0Info.displayName) : 'text-[10px]';
-                          const st1Font = st1Info ? getSeatingNameFontSize(st1Info.displayName) : 'text-[10px]';
 
                           return (
-                            <div key={row} className="border border-slate-300 p-1 rounded bg-slate-50 text-[10px]">
-                              <div className="text-[8px] text-slate-400 font-bold mb-0.5">BÀN {row}</div>
+                            <div
+                              key={row}
+                              className="border border-slate-500 p-1 rounded bg-slate-50 text-[9px] flex flex-col justify-center"
+                            >
+                              <div className="text-[7.5px] text-slate-500 font-bold uppercase text-center mb-0.5">
+                                BÀN {row}
+                              </div>
                               <div className="grid grid-cols-2 gap-1 text-center font-medium">
+                                {/* Vị trí 1 (Trái) */}
                                 <div
-                                  className={`border border-slate-200 p-1 bg-white rounded break-words leading-snug font-bold text-slate-900 ${st0Font}`}
-                                  title={st0 ? `Họ tên: ${st0.name}` : undefined}
+                                  className="border border-slate-400 p-1 bg-white rounded flex flex-col items-center justify-center min-h-[26px]"
+                                  title={st0 ? `Họ tên: ${st0.name} (${st0.gender})` : 'Ghế trống'}
                                 >
-                                  {st0 ? `${st0.stt}. ${st0Info?.displayName}` : '-'}
+                                  {st0 ? (
+                                    <>
+                                      <div className="font-black text-slate-950 text-[9.5px] leading-tight break-words w-full">
+                                        {st0.stt}. {st0Info?.displayName}
+                                      </div>
+                                      <div className="text-[7.5px] text-slate-500 font-bold flex items-center justify-center gap-0.5 mt-0.5">
+                                        <span>({st0.gender === 'Nam' ? 'N' : 'Nữ'})</span>
+                                        {st0.roleInClass && (
+                                          <span className="text-emerald-800 font-black">[{st0.roleInClass}]</span>
+                                        )}
+                                      </div>
+                                    </>
+                                  ) : (
+                                    <span className="text-slate-400 italic text-[8.5px]">- Trống -</span>
+                                  )}
                                 </div>
+
+                                {/* Vị trí 2 (Phải) */}
                                 <div
-                                  className={`border border-slate-200 p-1 bg-white rounded break-words leading-snug font-bold text-slate-900 ${st1Font}`}
-                                  title={st1 ? `Họ tên: ${st1.name}` : undefined}
+                                  className="border border-slate-400 p-1 bg-white rounded flex flex-col items-center justify-center min-h-[26px]"
+                                  title={st1 ? `Họ tên: ${st1.name} (${st1.gender})` : 'Ghế trống'}
                                 >
-                                  {st1 ? `${st1.stt}. ${st1Info?.displayName}` : '-'}
+                                  {st1 ? (
+                                    <>
+                                      <div className="font-black text-slate-950 text-[9.5px] leading-tight break-words w-full">
+                                        {st1.stt}. {st1Info?.displayName}
+                                      </div>
+                                      <div className="text-[7.5px] text-slate-500 font-bold flex items-center justify-center gap-0.5 mt-0.5">
+                                        <span>({st1.gender === 'Nam' ? 'N' : 'Nữ'})</span>
+                                        {st1.roleInClass && (
+                                          <span className="text-emerald-800 font-black">[{st1.roleInClass}]</span>
+                                        )}
+                                      </div>
+                                    </>
+                                  ) : (
+                                    <span className="text-slate-400 italic text-[8.5px]">- Trống -</span>
+                                  )}
                                 </div>
                               </div>
                             </div>
@@ -2071,27 +2329,34 @@ export const GvcnSeatingChartSection: React.FC<GvcnSeatingChartSectionProps> = (
                 })}
               </div>
 
-              {/* Chữ ký cuối trang */}
-              <div className="flex justify-between items-start mt-8 pt-4 text-xs font-semibold text-center">
-                <div>
-                  <div>LỚP TRƯỞNG</div>
-                  <div className="text-[10px] text-slate-400 italic mb-12">(Ký và ghi rõ họ tên)</div>
-                  <div className="font-bold">
-                    {classInfo.boardOfLeaders?.monitor?.split('(')[0]?.trim() || 'Trần Minh Anh'}
-                  </div>
-                </div>
-
-                <div>
-                  <div className="italic text-[10px] text-slate-500 mb-1">
-                    Phú Thành, ngày ..... tháng ..... năm 2026
-                  </div>
-                  <div className="font-bold uppercase">GIÁO VIÊN CHỦ NHIỆM</div>
-                  <div className="text-[10px] text-slate-400 italic mb-12">(Ký và ghi rõ họ tên)</div>
-                  <div className="font-black text-sm text-slate-900">
-                    {classInfo.homeroomTeacher || 'Dương Văn Trong'}
-                  </div>
-                </div>
+              {/* LỐI ĐI HÀNH LANG & HƯỚNG CUỐI LỚP */}
+              <div className="text-center text-[8px] font-bold text-slate-400 uppercase py-0.5 border-t border-dashed border-slate-300">
+                [ HÀNG GHẾ CUỐI LỚP • HÀNH LANG LỚP HỌC ]
               </div>
+
+              {/* CHÂN TRANG & CHỮ KÝ (NẾU BẬT CHẾ ĐỘ CHÍNH THỨC) */}
+              {printIncludeHeaderFooter && (
+                <div className="flex justify-between items-start pt-2 border-t border-slate-900 text-[9.5px] font-semibold text-center mt-1">
+                  <div>
+                    <div className="font-bold">LỚP TRƯỞNG</div>
+                    <div className="text-[8px] text-slate-400 italic mb-7">(Ký và ghi rõ họ tên)</div>
+                    <div className="font-bold text-slate-900">
+                      {classInfo.boardOfLeaders?.monitor?.split('(')[0]?.trim() || 'Trần Minh Anh'}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="italic text-[8.5px] text-slate-600 mb-0.5">
+                      Phú Thành, ngày ..... tháng ..... năm 2026
+                    </div>
+                    <div className="font-bold uppercase text-slate-900">GIÁO VIÊN CHỦ NHIỆM</div>
+                    <div className="text-[8px] text-slate-400 italic mb-7">(Ký và ghi rõ họ tên)</div>
+                    <div className="font-black text-xs text-slate-950">
+                      {classInfo.homeroomTeacher || 'Dương Văn Trong'}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
