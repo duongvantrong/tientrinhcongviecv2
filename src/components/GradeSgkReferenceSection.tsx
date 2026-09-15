@@ -1,24 +1,22 @@
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import {
   BookMarked,
   Link,
-  Upload,
   Sparkles,
   ChevronDown,
   ChevronUp,
   ExternalLink,
   CheckCircle2,
-  FileSpreadsheet,
   AlertCircle,
   Eye,
   TableProperties,
+  Globe,
+  BookOpen,
 } from 'lucide-react';
 import { SgkBook, PpctDataset } from '../types';
 import {
   recognizeSgkFromUrl,
-  parseSgkFile,
   OFFICIAL_SGK_LINKS,
-  generateSampleSgkExcel,
 } from '../utils/sgkParser';
 import {
   DEFAULT_SGK_TOAN_6_TAP_1,
@@ -55,9 +53,6 @@ export const GradeSgkReferenceSection: React.FC<GradeSgkReferenceSectionProps> =
   const [urlInputText, setUrlInputText] = useState<string>('');
   const [urlLoading, setUrlLoading] = useState<boolean>(false);
   const [urlStatusMsg, setUrlStatusMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-
-  const fileInputRef1 = useRef<HTMLInputElement>(null);
-  const fileInputRef2 = useRef<HTMLInputElement>(null);
 
   // Lọc duy nhất SGK của khối đang được chọn (không hiển thị tất cả các khối khác)
   const gradeBooks = sgkBooks.filter((b) => (b.grade || '9') === selectedGrade);
@@ -145,79 +140,40 @@ export const GradeSgkReferenceSection: React.FC<GradeSgkReferenceSectionProps> =
     }
   };
 
-  // Xử lý tải file SGK (.pdf, .docx, .xlsx)
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, volume: 1 | 2) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    try {
-      setUrlLoading(true);
-      const parsedBook = await parseSgkFile(file, selectedGrade);
-      parsedBook.grade = selectedGrade;
-      parsedBook.volume = volume;
-
-      const updated = [
-        ...sgkBooks.filter(
-          (b) => !((b.grade || '9') === selectedGrade && b.volume === volume)
-        ),
-        parsedBook,
-      ];
-      onUpdateSgkBooks(updated);
-
-      if (activePpct && onLinkSgkToPpct) {
-        if (volume === 1) onLinkSgkToPpct(activePpct.id, parsedBook.id, undefined);
-        else onLinkSgkToPpct(activePpct.id, undefined, parsedBook.id);
-      }
-
-      setUrlStatusMsg({
-        type: 'success',
-        text: `Đã tải lên thành công SGK Khối ${selectedGrade} Tập ${volume}: ${parsedBook.title} (${parsedBook.chapters.length} chương).`,
-      });
-      setTimeout(() => setUrlStatusMsg(null), 4000);
-    } catch (err: any) {
-      setUrlStatusMsg({
-        type: 'error',
-        text: 'Lỗi nạp file SGK: ' + (err?.message || 'Định dạng file chưa chuẩn'),
-      });
-    } finally {
-      setUrlLoading(false);
-      e.target.value = '';
-    }
-  };
-
   return (
     <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
       {/* Header */}
       <div className="p-4 sm:p-5 bg-gradient-to-r from-teal-900 via-emerald-900 to-slate-900 text-white flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-400/30 flex items-center justify-center text-emerald-300 shadow-inner shrink-0">
-            <BookMarked className="w-5 h-5" />
+            <Globe className="w-5 h-5" />
           </div>
           <div>
             <div className="flex items-center gap-2">
               <h3 className="text-base font-bold text-white">
-                Sách Giáo Khoa (SGK) Khối {selectedGrade}
+                Cơ sở SGK Online Khối {selectedGrade}
               </h3>
               <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-200 border border-emerald-400/30">
-                Nguồn tham khảo Ma trận & Đề
+                Tự động tham chiếu theo cấu trúc
               </span>
             </div>
             <p className="text-xs text-emerald-100/90 mt-0.5">
-              Hệ thống chỉ hiển thị và đối chiếu nội dung của <strong>Khối {selectedGrade}</strong>. SGK tải lên hoặc nhập link sẽ cung cấp chính xác các bài học, chương và YCCĐ để lập ma trận & sinh câu hỏi đề kiểm tra.
+              Hệ thống tự động căn cứ theo nội dung SGK online theo cấu trúc chuẩn GDPT 2018 và PPCT đã nạp để sinh ma trận và đề kiểm tra mà không cần tải lên file SGK thủ công.
             </p>
           </div>
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
-          <button
-            type="button"
-            onClick={() => generateSampleSgkExcel(1, selectedGrade)}
+          <a
+            href="https://hanhtrangso.nxbgd.vn"
+            target="_blank"
+            rel="noopener noreferrer"
             className="flex items-center gap-1.5 px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-lg text-xs font-semibold border border-white/20 transition-colors"
-            title="Tải file mẫu Excel chuẩn để nhập SGK nếu muốn tùy biến"
+            title="Mở thư viện sách giáo khoa trực tuyến Hành Trang Số (NXB Giáo Dục)"
           >
-            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-300" />
-            <span>Mẫu Excel</span>
-          </button>
+            <ExternalLink className="w-3.5 h-3.5 text-emerald-300" />
+            <span>Hành Trang Số Online</span>
+          </a>
         </div>
       </div>
 
@@ -373,38 +329,33 @@ export const GradeSgkReferenceSection: React.FC<GradeSgkReferenceSectionProps> =
                     setInputUrlVol(1);
                     setUrlInputText('');
                   }}
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded-lg text-xs font-medium transition-colors"
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded-lg text-xs font-medium transition-colors cursor-pointer"
                 >
                   <Link className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>Nhập Link (Drive / Web)</span>
+                  <span>Nhập Link Online</span>
                 </button>
-
-                <button
-                  type="button"
-                  onClick={() => fileInputRef1.current?.click()}
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded-lg text-xs font-medium transition-colors"
-                >
-                  <Upload className="w-3.5 h-3.5 text-indigo-600" />
-                  <span>Tải file (.docx, .pdf, .xlsx)</span>
-                </button>
-
-                <input
-                  type="file"
-                  ref={fileInputRef1}
-                  onChange={(e) => handleFileUpload(e, 1)}
-                  accept=".xlsx,.xls,.docx,.doc,.pdf,.json"
-                  className="hidden"
-                />
 
                 <button
                   type="button"
                   onClick={() => handleApplyDefaultStandard(1, 'kntt')}
-                  className="flex items-center gap-1 px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-200 rounded-lg text-xs font-semibold transition-colors"
-                  title="Dùng ngay bộ chuẩn Kết nối tri thức đã tích hợp sẵn đầy đủ YCCĐ"
+                  className="flex items-center gap-1 px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-200 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
+                  title="Dùng cấu trúc SGK Kết nối tri thức"
                 >
                   <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>Dùng SGK Mẫu (KNTT)</span>
+                  <span>KNTT Chuẩn</span>
                 </button>
+
+                {selectedGrade === '9' && (
+                  <button
+                    type="button"
+                    onClick={() => handleApplyDefaultStandard(1, 'canhdieu')}
+                    className="flex items-center gap-1 px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-900 border border-blue-200 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
+                    title="Dùng cấu trúc SGK Cánh Diều"
+                  >
+                    <BookOpen className="w-3.5 h-3.5 text-blue-600" />
+                    <span>Cánh Diều Chuẩn</span>
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -542,38 +493,33 @@ export const GradeSgkReferenceSection: React.FC<GradeSgkReferenceSectionProps> =
                     setInputUrlVol(2);
                     setUrlInputText('');
                   }}
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded-lg text-xs font-medium transition-colors"
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded-lg text-xs font-medium transition-colors cursor-pointer"
                 >
                   <Link className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>Nhập Link (Drive / Web)</span>
+                  <span>Nhập Link Online</span>
                 </button>
-
-                <button
-                  type="button"
-                  onClick={() => fileInputRef2.current?.click()}
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded-lg text-xs font-medium transition-colors"
-                >
-                  <Upload className="w-3.5 h-3.5 text-indigo-600" />
-                  <span>Tải file (.docx, .pdf, .xlsx)</span>
-                </button>
-
-                <input
-                  type="file"
-                  ref={fileInputRef2}
-                  onChange={(e) => handleFileUpload(e, 2)}
-                  accept=".xlsx,.xls,.docx,.doc,.pdf,.json"
-                  className="hidden"
-                />
 
                 <button
                   type="button"
                   onClick={() => handleApplyDefaultStandard(2, 'kntt')}
-                  className="flex items-center gap-1 px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-200 rounded-lg text-xs font-semibold transition-colors"
-                  title="Dùng ngay bộ chuẩn Kết nối tri thức đã tích hợp sẵn đầy đủ YCCĐ"
+                  className="flex items-center gap-1 px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-200 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
+                  title="Dùng cấu trúc SGK Kết nối tri thức"
                 >
                   <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>Dùng SGK Mẫu (KNTT)</span>
+                  <span>KNTT Chuẩn</span>
                 </button>
+
+                {selectedGrade === '9' && (
+                  <button
+                    type="button"
+                    onClick={() => handleApplyDefaultStandard(2, 'canhdieu')}
+                    className="flex items-center gap-1 px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-900 border border-blue-200 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
+                    title="Dùng cấu trúc SGK Cánh Diều"
+                  >
+                    <BookOpen className="w-3.5 h-3.5 text-blue-600" />
+                    <span>Cánh Diều Chuẩn</span>
+                  </button>
+                )}
               </div>
             )}
           </div>

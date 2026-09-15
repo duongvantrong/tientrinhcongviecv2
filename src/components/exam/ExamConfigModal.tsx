@@ -40,6 +40,7 @@ export const ExamConfigModal: React.FC<ExamConfigModalProps> = ({
   if (!isOpen) return null;
 
   const [examLevel, setExamLevel] = useState<ExamLevelType>(initialConfig.examLevel);
+  const [selectedGrade, setSelectedGrade] = useState<string>(initialConfig.grade || ppctDataset.grade || '9');
   const [isCustomMode, setIsCustomMode] = useState<boolean>(initialConfig.mode === 'custom');
   const [format, setFormat] = useState<ExamStructureFormat>(initialConfig.format || 'moet_2025_new');
   
@@ -196,6 +197,7 @@ export const ExamConfigModal: React.FC<ExamConfigModalProps> = ({
   const handleSaveAndGenerate = () => {
     const newConfig: ExamPaperConfig = {
       ...initialConfig,
+      grade: selectedGrade,
       examLevel,
       title,
       schoolName,
@@ -249,6 +251,92 @@ export const ExamConfigModal: React.FC<ExamConfigModalProps> = ({
 
         {/* Content */}
         <div className="p-6 overflow-y-auto space-y-6 text-sm flex-1">
+          {/* Tùy chỉnh Khối lớp trước khi ra đề */}
+          <div className="bg-gradient-to-r from-indigo-50/80 via-white to-blue-50/80 p-4 rounded-2xl border border-indigo-100 shadow-2xs">
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-2.5">
+              <label className="text-xs font-bold uppercase tracking-wider text-indigo-950 flex items-center gap-1.5">
+                <BookOpen size={14} className="text-indigo-600" />
+                <span>Khối lớp thực hiện ra đề</span>
+              </label>
+              <span className="text-[11px] text-slate-500">
+                Áp dụng chuẩn kiến thức SGK và Ngân hàng câu hỏi theo khối
+              </span>
+            </div>
+            <div className="grid grid-cols-4 gap-2">
+              {['6', '7', '8', '9'].map((g) => {
+                const isSelected = selectedGrade === g;
+                return (
+                  <button
+                    key={g}
+                    type="button"
+                    onClick={() => setSelectedGrade(g)}
+                    className={`py-2 px-3 rounded-xl border text-center font-bold text-xs transition-all cursor-pointer ${
+                      isSelected
+                        ? 'bg-indigo-600 text-white border-indigo-700 shadow-xs ring-2 ring-indigo-200'
+                        : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50 hover:border-slate-300'
+                    }`}
+                  >
+                    Khối {g}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Lựa chọn Đồng bộ Ma trận hoặc Tùy chỉnh độc lập trước khi ra đề */}
+          <div>
+            <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">
+              Chế độ kiến tạo đề thi
+            </label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setIsCustomMode(false)}
+                className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer ${
+                  !isCustomMode
+                    ? 'border-emerald-600 bg-emerald-50/80 text-emerald-950 ring-2 ring-emerald-200 shadow-xs'
+                    : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
+                }`}
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <span className="font-bold text-xs flex items-center gap-1.5">
+                    <CheckCircle2 size={16} className={!isCustomMode ? 'text-emerald-600' : 'text-slate-400'} />
+                    Đồng bộ từ Ma trận & Đặc tả
+                  </span>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold">
+                    Chuẩn BGD
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-600 leading-relaxed">
+                  Tự động trích xuất các bài học, số câu, tỉ lệ nhận thức và YCCĐ bám sát ma trận hiện thời.
+                </p>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setIsCustomMode(true)}
+                className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer ${
+                  isCustomMode
+                    ? 'border-indigo-600 bg-indigo-50/80 text-indigo-950 ring-2 ring-indigo-200 shadow-xs'
+                    : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
+                }`}
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <span className="font-bold text-xs flex items-center gap-1.5">
+                    <Sliders size={16} className={isCustomMode ? 'text-indigo-600' : 'text-slate-400'} />
+                    Tùy chỉnh tự do (Không đồng bộ ma trận)
+                  </span>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800 font-bold">
+                    Tự do
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-600 leading-relaxed">
+                  Tự do chọn số lượng câu, thang điểm, thời lượng, hình thức kiểm tra mà không phụ thuộc ma trận.
+                </p>
+              </button>
+            </div>
+          </div>
+
           {/* 1. Mức độ kiểm tra (Selection Tabs) */}
           <div>
             <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">
@@ -766,10 +854,16 @@ export const ExamConfigModal: React.FC<ExamConfigModalProps> = ({
           <button
             type="button"
             onClick={handleSaveAndGenerate}
-            className="px-6 py-2.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-xs transition-colors flex items-center gap-2"
+            className={`px-6 py-2.5 text-xs font-bold text-white rounded-xl shadow-xs transition-colors flex items-center gap-2 cursor-pointer ${
+              isCustomMode
+                ? 'bg-indigo-600 hover:bg-indigo-700'
+                : 'bg-emerald-700 hover:bg-emerald-800'
+            }`}
           >
             <Sparkles size={16} />
-            Tạo & Áp dụng Đề kiểm tra
+            {isCustomMode
+              ? `Tạo Đề Theo Tùy Chỉnh Khối ${selectedGrade} (Không Đồng Bộ Ma Trận)`
+              : `Tạo Đề Chuẩn Ma Trận & Đặc Tả Khối ${selectedGrade}`}
           </button>
         </div>
       </div>

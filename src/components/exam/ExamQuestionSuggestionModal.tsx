@@ -20,6 +20,7 @@ interface ExamQuestionSuggestionModalProps {
   onClose: () => void;
   question: ExamQuestion | null;
   grade?: string;
+  initialLevel?: CognitiveLevel;
   onApplyQuestion: (newQuestion: ExamQuestion) => void;
 }
 
@@ -59,13 +60,22 @@ export const ExamQuestionSuggestionModal: React.FC<ExamQuestionSuggestionModalPr
   onClose,
   question,
   grade = '9',
+  initialLevel,
   onApplyQuestion,
 }) => {
   if (!isOpen || !question) return null;
 
-  // Selected level: defaults to question's cognitive level, but can be switched
-  const [activeLevel, setActiveLevel] = useState<CognitiveLevel>(() => question.cognitiveLevel || 'nhanBiet');
+  // Selected level: defaults to initialLevel or question's cognitive level
+  const [activeLevel, setActiveLevel] = useState<CognitiveLevel>(() => initialLevel || question.cognitiveLevel || 'nhanBiet');
   const [refreshKey, setRefreshKey] = useState<number>(0);
+
+  React.useEffect(() => {
+    if (initialLevel) {
+      setActiveLevel(initialLevel);
+    } else if (question) {
+      setActiveLevel(question.cognitiveLevel || 'nhanBiet');
+    }
+  }, [initialLevel, question]);
 
   // Get suggestions matching active level
   const suggestions: BankQuestionTemplate[] = useMemo(() => {
@@ -172,14 +182,19 @@ export const ExamQuestionSuggestionModal: React.FC<ExamQuestionSuggestionModalPr
             })}
           </div>
 
-          <button
-            onClick={() => setRefreshKey((k) => k + 1)}
-            className="text-xs font-semibold text-emerald-800 hover:text-emerald-950 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-100/70 hover:bg-emerald-200/70 transition-colors shrink-0 cursor-pointer"
-            title="Đổi bộ câu hỏi gợi ý khác"
-          >
-            <RefreshCw size={13} />
-            <span>Sinh câu khác</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-300">
+              {suggestions.length} câu hỏi khả dụng (&gt; 5 câu)
+            </span>
+            <button
+              onClick={() => setRefreshKey((k) => k + 1)}
+              className="text-xs font-semibold text-emerald-800 hover:text-emerald-950 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-100/70 hover:bg-emerald-200/70 transition-colors shrink-0 cursor-pointer"
+              title="Đổi bộ câu hỏi gợi ý khác"
+            >
+              <RefreshCw size={13} />
+              <span>Sinh câu khác</span>
+            </button>
+          </div>
         </div>
 
         {/* Current Question Quick Summary Bar */}

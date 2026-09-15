@@ -73,6 +73,7 @@ export interface PpctDataset {
   sgkVolume1Id?: string; // ID của SGK Tập 1 gắn với PPCT này
   sgkVolume2Id?: string; // ID của SGK Tập 2 gắn với PPCT này
   className?: string; // Tên lớp cụ thể (ví dụ "9A1", "9A", "6B"...)
+  onlineUrl?: string; // Link trực tuyến (Google Drive, Docs, Sách điện tử...)
 }
 
 export interface SgkLearningObjective {
