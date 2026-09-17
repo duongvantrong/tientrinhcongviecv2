@@ -47,7 +47,21 @@
         "matrixConfig": { "type": "object" },
         "matrixRows": { "type": "array" },
         "sgkBooks": { "type": "array" },
-        "sourceDevice": { "type": "string" }
+        "sourceDevice": { "type": "string" },
+        "uploadedQuestions": { "type": "array" }
+      },
+      "required": ["ownerId", "updatedAt"]
+    },
+    "QuestionBankData": {
+      "title": "Question Bank Data",
+      "description": "Teacher uploaded questions categorized by grade and cognitive level for AI assisted exam creation",
+      "type": "object",
+      "properties": {
+        "ownerId": { "type": "string" },
+        "updatedAt": { "type": "string" },
+        "questions": { "type": "array" },
+        "gradeStats": { "type": "object" },
+        "totalCount": { "type": "number" }
       },
       "required": ["ownerId", "updatedAt"]
     },
@@ -77,6 +91,10 @@
     "/users/{userId}/ppct_data/{docId}": {
       "schema": "TeacherAppData",
       "description": "Teacher synchronized curriculum datasets, PPCT materials, and matrix data"
+    },
+    "/users/{userId}/question_bank/{docId}": {
+      "schema": "QuestionBankData",
+      "description": "Teacher synchronized reference question bank categorized by grade"
     },
     "/whitelist_users/{emailId}": {
       "schema": "WhitelistUser",

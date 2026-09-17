@@ -35,6 +35,11 @@ service cloud.firestore {
       match /ppct_data/{docId} {
         allow read, write: if isOwner(userId) || isSuperAdmin();
       }
+
+      // Synchronized Uploaded Question Bank
+      match /question_bank/{docId} {
+        allow read, write: if isOwner(userId) || isSuperAdmin();
+      }
     }
 
     // Whitelist collection for authorized emails

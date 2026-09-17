@@ -1,5 +1,5 @@
 import React, { useRef } from 'react';
-import { Gauge, Table2, BookOpen, Plus, Upload, Check, BookMarked, GraduationCap, ListOrdered } from 'lucide-react';
+import { Gauge, Table2, BookOpen, Plus, Upload, Check, BookMarked, GraduationCap, ListOrdered, Sparkles } from 'lucide-react';
 import { PpctDataset, TabType } from '../types';
 import { parsePpctFile } from '../utils/fileParser';
 
@@ -16,6 +16,7 @@ interface TabsProps {
   onOpenUploadModal?: (grade?: string) => void;
   onOpenSgkManager?: () => void;
   onOpenFullPpct?: () => void;
+  onOpenQuestionBank?: () => void;
   gvcnClassName?: string;
 }
 
@@ -30,6 +31,7 @@ export const Tabs: React.FC<TabsProps> = ({
   onOpenUploadModal,
   onOpenSgkManager,
   onOpenFullPpct,
+  onOpenQuestionBank,
   gvcnClassName,
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -133,6 +135,17 @@ export const Tabs: React.FC<TabsProps> = ({
           >
             <BookMarked className="w-4 h-4 text-emerald-700" />
             <span>Sách Giáo Khoa (Tập 1, 2)</span>
+          </button>
+        )}
+
+        {onOpenQuestionBank && (
+          <button
+            onClick={onOpenQuestionBank}
+            className="flex items-center gap-1.5 px-3.5 py-2 bg-blue-50 hover:bg-blue-100/80 text-blue-900 border border-blue-300/80 rounded-xl text-xs font-semibold transition-all shadow-2xs cursor-pointer"
+            title="Ngân hàng câu hỏi tham khảo tải lên & Phân loại theo khối kết hợp AI soạn đề"
+          >
+            <Sparkles className="w-4 h-4 text-blue-600" />
+            <span>Ngân hàng câu hỏi AI</span>
           </button>
         )}
       </div>

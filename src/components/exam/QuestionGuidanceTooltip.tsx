@@ -99,6 +99,17 @@ export const QuestionGuidanceTooltip: React.FC<QuestionGuidanceTooltipProps> = (
                 <ChevronRight className="w-2.5 h-2.5 text-slate-400 shrink-0" />
                 <span className="font-semibold text-slate-700 truncate">{question.lesson || 'Kiến thức trọng tâm'}</span>
               </div>
+              {question.source === 'uploaded' ? (
+                <div className="mt-1.5 flex items-center gap-1 text-[10px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                  <Sparkles className="w-3 h-3 text-blue-600 shrink-0" />
+                  <span>Nguồn: Ngân hàng tham khảo tải lên</span>
+                </div>
+              ) : (
+                <div className="mt-1.5 flex items-center gap-1 text-[10px] font-medium text-emerald-800 bg-emerald-50/70 px-2 py-0.5 rounded border border-emerald-200/80">
+                  <Sparkles className="w-3 h-3 text-emerald-600 shrink-0" />
+                  <span>Nguồn: AI biên soạn chuẩn BGD 2018</span>
+                </div>
+              )}
             </div>
           </div>
 

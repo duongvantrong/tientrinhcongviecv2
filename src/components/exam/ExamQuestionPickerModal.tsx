@@ -18,6 +18,7 @@ interface ExamQuestionPickerModalProps {
   isOpen: boolean;
   question: ExamQuestion | null;
   grade?: string;
+  customBank?: BankQuestionTemplate[];
   onClose: () => void;
   onSelectReplacement: (selected: BankQuestionTemplate) => void;
   onRegenerateEquivalent: (question: ExamQuestion) => void;
@@ -28,6 +29,7 @@ export const ExamQuestionPickerModal: React.FC<ExamQuestionPickerModalProps> = (
   isOpen,
   question,
   grade = '9',
+  customBank,
   onClose,
   onSelectReplacement,
   onRegenerateEquivalent,
@@ -39,8 +41,8 @@ export const ExamQuestionPickerModal: React.FC<ExamQuestionPickerModalProps> = (
 
   // Lấy các câu hỏi gợi ý từ ngân hàng cho đúng dạng phần và chủ đề
   const suggestions = useMemo(() => {
-    return getSuggestedQuestions(question, grade, selectedLevel);
-  }, [question, grade, selectedLevel]);
+    return getSuggestedQuestions(question, grade, selectedLevel, customBank);
+  }, [question, grade, selectedLevel, customBank]);
 
   const levelTabs: { key: CognitiveLevel; label: string }[] = [
     { key: 'nhanBiet', label: 'Nhận biết' },
@@ -138,7 +140,7 @@ export const ExamQuestionPickerModal: React.FC<ExamQuestionPickerModalProps> = (
               {/* Prompt */}
               <div className="flex items-start justify-between gap-3">
                 <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-1.5">
+                  <div className="flex items-center gap-2 mb-1.5 flex-wrap">
                     <span className="text-xs font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200">
                       Lựa chọn {idx + 1}
                     </span>
@@ -151,6 +153,16 @@ export const ExamQuestionPickerModal: React.FC<ExamQuestionPickerModalProps> = (
                         ? 'Vận dụng'
                         : 'Vận dụng cao'}
                     </span>
+                    {item.source === 'uploaded' ? (
+                      <span className="text-[11px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200 flex items-center gap-1">
+                        <Sparkles className="w-3 h-3 text-blue-600" />
+                        Ngân hàng tham khảo tải lên
+                      </span>
+                    ) : (
+                      <span className="text-[11px] font-medium text-slate-600 bg-slate-50 px-2 py-0.5 rounded border border-slate-200">
+                        AI chuẩn BGD
+                      </span>
+                    )}
                   </div>
                   <div className="text-sm font-medium text-slate-900 leading-relaxed">
                     <LatexRenderer text={item.prompt} />

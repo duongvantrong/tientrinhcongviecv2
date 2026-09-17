@@ -21,6 +21,7 @@ import {
   GRADE_9_QUESTIONS,
 } from '../data/questionBankGrades';
 import { getLearningObjectiveForTopic } from './sgkParser';
+import { getStoredUploadedQuestions } from './questionBankStorage';
 
 // =================================================================
 // NGÂN HÀNG CÂU HỎI MẪU CHUẨN MỰC BỘ GD&ĐT (TOÁN VÀ MÔN HỌC THCS)
@@ -564,7 +565,8 @@ function sanitizeText(txt: string): string {
 }
 
 /**
- * Tìm kiếm câu hỏi thích hợp nhất từ ngân hàng câu hỏi dựa trên môn học, khối lớp, chủ đề và mức độ nhận thức
+ * Tìm kiếm câu hỏi thích hợp nhất từ ngân hàng câu hỏi kết hợp AI
+ * Ưu tiên: Ngân hàng câu hỏi giáo viên tải lên (đã phân loại theo khối lớp) -> Ngân hàng hệ thống chuẩn GDPT 2018
  */
 function findBestQuestionFromBank(
   subject: string,
@@ -572,12 +574,54 @@ function findBestQuestionFromBank(
   topic: string,
   section: 'part1_mcq' | 'part2_true_false' | 'part3_short_answer' | 'part4_essay',
   cognitiveLevel: 'nhanBiet' | 'thongHieu' | 'vanDung' | 'vanDungCao',
-  usedPrompts: Set<string>
+  usedPrompts: Set<string>,
+  customBank?: BankQuestionTemplate[]
 ): BankQuestionTemplate | null {
   const topicLower = topic.toLowerCase();
   const normGrade = String(grade || '').replace(/\D/g, '') || '9';
 
-  // 1. Khớp cả Khối Lớp, Dạng phần, Mức độ nhận thức và Từ khóa chủ đề
+  // 1. TÌM TRONG NGÂN HÀNG CÂU HỎI GIÁO VIÊN ĐÃ TẢI LÊN (Ưu tiên hàng đầu)
+  const uploadedPool = customBank !== undefined ? customBank : getStoredUploadedQuestions();
+  if (uploadedPool && uploadedPool.length > 0) {
+    // 1a. Khớp đúng Khối Lớp, Dạng phần, Mức độ nhận thức và Từ khóa chủ đề
+    const uploadedTopicMatch = uploadedPool.filter((q) => {
+      if (usedPrompts.has(q.prompt)) return false;
+      if (q.section !== section) return false;
+      if (q.cognitiveLevel !== cognitiveLevel) return false;
+      if ((q.grade || '9') !== normGrade) return false;
+      return (q.topicKeywords || []).some((kw) => topicLower.includes(kw.toLowerCase()));
+    });
+    if (uploadedTopicMatch.length > 0) {
+      const chosen = uploadedTopicMatch[Math.floor(Math.random() * uploadedTopicMatch.length)];
+      return { ...chosen, source: 'uploaded' };
+    }
+
+    // 1b. Khớp đúng Khối Lớp, Dạng phần và Mức độ nhận thức
+    const uploadedLevelMatch = uploadedPool.filter((q) => {
+      if (usedPrompts.has(q.prompt)) return false;
+      if (q.section !== section) return false;
+      if (q.cognitiveLevel !== cognitiveLevel) return false;
+      return (q.grade || '9') === normGrade;
+    });
+    if (uploadedLevelMatch.length > 0) {
+      const chosen = uploadedLevelMatch[Math.floor(Math.random() * uploadedLevelMatch.length)];
+      return { ...chosen, source: 'uploaded' };
+    }
+
+    // 1c. Khớp đúng Khối Lớp và Dạng phần
+    const uploadedSectionMatch = uploadedPool.filter((q) => {
+      if (usedPrompts.has(q.prompt)) return false;
+      if (q.section !== section) return false;
+      return (q.grade || '9') === normGrade;
+    });
+    if (uploadedSectionMatch.length > 0) {
+      const chosen = uploadedSectionMatch[Math.floor(Math.random() * uploadedSectionMatch.length)];
+      return { ...chosen, source: 'uploaded' };
+    }
+  }
+
+  // 2. TÌM TRONG NGÂN HÀNG MẪU HỆ THỐNG KẾT HỢP AI
+  // 2a. Khớp cả Khối Lớp, Dạng phần, Mức độ nhận thức và Từ khóa chủ đề
   const gradeTopicCandidates = QUESTION_BANK.filter((q) => {
     if (usedPrompts.has(q.prompt)) return false;
     if (q.section !== section) return false;
@@ -587,10 +631,11 @@ function findBestQuestionFromBank(
   });
 
   if (gradeTopicCandidates.length > 0) {
-    return gradeTopicCandidates[Math.floor(Math.random() * gradeTopicCandidates.length)];
+    const chosen = gradeTopicCandidates[Math.floor(Math.random() * gradeTopicCandidates.length)];
+    return { ...chosen, source: 'ai_system' };
   }
 
-  // 2. Khớp Khối Lớp, Dạng phần, Mức độ nhận thức
+  // 2b. Khớp Khối Lớp, Dạng phần, Mức độ nhận thức
   const gradeLevelCandidates = QUESTION_BANK.filter((q) => {
     if (usedPrompts.has(q.prompt)) return false;
     if (q.section !== section) return false;
@@ -599,10 +644,11 @@ function findBestQuestionFromBank(
   });
 
   if (gradeLevelCandidates.length > 0) {
-    return gradeLevelCandidates[Math.floor(Math.random() * gradeLevelCandidates.length)];
+    const chosen = gradeLevelCandidates[Math.floor(Math.random() * gradeLevelCandidates.length)];
+    return { ...chosen, source: 'ai_system' };
   }
 
-  // 3. Khớp Dạng phần, Mức độ nhận thức và Từ khóa chủ đề (bất kể khối lớp)
+  // 2c. Khớp Dạng phần, Mức độ nhận thức và Từ khóa chủ đề (bất kể khối lớp)
   const topicCandidates = QUESTION_BANK.filter((q) => {
     if (usedPrompts.has(q.prompt)) return false;
     if (q.section !== section) return false;
@@ -611,10 +657,11 @@ function findBestQuestionFromBank(
   });
 
   if (topicCandidates.length > 0) {
-    return topicCandidates[Math.floor(Math.random() * topicCandidates.length)];
+    const chosen = topicCandidates[Math.floor(Math.random() * topicCandidates.length)];
+    return { ...chosen, source: 'ai_system' };
   }
 
-  // 4. Khớp Dạng phần và Mức độ nhận thức
+  // 2d. Khớp Dạng phần và Mức độ nhận thức
   const levelCandidates = QUESTION_BANK.filter((q) => {
     if (usedPrompts.has(q.prompt)) return false;
     if (q.section !== section) return false;
@@ -622,17 +669,19 @@ function findBestQuestionFromBank(
   });
 
   if (levelCandidates.length > 0) {
-    return levelCandidates[Math.floor(Math.random() * levelCandidates.length)];
+    const chosen = levelCandidates[Math.floor(Math.random() * levelCandidates.length)];
+    return { ...chosen, source: 'ai_system' };
   }
 
-  // 5. Thử tìm bất kỳ câu hỏi nào khớp dạng
+  // 2e. Thử tìm bất kỳ câu hỏi nào khớp dạng
   const sectionCandidates = QUESTION_BANK.filter((q) => {
     if (usedPrompts.has(q.prompt)) return false;
     return q.section === section;
   });
 
   if (sectionCandidates.length > 0) {
-    return sectionCandidates[Math.floor(Math.random() * sectionCandidates.length)];
+    const chosen = sectionCandidates[Math.floor(Math.random() * sectionCandidates.length)];
+    return { ...chosen, source: 'ai_system' };
   }
 
   return null;
@@ -852,7 +901,8 @@ export function generateExamPaperFromMatrix(
   ppctDataset: PpctDataset,
   examLevel: ExamLevelType = 'giua_ky',
   examCode: string = '101',
-  sgkBooks?: SgkBook[]
+  sgkBooks?: SgkBook[],
+  customBank?: BankQuestionTemplate[]
 ): ExamPaper {
   const subject = matrixConfig.subject || ppctDataset.subject || 'Toán';
   const grade = matrixConfig.grade || ppctDataset.grade || '9';
@@ -1045,7 +1095,7 @@ export function generateExamPaperFromMatrix(
 
   // Sinh từng câu hỏi
   slots.forEach((slot, idx) => {
-    let qTemplate = findBestQuestionFromBank(subject, grade, slot.lesson, slot.section, slot.cognitiveLevel, usedPrompts);
+    let qTemplate = findBestQuestionFromBank(subject, grade, slot.lesson, slot.section, slot.cognitiveLevel, usedPrompts, customBank);
     if (!qTemplate) {
       qTemplate = createFallbackQuestion(subject, grade, slot.chapter, slot.lesson, slot.section, slot.cognitiveLevel, idx + 1);
     }
@@ -1130,6 +1180,8 @@ export function generateExamPaperFromMatrix(
       lesson: slot.lesson,
       learningObjective: matchingObjective,
       solutionExplanation: qTemplate.solutionExplanation,
+      source: qTemplate.source || 'ai_system',
+      sourceQuestionId: qTemplate.id,
     });
   });
 
@@ -1182,7 +1234,8 @@ export function generateExamPaperFromMatrix(
 export function generateCustomExamPaper(
   config: Partial<ExamPaperConfig>,
   ppctDataset: PpctDataset,
-  sgkBooks?: SgkBook[]
+  sgkBooks?: SgkBook[],
+  customBank?: BankQuestionTemplate[]
 ): ExamPaper {
   const subject = config.subject || ppctDataset.subject || 'Toán';
   const grade = config.grade || ppctDataset.grade || '9';
@@ -1273,7 +1326,7 @@ export function generateCustomExamPaper(
           : 'vanDung';
     }
 
-    let qTemplate = findBestQuestionFromBank(subject, grade, topic, 'part1_mcq', cogLevel, usedPrompts);
+    let qTemplate = findBestQuestionFromBank(subject, grade, topic, 'part1_mcq', cogLevel, usedPrompts, customBank);
     if (!qTemplate) {
       qTemplate = createFallbackQuestion(subject, grade, 'Chủ đề kiểm tra', topic, 'part1_mcq', cogLevel, i + 1);
     }
@@ -1294,6 +1347,8 @@ export function generateCustomExamPaper(
       lesson: topic,
       learningObjective: qTemplate.learningObjective,
       solutionExplanation: qTemplate.solutionExplanation,
+      source: qTemplate.source || 'ai_system',
+      sourceQuestionId: qTemplate.id,
     });
     qNum++;
   }
@@ -1302,7 +1357,7 @@ export function generateCustomExamPaper(
   for (let i = 0; i < countTf; i++) {
     const topic = topicsToUse[i % topicsToUse.length];
     const cogLevel = i === 0 ? 'thongHieu' : 'vanDung';
-    let qTemplate = findBestQuestionFromBank(subject, grade, topic, 'part2_true_false', cogLevel, usedPrompts);
+    let qTemplate = findBestQuestionFromBank(subject, grade, topic, 'part2_true_false', cogLevel, usedPrompts, customBank);
     if (!qTemplate) {
       qTemplate = createFallbackQuestion(subject, grade, 'Chủ đề kiểm tra', topic, 'part2_true_false', cogLevel, i + 1);
     }
@@ -1322,6 +1377,8 @@ export function generateCustomExamPaper(
       lesson: topic,
       learningObjective: qTemplate.learningObjective,
       solutionExplanation: qTemplate.solutionExplanation,
+      source: qTemplate.source || 'ai_system',
+      sourceQuestionId: qTemplate.id,
     });
     qNum++;
   }
@@ -1330,7 +1387,7 @@ export function generateCustomExamPaper(
   for (let i = 0; i < countShort; i++) {
     const topic = topicsToUse[i % topicsToUse.length];
     const cogLevel = i < Math.floor(countShort * 0.5) ? 'thongHieu' : 'vanDung';
-    let qTemplate = findBestQuestionFromBank(subject, grade, topic, 'part3_short_answer', cogLevel, usedPrompts);
+    let qTemplate = findBestQuestionFromBank(subject, grade, topic, 'part3_short_answer', cogLevel, usedPrompts, customBank);
     if (!qTemplate) {
       qTemplate = createFallbackQuestion(subject, grade, 'Chủ đề kiểm tra', topic, 'part3_short_answer', cogLevel, i + 1);
     }
@@ -1350,6 +1407,8 @@ export function generateCustomExamPaper(
       lesson: topic,
       learningObjective: qTemplate.learningObjective,
       solutionExplanation: qTemplate.solutionExplanation,
+      source: qTemplate.source || 'ai_system',
+      sourceQuestionId: qTemplate.id,
     });
     qNum++;
   }
@@ -1360,7 +1419,7 @@ export function generateCustomExamPaper(
     const cogLevel: 'thongHieu' | 'vanDung' | 'vanDungCao' =
       i === 0 ? 'thongHieu' : i === 1 ? 'vanDung' : 'vanDungCao';
 
-    let qTemplate = findBestQuestionFromBank(subject, grade, topic, 'part4_essay', cogLevel, usedPrompts);
+    let qTemplate = findBestQuestionFromBank(subject, grade, topic, 'part4_essay', cogLevel, usedPrompts, customBank);
     if (!qTemplate) {
       qTemplate = createFallbackQuestion(subject, grade, 'Chủ đề kiểm tra', topic, 'part4_essay', cogLevel, i + 1);
     }
@@ -1380,6 +1439,8 @@ export function generateCustomExamPaper(
       lesson: topic,
       learningObjective: qTemplate.learningObjective,
       solutionExplanation: qTemplate.solutionExplanation,
+      source: qTemplate.source || 'ai_system',
+      sourceQuestionId: qTemplate.id,
     });
     qNum++;
   }
@@ -1503,14 +1564,37 @@ export function shuffleExamPaper(originalPaper: ExamPaper, newCode: string): Exa
 export function getSuggestedQuestions(
   currentQuestion: ExamQuestion,
   grade: string = '9',
-  targetLevel?: CognitiveLevel
+  targetLevel?: CognitiveLevel,
+  customBank?: BankQuestionTemplate[]
 ): BankQuestionTemplate[] {
   const desiredLevel = targetLevel || currentQuestion.cognitiveLevel;
   const section = currentQuestion.section;
   const topicLower = (currentQuestion.lesson || '').toLowerCase();
   const normGrade = String(grade || '').replace(/\D/g, '') || '9';
 
-  // 1. Lọc từ QUESTION_BANK cùng dạng thức (section) và cùng mức độ nhận thức
+  // 1. Thu thập câu hỏi từ Ngân hàng do giáo viên tải lên trước
+  const uploadedPool = customBank !== undefined ? customBank : getStoredUploadedQuestions();
+  const uploadedCandidates: BankQuestionTemplate[] = [];
+
+  if (uploadedPool && uploadedPool.length > 0) {
+    uploadedPool.forEach((q) => {
+      if (q.prompt.trim() === currentQuestion.prompt.trim()) return;
+      if (q.section !== section) return;
+      if (q.cognitiveLevel !== desiredLevel) return;
+      if ((q.grade || '9') === normGrade) {
+        uploadedCandidates.push({ ...q, source: 'uploaded' });
+      }
+    });
+
+    // Sắp xếp ưu tiên khớp chủ đề trong ngân hàng tải lên
+    uploadedCandidates.sort((a, b) => {
+      const aTopic = (a.topicKeywords || []).some((kw) => topicLower.includes(kw.toLowerCase())) ? 1 : 0;
+      const bTopic = (b.topicKeywords || []).some((kw) => topicLower.includes(kw.toLowerCase())) ? 1 : 0;
+      return bTopic - aTopic;
+    });
+  }
+
+  // 2. Lọc từ QUESTION_BANK hệ thống cùng dạng thức (section) và cùng mức độ nhận thức
   const matchingQuestions = QUESTION_BANK.filter((q) => {
     if (q.prompt.trim() === currentQuestion.prompt.trim()) return false;
     if (q.section !== section) return false;
@@ -1518,10 +1602,7 @@ export function getSuggestedQuestions(
     return true;
   });
 
-  // Ưu tiên sắp xếp:
-  // 1. Đúng khối lớp và trùng từ khóa bài học
-  // 2. Đúng khối lớp
-  // 3. Trùng từ khóa bài học
+  // Ưu tiên sắp xếp ngân hàng hệ thống
   matchingQuestions.sort((a, b) => {
     const aGrade = (a.grade || '9') === normGrade ? 2 : 0;
     const bGrade = (b.grade || '9') === normGrade ? 2 : 0;
@@ -1532,10 +1613,13 @@ export function getSuggestedQuestions(
     return (bGrade + bTopic) - (aGrade + aTopic);
   });
 
-  // Đảm bảo số lượng câu hỏi gợi ý luôn nhiều hơn 5 câu (tối thiểu 6 đến 8 câu để giáo viên thoải mái lựa chọn)
-  const results: BankQuestionTemplate[] = [...matchingQuestions.slice(0, 8)];
+  // Kết hợp ngân hàng tải lên lên đầu danh sách gợi ý
+  const results: BankQuestionTemplate[] = [
+    ...uploadedCandidates,
+    ...matchingQuestions.map((q) => ({ ...q, source: 'ai_system' as const })),
+  ].slice(0, 10);
 
-  // Nếu số lượng câu hỏi trong ngân hàng chưa đủ > 5 câu, tự động sinh các câu hỏi đa dạng chất lượng cao
+  // Nếu số lượng câu hỏi gợi ý chưa đủ > 5 câu, tự động sinh các câu hỏi đa dạng chất lượng cao
   if (results.length < 6) {
     for (let i = 1; results.length < 8; i++) {
       const fallback = createFallbackQuestion(
@@ -1548,7 +1632,7 @@ export function getSuggestedQuestions(
         i * 7 + results.length
       );
       if (!results.some((r) => r.prompt.trim() === fallback.prompt.trim())) {
-        results.push(fallback);
+        results.push({ ...fallback, source: 'ai_system' });
       }
     }
   }
@@ -1559,7 +1643,8 @@ export function getSuggestedQuestions(
 export function regenerateSingleQuestion(
   currentQuestion: ExamQuestion,
   allQuestionsInPaper: ExamQuestion[],
-  grade: string = '9'
+  grade: string = '9',
+  customBank?: BankQuestionTemplate[]
 ): ExamQuestion {
   const usedPrompts = new Set(allQuestionsInPaper.map((q) => q.prompt));
   const normGrade = String(grade || '').replace(/\D/g, '') || '9';
@@ -1570,7 +1655,8 @@ export function regenerateSingleQuestion(
     currentQuestion.lesson,
     currentQuestion.section,
     currentQuestion.cognitiveLevel,
-    usedPrompts
+    usedPrompts,
+    customBank
   );
 
   if (!replacement) {
@@ -1595,6 +1681,8 @@ export function regenerateSingleQuestion(
     essayGradingSteps: replacement.essayGradingSteps,
     learningObjective: replacement.learningObjective,
     solutionExplanation: replacement.solutionExplanation,
+    source: replacement.source || 'ai_system',
+    sourceQuestionId: replacement.id,
   });
 }
 

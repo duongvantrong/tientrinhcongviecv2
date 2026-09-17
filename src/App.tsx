@@ -14,6 +14,7 @@ import { PpctManualEditorModal } from './components/PpctManualEditorModal';
 import { SgkManagerModal } from './components/SgkManagerModal';
 import { PpctFullViewerModal } from './components/PpctFullViewerModal';
 import { UploadPpctModal } from './components/UploadPpctModal';
+import { QuestionBankManagerModal } from './components/QuestionBankManagerModal';
 import {
   defaultPpctDataset,
   defaultDatasets,
@@ -58,6 +59,7 @@ export default function App() {
 
   const [isSgkManagerOpen, setIsSgkManagerOpen] = useState(false);
   const [isFullPpctViewerOpen, setIsFullPpctViewerOpen] = useState(false);
+  const [isQuestionBankModalOpen, setIsQuestionBankModalOpen] = useState(false);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState<boolean>(false);
   const [uploadModalGrade, setUploadModalGrade] = useState<string>('9');
   const [examSyncTimestamp, setExamSyncTimestamp] = useState<number>(0);
@@ -517,6 +519,7 @@ export default function App() {
           onOpenUploadModal={handleOpenUploadModal}
           onOpenSgkManager={() => setIsSgkManagerOpen(true)}
           onOpenFullPpct={() => setIsFullPpctViewerOpen(true)}
+          onOpenQuestionBank={() => setIsQuestionBankModalOpen(true)}
         />
 
         {activeTab === 'progress' ? (
@@ -625,6 +628,17 @@ export default function App() {
         onExportExcel={handleExportPpctExcel}
         onSelectExamForMatrix={handleSelectExamForMatrix}
         onStandardizeDataset={handleStandardizeDataset}
+      />
+
+      {/* Ngân hàng câu hỏi tham khảo tải lên & phân loại theo khối kết hợp AI */}
+      <QuestionBankManagerModal
+        isOpen={isQuestionBankModalOpen}
+        onClose={() => setIsQuestionBankModalOpen(false)}
+        initialGrade={activeDataset.grade || '9'}
+        onSaveQuestions={() => {
+          // Trigger a re-sync or timestamp refresh if needed
+          setExamSyncTimestamp(Date.now());
+        }}
       />
     </div>
   );

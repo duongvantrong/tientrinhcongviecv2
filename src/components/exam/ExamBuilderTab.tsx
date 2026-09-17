@@ -37,10 +37,12 @@ import {
   calculateAlignmentSummary,
 } from '../../utils/examGenerator';
 import { generateQuestionNumericVariant } from '../../utils/mathVariationSync';
+import { getStoredUploadedQuestions } from '../../utils/questionBankStorage';
 import { ExamPaperView } from './ExamPaperView';
 import { ExamConfigModal } from './ExamConfigModal';
 import { ExamQuestionEditModal } from './ExamQuestionEditModal';
 import { ExamQuestionPickerModal } from './ExamQuestionPickerModal';
+import { QuestionBankManagerModal } from '../QuestionBankManagerModal';
 
 interface ExamBuilderTabProps {
   matrixConfig: MatrixConfig;
@@ -82,6 +84,10 @@ export const ExamBuilderTab: React.FC<ExamBuilderTabProps> = ({
   const [editingQuestion, setEditingQuestion] = useState<ExamQuestion | null>(null);
   const [suggestingQuestion, setSuggestingQuestion] = useState<ExamQuestion | null>(null);
   const [syncToast, setSyncToast] = useState<string | null>(null);
+  const [isQuestionBankModalOpen, setIsQuestionBankModalOpen] = useState<boolean>(false);
+  const [uploadedQuestions, setUploadedQuestions] = useState<BankQuestionTemplate[]>(() => {
+    return getStoredUploadedQuestions();
+  });
 
   // Auto-generate a default exam paper on first visit if none exists
   useEffect(() => {
@@ -93,7 +99,8 @@ export const ExamBuilderTab: React.FC<ExamBuilderTabProps> = ({
         activePpct,
         'giua_ky',
         '101',
-        sgkBooks
+        sgkBooks,
+        uploadedQuestions
       );
       setExamPaper(defaultPaper);
       try {
@@ -115,7 +122,8 @@ export const ExamBuilderTab: React.FC<ExamBuilderTabProps> = ({
         activePpct,
         isFinal ? 'cuoi_ky' : 'giua_ky',
         examPaper?.config.examCode || '101',
-        sgkBooks
+        sgkBooks,
+        uploadedQuestions
       );
       savePaper(synced);
       setSyncToast(`Đã đồng bộ thành công đề thi & đáp án theo Ma trận ${matrixConfig.examPeriod}!`);
@@ -149,7 +157,8 @@ export const ExamBuilderTab: React.FC<ExamBuilderTabProps> = ({
       activePpct,
       level,
       examPaper?.config.examCode || '101',
-      sgkBooks
+      sgkBooks,
+      uploadedQuestions
     );
     savePaper(synced);
     setSyncToast('Đã tái lập và đồng bộ toàn diện Đề thi & Đáp án theo Ma trận hiện tại!');
@@ -181,7 +190,8 @@ export const ExamBuilderTab: React.FC<ExamBuilderTabProps> = ({
           grade: activePpct.grade || '9',
         },
         activePpct,
-        sgkBooks
+        sgkBooks,
+        uploadedQuestions
       );
       savePaper(newPaper);
       setSyncToast('Đã tạo đề KTTX 100% Trắc nghiệm (70% Nhận biết, 30% Thông hiểu)!');
@@ -208,7 +218,8 @@ export const ExamBuilderTab: React.FC<ExamBuilderTabProps> = ({
           grade: activePpct.grade || '9',
         },
         activePpct,
-        sgkBooks
+        sgkBooks,
+        uploadedQuestions
       );
       savePaper(newPaper);
       setSyncToast('Đã tạo đề KTTX 100% Tự luận (Đầy đủ lời giải và thang điểm chi tiết)!');
@@ -222,7 +233,8 @@ export const ExamBuilderTab: React.FC<ExamBuilderTabProps> = ({
         activePpct,
         level,
         '101',
-        sgkBooks
+        sgkBooks,
+        uploadedQuestions
       );
       savePaper(newPaper);
     }
@@ -240,7 +252,8 @@ export const ExamBuilderTab: React.FC<ExamBuilderTabProps> = ({
           activePpct,
           newConfig.examLevel,
           newConfig.examCode,
-          sgkBooks
+          sgkBooks,
+          uploadedQuestions
         );
         // Cập nhật các thông tin tùy chỉnh như tên trường, thời lượng
         newPaper = {
@@ -255,7 +268,7 @@ export const ExamBuilderTab: React.FC<ExamBuilderTabProps> = ({
           },
         };
       } else {
-        newPaper = generateCustomExamPaper(newConfig, activePpct, sgkBooks);
+        newPaper = generateCustomExamPaper(newConfig, activePpct, sgkBooks, uploadedQuestions);
       }
       savePaper(newPaper);
     } else if (examPaper) {
@@ -503,7 +516,7 @@ export const ExamBuilderTab: React.FC<ExamBuilderTabProps> = ({
   const handleRegenerateEquivalent = (question: ExamQuestion) => {
     if (!examPaper) return;
     const currentGrade = examPaper.config.grade || activePpct.grade || '9';
-    const replaced = regenerateSingleQuestion(question, examPaper.questions, currentGrade);
+    const replaced = regenerateSingleQuestion(question, examPaper.questions, currentGrade, uploadedQuestions);
     const updatedQuestions = examPaper.questions.map((q) => (q.id === question.id ? replaced : q));
     savePaper({
       ...examPaper,
@@ -552,6 +565,8 @@ export const ExamBuilderTab: React.FC<ExamBuilderTabProps> = ({
       shortAnswerText: selected.shortAnswerText,
       essayGradingSteps: selected.essayGradingSteps,
       solutionExplanation: selected.solutionExplanation,
+      source: selected.source || (selected.id ? 'uploaded' : 'ai_system'),
+      sourceQuestionId: selected.id,
     };
 
     const updatedQuestions = examPaper.questions.map((q) =>
@@ -579,7 +594,8 @@ export const ExamBuilderTab: React.FC<ExamBuilderTabProps> = ({
         activePpct,
         examPaper.config.levelType || 'giua_ky',
         examPaper.config.examCode || '101',
-        sgkBooks
+        sgkBooks,
+        uploadedQuestions
       );
       newPaper = {
         ...newPaper,
@@ -593,7 +609,7 @@ export const ExamBuilderTab: React.FC<ExamBuilderTabProps> = ({
         },
       };
     } else {
-      newPaper = generateCustomExamPaper(examPaper.config, activePpct, sgkBooks);
+      newPaper = generateCustomExamPaper(examPaper.config, activePpct, sgkBooks, uploadedQuestions);
     }
     savePaper(newPaper);
     setSyncToast('Đã đổi mới toàn bộ đề và cập nhật toàn bộ đáp án chuẩn xác!');
@@ -606,7 +622,7 @@ export const ExamBuilderTab: React.FC<ExamBuilderTabProps> = ({
     const currentQuestions = [...examPaper.questions];
     const updatedQuestions = currentQuestions.map((q) => {
       if (q.section === section) {
-        return regenerateSingleQuestion(q, currentQuestions, currentGrade);
+        return regenerateSingleQuestion(q, currentQuestions, currentGrade, uploadedQuestions);
       }
       return q;
     });
@@ -633,7 +649,7 @@ export const ExamBuilderTab: React.FC<ExamBuilderTabProps> = ({
     const currentQuestions = [...examPaper.questions];
     const updatedQuestions = currentQuestions.map((q) => {
       if (idSet.has(q.id)) {
-        return regenerateSingleQuestion(q, currentQuestions, currentGrade);
+        return regenerateSingleQuestion(q, currentQuestions, currentGrade, uploadedQuestions);
       }
       return q;
     });
@@ -758,10 +774,25 @@ export const ExamBuilderTab: React.FC<ExamBuilderTabProps> = ({
           <button
             type="button"
             onClick={() => setIsConfigModalOpen(true)}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-2xs transition-colors"
+            className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-2xs transition-colors cursor-pointer"
           >
             <Sliders size={14} />
             Tùy biến số câu & hình thức
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setIsQuestionBankModalOpen(true)}
+            title="Tải lên câu hỏi làm ngân hàng tham khảo kết hợp với AI soạn đề (Phân loại khối 6-9)"
+            className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold text-blue-900 bg-blue-50 hover:bg-blue-100 border border-blue-300 rounded-xl transition-all shadow-2xs cursor-pointer"
+          >
+            <Sparkles size={14} className="text-blue-600" />
+            <span>Ngân hàng câu hỏi ({uploadedQuestions.length})</span>
+            {uploadedQuestions.filter(q => q.grade === (activePpct.grade || '9')).length > 0 && (
+              <span className="text-[10px] bg-blue-600 text-white font-bold px-1.5 py-0.2 rounded-full">
+                K{activePpct.grade}: {uploadedQuestions.filter(q => q.grade === (activePpct.grade || '9')).length}
+              </span>
+            )}
           </button>
         </div>
       </div>
@@ -933,6 +964,7 @@ export const ExamBuilderTab: React.FC<ExamBuilderTabProps> = ({
           isOpen={!!suggestingQuestion}
           question={suggestingQuestion}
           grade={activePpct.grade}
+          customBank={uploadedQuestions}
           onClose={() => setSuggestingQuestion(null)}
           onSelectReplacement={handleSelectReplacementTemplate}
           onRegenerateEquivalent={handleRegenerateEquivalent}
@@ -951,6 +983,18 @@ export const ExamBuilderTab: React.FC<ExamBuilderTabProps> = ({
           onDelete={handleDeleteQuestion}
         />
       )}
+
+      {/* Modal Quản lý Ngân hàng câu hỏi tham khảo tải lên kết hợp AI */}
+      <QuestionBankManagerModal
+        isOpen={isQuestionBankModalOpen}
+        onClose={() => setIsQuestionBankModalOpen(false)}
+        initialGrade={activePpct.grade || '9'}
+        onSaveQuestions={(newBank) => {
+          setUploadedQuestions(newBank);
+          setSyncToast(`Đã lưu ${newBank.length} câu hỏi vào Ngân hàng tham khảo. Sẵn sàng kết hợp AI soạn đề!`);
+          setTimeout(() => setSyncToast(null), 4000);
+        }}
+      />
     </div>
   );
 };

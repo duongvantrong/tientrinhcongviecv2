@@ -516,6 +516,7 @@ export interface ExamEssayGradingStep {
 }
 
 export interface BankQuestionTemplate {
+  id?: string;
   subject: string;
   grade: string;
   topicKeywords: string[];
@@ -530,6 +531,12 @@ export interface BankQuestionTemplate {
   essayGradingSteps?: { step: string; point: number }[];
   solutionExplanation: string;
   learningObjective: string;
+  // Metadata nguồn câu hỏi
+  source?: 'uploaded' | 'ai_system';
+  sourceFileName?: string;
+  createdAt?: string;
+  mathDomain?: 'algebra' | 'geometry' | 'statistics_probability' | 'general';
+  mathDomainLabel?: string;
 }
 
 export interface ExamQuestion {
@@ -560,6 +567,8 @@ export interface ExamQuestion {
   lesson: string;
   learningObjective?: string; // Yêu cầu cần đạt tương ứng
   solutionExplanation?: string; // Lời giải và giải thích chi tiết
+  source?: 'uploaded' | 'ai_system'; // Nguồn câu hỏi
+  sourceQuestionId?: string;
 }
 
 export interface ExamPaperConfig {
@@ -598,6 +607,9 @@ export interface ExamPaperConfig {
   // Tỷ lệ %
   ratioTn: number; // e.g. 70 (%)
   ratioTl: number; // e.g. 30 (%)
+
+  // Nguồn câu hỏi: Kết hợp thông minh AI và Ngân hàng giáo viên tải lên
+  questionSourcePreference?: 'combined' | 'uploaded_first' | 'standard_ai';
 }
 
 export interface ExamPaper {
