@@ -19,6 +19,7 @@ interface ExamQuestionPickerModalProps {
   question: ExamQuestion | null;
   grade?: string;
   customBank?: BankQuestionTemplate[];
+  allowProbStats?: boolean;
   onClose: () => void;
   onSelectReplacement: (selected: BankQuestionTemplate) => void;
   onRegenerateEquivalent: (question: ExamQuestion) => void;
@@ -30,6 +31,7 @@ export const ExamQuestionPickerModal: React.FC<ExamQuestionPickerModalProps> = (
   question,
   grade = '9',
   customBank,
+  allowProbStats,
   onClose,
   onSelectReplacement,
   onRegenerateEquivalent,
@@ -41,8 +43,8 @@ export const ExamQuestionPickerModal: React.FC<ExamQuestionPickerModalProps> = (
 
   // Lấy các câu hỏi gợi ý từ ngân hàng cho đúng dạng phần và chủ đề
   const suggestions = useMemo(() => {
-    return getSuggestedQuestions(question, grade, selectedLevel, customBank);
-  }, [question, grade, selectedLevel, customBank]);
+    return getSuggestedQuestions(question, grade, selectedLevel, customBank, allowProbStats);
+  }, [question, grade, selectedLevel, customBank, allowProbStats]);
 
   const levelTabs: { key: CognitiveLevel; label: string }[] = [
     { key: 'nhanBiet', label: 'Nhận biết' },
@@ -61,11 +63,16 @@ export const ExamQuestionPickerModal: React.FC<ExamQuestionPickerModalProps> = (
               <Sparkles className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="text-base font-bold text-white">
-                Tùy Chọn Câu Hỏi & Tự Động Cập Nhật Đáp Án
-              </h3>
+              <div className="flex items-center gap-2">
+                <h3 className="text-base font-bold text-white">
+                  Tùy Chọn Câu Hỏi & Tự Động Cập Nhật Đáp Án
+                </h3>
+                <span className="px-2 py-0.5 rounded-full text-[11px] font-extrabold bg-emerald-400/20 text-emerald-300 border border-emerald-400/40">
+                  Khối {grade}
+                </span>
+              </div>
               <p className="text-xs text-emerald-200">
-                {question.code || 'Câu hỏi'} • {question.chapter || 'Toán học'} › {question.lesson || 'Kiến thức trọng tâm'}
+                Toán {grade} • {question.code || 'Câu hỏi'} • {question.chapter || 'Toán học'} › {question.lesson || 'Kiến thức trọng tâm'}
               </p>
             </div>
           </div>

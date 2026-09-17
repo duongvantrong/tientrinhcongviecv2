@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   X,
   Sparkles,
@@ -19,6 +19,7 @@ import {
   MatrixConfig,
   PpctDataset,
 } from '../../types';
+import { defaultDatasets } from '../../data/defaultData';
 
 interface ExamConfigModalProps {
   isOpen: boolean;
@@ -69,20 +70,38 @@ export const ExamConfigModal: React.FC<ExamConfigModalProps> = ({
   const [scorePerShort, setScorePerShort] = useState<number>(initialConfig.scorePerShort || 0.5);
   const [scorePerEssay, setScorePerEssay] = useState<number>(initialConfig.scorePerEssay || 1.0);
 
-  // Selected topics in the weeks
-  const availableLessons: string[] = Array.from(
-    new Set<string>(
-      ppctDataset.lessons
-        .filter((l) => l.tuan >= weekFrom && l.tuan <= weekTo)
-        .map((l) => l.baiHoc)
-    )
-  );
+  // Dataset tương ứng theo Khối lớp được chọn
+  const activeGradeDataset = useMemo(() => {
+    if (ppctDataset && ppctDataset.grade === selectedGrade) return ppctDataset;
+    return defaultDatasets.find((d) => d.grade === selectedGrade) || ppctDataset;
+  }, [selectedGrade, ppctDataset]);
+
+  // Selected topics in the weeks of that specific grade
+  const availableLessons: string[] = useMemo(() => {
+    const list = (activeGradeDataset?.lessons || [])
+      .filter((l) => l.tuan >= weekFrom && l.tuan <= weekTo)
+      .map((l) => l.baiHoc);
+    return Array.from(new Set<string>(list));
+  }, [activeGradeDataset, weekFrom, weekTo]);
 
   const [selectedTopics, setSelectedTopics] = useState<string[]>(
     initialConfig.selectedTopics && initialConfig.selectedTopics.length > 0
       ? initialConfig.selectedTopics
       : availableLessons
   );
+
+  const handleGradeChange = (g: string) => {
+    setSelectedGrade(g);
+    const targetDataset = (ppctDataset && ppctDataset.grade === g) ? ppctDataset : defaultDatasets.find((d) => d.grade === g) || ppctDataset;
+    const newLessons = Array.from(
+      new Set<string>(
+        (targetDataset?.lessons || [])
+          .filter((l) => l.tuan >= weekFrom && l.tuan <= weekTo)
+          .map((l) => l.baiHoc)
+      )
+    );
+    setSelectedTopics(newLessons);
+  };
 
   // Switch level presets
   const handleSelectExamLevel = (level: ExamLevelType) => {
@@ -275,7 +294,7 @@ export const ExamConfigModal: React.FC<ExamConfigModalProps> = ({
                   <button
                     key={g}
                     type="button"
-                    onClick={() => setSelectedGrade(g)}
+                    onClick={() => handleGradeChange(g)}
                     className={`py-2 px-3 rounded-xl border text-center font-bold text-xs transition-all cursor-pointer ${
                       isSelected
                         ? 'bg-indigo-600 text-white border-indigo-700 shadow-xs ring-2 ring-indigo-200'

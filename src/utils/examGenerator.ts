@@ -565,30 +565,111 @@ function sanitizeText(txt: string): string {
 }
 
 /**
+ * Kiểm tra xem một chuỗi văn bản có chứa từ khóa liên quan đến Xác suất / Thống kê hay không
+ */
+export function isProbStatsText(text: string): boolean {
+  if (!text) return false;
+  const t = text.toLowerCase();
+  const keywords = [
+    'xác suất',
+    'thống kê',
+    'biến cố',
+    'tần số',
+    'bảng tần số',
+    'biểu đồ hình quạt',
+    'biểu đồ quạt',
+    'biểu đồ cột',
+    'biểu đồ đoạn thẳng',
+    'biểu đồ tranh',
+    'xác suất thực nghiệm',
+    'thu thập dữ liệu',
+    'mẫu số liệu',
+    'bảng số liệu',
+    'trung vị',
+    'tứ phân vị',
+    'mốt của mẫu',
+    'phương sai',
+    'độ lệch chuẩn',
+    'xúc xắc',
+    'đồng xu',
+    'không gian mẫu',
+    'kết quả có thể',
+    'kết quả thuận lợi',
+  ];
+  return keywords.some((kw) => t.includes(kw));
+}
+
+/**
+ * Kiểm tra xem câu hỏi có thuộc chuyên đề Xác suất / Thống kê hay không
+ */
+export function isProbStatsQuestion(q: {
+  prompt?: string;
+  topicKeywords?: string[];
+  lesson?: string;
+  chapter?: string;
+  options?: Array<{ text?: string }>;
+  solutionExplanation?: string;
+}): boolean {
+  const combined = [
+    q.prompt || '',
+    ...(q.topicKeywords || []),
+    q.lesson || '',
+    q.chapter || '',
+    ...(q.options?.map((o) => o.text || '') || []),
+    q.solutionExplanation || '',
+  ].join(' ');
+  return isProbStatsText(combined);
+}
+
+/**
+ * Kiểm tra xem danh sách chủ đề có chứa Xác suất / Thống kê hay không
+ */
+export function hasProbStatsInTopics(topics?: string[]): boolean {
+  if (!topics || topics.length === 0) return false;
+  return topics.some((t) => isProbStatsText(t));
+}
+
+/**
  * Tìm kiếm câu hỏi thích hợp nhất từ ngân hàng câu hỏi kết hợp AI
  * Ưu tiên: Ngân hàng câu hỏi giáo viên tải lên (đã phân loại theo khối lớp) -> Ngân hàng hệ thống chuẩn GDPT 2018
+ * Đảm bảo: Nếu nội dung không có Xác suất / Thống kê thì tuyệt đối KHÔNG sinh câu hỏi xác suất thống kê
  */
-function findBestQuestionFromBank(
+export function findBestQuestionFromBank(
   subject: string,
   grade: string,
   topic: string,
   section: 'part1_mcq' | 'part2_true_false' | 'part3_short_answer' | 'part4_essay',
   cognitiveLevel: 'nhanBiet' | 'thongHieu' | 'vanDung' | 'vanDungCao',
   usedPrompts: Set<string>,
-  customBank?: BankQuestionTemplate[]
+  customBank?: BankQuestionTemplate[],
+  allowProbStats?: boolean
 ): BankQuestionTemplate | null {
   const topicLower = topic.toLowerCase();
   const normGrade = String(grade || '').replace(/\D/g, '') || '9';
+
+  // Xác định cẩn thận quyền hạn của Xác suất & Thống kê
+  const targetTopicIsProbStats = isProbStatsText(topic);
+  const permitProbStats = allowProbStats !== undefined ? allowProbStats : targetTopicIsProbStats;
+
+  const isQuestionAllowed = (q: BankQuestionTemplate) => {
+    if (usedPrompts.has(q.prompt)) return false;
+    if (q.section !== section) return false;
+    if ((q.grade || '9') !== normGrade) return false;
+    const isQProbStats = isProbStatsQuestion(q);
+    // Nếu nội dung không chọn xác suất thống kê -> loại trừ 100% câu hỏi xác suất thống kê
+    if (!permitProbStats && isQProbStats) return false;
+    // Nếu chủ đề đang xét là xác suất thống kê mà câu hỏi không phải xác suất thống kê -> loại trừ
+    if (targetTopicIsProbStats && !isQProbStats) return false;
+    return true;
+  };
 
   // 1. TÌM TRONG NGÂN HÀNG CÂU HỎI GIÁO VIÊN ĐÃ TẢI LÊN (Ưu tiên hàng đầu)
   const uploadedPool = customBank !== undefined ? customBank : getStoredUploadedQuestions();
   if (uploadedPool && uploadedPool.length > 0) {
     // 1a. Khớp đúng Khối Lớp, Dạng phần, Mức độ nhận thức và Từ khóa chủ đề
     const uploadedTopicMatch = uploadedPool.filter((q) => {
-      if (usedPrompts.has(q.prompt)) return false;
-      if (q.section !== section) return false;
+      if (!isQuestionAllowed(q)) return false;
       if (q.cognitiveLevel !== cognitiveLevel) return false;
-      if ((q.grade || '9') !== normGrade) return false;
       return (q.topicKeywords || []).some((kw) => topicLower.includes(kw.toLowerCase()));
     });
     if (uploadedTopicMatch.length > 0) {
@@ -598,10 +679,8 @@ function findBestQuestionFromBank(
 
     // 1b. Khớp đúng Khối Lớp, Dạng phần và Mức độ nhận thức
     const uploadedLevelMatch = uploadedPool.filter((q) => {
-      if (usedPrompts.has(q.prompt)) return false;
-      if (q.section !== section) return false;
-      if (q.cognitiveLevel !== cognitiveLevel) return false;
-      return (q.grade || '9') === normGrade;
+      if (!isQuestionAllowed(q)) return false;
+      return q.cognitiveLevel === cognitiveLevel;
     });
     if (uploadedLevelMatch.length > 0) {
       const chosen = uploadedLevelMatch[Math.floor(Math.random() * uploadedLevelMatch.length)];
@@ -609,11 +688,7 @@ function findBestQuestionFromBank(
     }
 
     // 1c. Khớp đúng Khối Lớp và Dạng phần
-    const uploadedSectionMatch = uploadedPool.filter((q) => {
-      if (usedPrompts.has(q.prompt)) return false;
-      if (q.section !== section) return false;
-      return (q.grade || '9') === normGrade;
-    });
+    const uploadedSectionMatch = uploadedPool.filter((q) => isQuestionAllowed(q));
     if (uploadedSectionMatch.length > 0) {
       const chosen = uploadedSectionMatch[Math.floor(Math.random() * uploadedSectionMatch.length)];
       return { ...chosen, source: 'uploaded' };
@@ -623,10 +698,8 @@ function findBestQuestionFromBank(
   // 2. TÌM TRONG NGÂN HÀNG MẪU HỆ THỐNG KẾT HỢP AI
   // 2a. Khớp cả Khối Lớp, Dạng phần, Mức độ nhận thức và Từ khóa chủ đề
   const gradeTopicCandidates = QUESTION_BANK.filter((q) => {
-    if (usedPrompts.has(q.prompt)) return false;
-    if (q.section !== section) return false;
+    if (!isQuestionAllowed(q)) return false;
     if (q.cognitiveLevel !== cognitiveLevel) return false;
-    if ((q.grade || '9') !== normGrade) return false;
     return q.topicKeywords.some((kw) => topicLower.includes(kw.toLowerCase()));
   });
 
@@ -637,10 +710,8 @@ function findBestQuestionFromBank(
 
   // 2b. Khớp Khối Lớp, Dạng phần, Mức độ nhận thức
   const gradeLevelCandidates = QUESTION_BANK.filter((q) => {
-    if (usedPrompts.has(q.prompt)) return false;
-    if (q.section !== section) return false;
-    if (q.cognitiveLevel !== cognitiveLevel) return false;
-    return (q.grade || '9') === normGrade;
+    if (!isQuestionAllowed(q)) return false;
+    return q.cognitiveLevel === cognitiveLevel;
   });
 
   if (gradeLevelCandidates.length > 0) {
@@ -648,57 +719,32 @@ function findBestQuestionFromBank(
     return { ...chosen, source: 'ai_system' };
   }
 
-  // 2c. Khớp Dạng phần, Mức độ nhận thức và Từ khóa chủ đề (bất kể khối lớp)
-  const topicCandidates = QUESTION_BANK.filter((q) => {
-    if (usedPrompts.has(q.prompt)) return false;
-    if (q.section !== section) return false;
-    if (q.cognitiveLevel !== cognitiveLevel) return false;
-    return q.topicKeywords.some((kw) => topicLower.includes(kw.toLowerCase()));
-  });
+  // 2c. Khớp Khối Lớp và Dạng phần
+  const gradeSectionCandidates = QUESTION_BANK.filter((q) => isQuestionAllowed(q));
 
-  if (topicCandidates.length > 0) {
-    const chosen = topicCandidates[Math.floor(Math.random() * topicCandidates.length)];
+  if (gradeSectionCandidates.length > 0) {
+    const chosen = gradeSectionCandidates[Math.floor(Math.random() * gradeSectionCandidates.length)];
     return { ...chosen, source: 'ai_system' };
   }
 
-  // 2d. Khớp Dạng phần và Mức độ nhận thức
-  const levelCandidates = QUESTION_BANK.filter((q) => {
-    if (usedPrompts.has(q.prompt)) return false;
-    if (q.section !== section) return false;
-    return q.cognitiveLevel === cognitiveLevel;
-  });
-
-  if (levelCandidates.length > 0) {
-    const chosen = levelCandidates[Math.floor(Math.random() * levelCandidates.length)];
-    return { ...chosen, source: 'ai_system' };
-  }
-
-  // 2e. Thử tìm bất kỳ câu hỏi nào khớp dạng
-  const sectionCandidates = QUESTION_BANK.filter((q) => {
-    if (usedPrompts.has(q.prompt)) return false;
-    return q.section === section;
-  });
-
-  if (sectionCandidates.length > 0) {
-    const chosen = sectionCandidates[Math.floor(Math.random() * sectionCandidates.length)];
-    return { ...chosen, source: 'ai_system' };
-  }
-
+  // Tuyệt đối không lấy câu hỏi của khối khác để tránh nhầm lẫn kiến thức giữa các khối lớp
   return null;
 }
 
 /**
  * Tự động tạo câu hỏi dự phòng chất lượng cao nếu ngân hàng không có sẵn
  * Đảm bảo sinh đa dạng câu hỏi Toán THCS kèm công thức LaTeX và bài giải mẫu cho tự luận
+ * Luôn tôn trọng quy tắc: nếu allowProbStats = false, không bao giờ sinh câu hỏi về xác suất thống kê
  */
-function createFallbackQuestion(
+export function createFallbackQuestion(
   subject: string,
   grade: string,
   chapter: string,
   lesson: string,
   section: 'part1_mcq' | 'part2_true_false' | 'part3_short_answer' | 'part4_essay',
   cognitiveLevel: 'nhanBiet' | 'thongHieu' | 'vanDung' | 'vanDungCao',
-  index: number
+  index: number,
+  allowProbStats?: boolean
 ): BankQuestionTemplate {
   const cognitiveLabel =
     cognitiveLevel === 'nhanBiet'
@@ -709,9 +755,57 @@ function createFallbackQuestion(
       ? 'Vận dụng'
       : 'Vận dụng cao';
 
+  const isProbStats = allowProbStats !== undefined ? allowProbStats : isProbStatsText(lesson);
+
   const v = index % 5;
 
   if (section === 'part1_mcq') {
+    if (isProbStats) {
+      const probMcqTemplates: Array<{
+        prompt: string;
+        options: { key: 'A' | 'B' | 'C' | 'D'; text: string }[];
+        correct: 'A' | 'B' | 'C' | 'D';
+        solution: string;
+      }> = [
+        {
+          prompt: `Gieo một con xúc xắc cân đối và đồng chất $1$ lần. Xác suất của biến cố "Mặt xuất hiện có số chấm là số nguyên tố" là:`,
+          options: [
+            { key: 'A', text: '$\\frac{1}{2}$' },
+            { key: 'B', text: '$\\frac{1}{3}$' },
+            { key: 'C', text: '$\\frac{2}{3}$' },
+            { key: 'D', text: '$\\frac{1}{6}$' },
+          ],
+          correct: 'A',
+          solution: 'Các số nguyên tố có thể xuất hiện là $\\{2; 3; 5\\}$ (gồm 3 kết quả thuận lợi trong tổng số 6 kết quả có thể). Xác suất là $\\frac{3}{6} = \\frac{1}{2}$.',
+        },
+        {
+          prompt: `Để thu thập dữ liệu về số giờ tự học mỗi ngày của học sinh lớp ${grade}, phương pháp thu thập dữ liệu phù hợp nhất là:`,
+          options: [
+            { key: 'A', text: 'Lập phiếu hỏi hoặc phát phiếu điều tra trắc nghiệm' },
+            { key: 'B', text: 'Đo chiều cao của từng học sinh' },
+            { key: 'C', text: 'Cân khối lượng của từng học sinh' },
+            { key: 'D', text: 'Quan sát thời tiết trong tuần' },
+          ],
+          correct: 'A',
+          solution: 'Thu thập thông tin định lượng về thói quen học tập cần dùng phiếu hỏi hoặc phỏng vấn trực tiếp.',
+        },
+      ];
+      const selProb = probMcqTemplates[index % probMcqTemplates.length];
+      return {
+        subject,
+        grade,
+        topicKeywords: [lesson, chapter, 'thống kê', 'xác suất'],
+        section: 'part1_mcq',
+        type: 'multiple_choice',
+        cognitiveLevel,
+        prompt: selProb.prompt,
+        options: selProb.options,
+        correctOption: selProb.correct,
+        solutionExplanation: selProb.solution,
+        learningObjective: `${cognitiveLabel} kiến thức về ${lesson}.`,
+      };
+    }
+
     const mcqTemplates: Array<{
       prompt: string;
       options: { key: 'A' | 'B' | 'C' | 'D'; text: string }[];
@@ -1039,8 +1133,27 @@ export function generateExamPaperFromMatrix(
 
   // Nếu ma trận chưa có dòng nào hoặc slots rỗng, tự động điền cấu trúc chuẩn GDPT 2018 (12 TNKQ + 4 Đúng Sai + 4 Trả lời ngắn + 2 Tự luận)
   if (slots.length === 0) {
-    const sampleChapter = rowsToUse[0]?.chuong || 'Chủ đề 1: Đại số & Căn thức';
-    const sampleLesson = rowsToUse[0]?.noiDung || 'Căn bậc hai và căn thức bậc hai';
+    const normG = String(grade || '').replace(/\D/g, '') || '9';
+    const gradeDefaultChapter =
+      normG === '6'
+        ? 'Chương I. Tập hợp các số tự nhiên'
+        : normG === '7'
+        ? 'Chương I. Số hữu tỉ'
+        : normG === '8'
+        ? 'Chương I. Đa thức nhiều biến'
+        : 'Chương I. Phương trình và hệ hai phương trình bậc nhất hai ẩn';
+
+    const gradeDefaultLesson =
+      normG === '6'
+        ? 'Tập hợp, phần tử của tập hợp và các phép tính số tự nhiên'
+        : normG === '7'
+        ? 'Tập hợp các số hữu tỉ và các phép tính với số hữu tỉ'
+        : normG === '8'
+        ? 'Đơn thức và đa thức nhiều biến. Các hằng đẳng thức đáng nhớ'
+        : 'Khái niệm và giải hệ hai phương trình bậc nhất hai ẩn';
+
+    const sampleChapter = rowsToUse[0]?.chuong || ppctDataset?.lessons?.[0]?.chuong || gradeDefaultChapter;
+    const sampleLesson = rowsToUse[0]?.noiDung || ppctDataset?.lessons?.[0]?.baiHoc || gradeDefaultLesson;
 
     // 12 câu trắc nghiệm nhiều lựa chọn
     for (let i = 0; i < 6; i++) slots.push({ section: 'part1_mcq', cognitiveLevel: 'nhanBiet', chapter: sampleChapter, lesson: sampleLesson, score: 0.25 });
@@ -1093,11 +1206,41 @@ export function generateExamPaperFromMatrix(
   let p3Counter = 1;
   let p4Counter = 1;
 
+  // Kiểm tra xem cấu hình ma trận hoặc danh sách dòng sử dụng có chứa nội dung Xác suất & Thống kê hay không
+  const matrixSelectedTopics = (matrixConfig as any).selectedTopics as string[] | undefined;
+  const hasSelectedTopics = matrixSelectedTopics && matrixSelectedTopics.length > 0;
+  const selectedHasProbStats = hasSelectedTopics ? hasProbStatsInTopics(matrixSelectedTopics) : undefined;
+  const matrixHasProbStats = rowsToUse.some(
+    (r) => isProbStatsText(r.chuong || '') || isProbStatsText(r.noiDung || '')
+  );
+  const globalAllowProbStats = selectedHasProbStats !== undefined ? selectedHasProbStats : matrixHasProbStats;
+
   // Sinh từng câu hỏi
   slots.forEach((slot, idx) => {
-    let qTemplate = findBestQuestionFromBank(subject, grade, slot.lesson, slot.section, slot.cognitiveLevel, usedPrompts, customBank);
+    const slotIsProbStats = isProbStatsText(slot.chapter || '') || isProbStatsText(slot.lesson || '');
+    const allowProbStats = globalAllowProbStats && slotIsProbStats;
+
+    let qTemplate = findBestQuestionFromBank(
+      subject,
+      grade,
+      slot.lesson,
+      slot.section,
+      slot.cognitiveLevel,
+      usedPrompts,
+      customBank,
+      allowProbStats
+    );
     if (!qTemplate) {
-      qTemplate = createFallbackQuestion(subject, grade, slot.chapter, slot.lesson, slot.section, slot.cognitiveLevel, idx + 1);
+      qTemplate = createFallbackQuestion(
+        subject,
+        grade,
+        slot.chapter,
+        slot.lesson,
+        slot.section,
+        slot.cognitiveLevel,
+        idx + 1,
+        allowProbStats
+      );
     }
     usedPrompts.add(qTemplate.prompt);
 
@@ -1265,12 +1408,22 @@ export function generateCustomExamPaper(
   const weekTo = config.weekTo || (isKttx ? 4 : 9);
 
   const availableLessons = ppctDataset.lessons.filter((l) => l.tuan >= weekFrom && l.tuan <= weekTo);
+  const normG = String(grade || '').replace(/\D/g, '') || '9';
+  const gradeDefaultTopics =
+    normG === '6'
+      ? ['Tập hợp các số tự nhiên', 'Phép cộng và phép nhân số tự nhiên', 'Số nguyên và quy tắc dấu ngoặc']
+      : normG === '7'
+      ? ['Tập hợp các số hữu tỉ', 'Cộng, trừ, nhân, chia số hữu tỉ', 'Số vô tỉ và căn bậc hai số học']
+      : normG === '8'
+      ? ['Đơn thức và đa thức nhiều biến', 'Các hằng đẳng thức đáng nhớ', 'Phân thức đại số']
+      : ['Căn bậc hai và hằng đẳng thức', 'Phương trình và hệ phương trình bậc nhất hai ẩn'];
+
   const topicsToUse =
     config.selectedTopics && config.selectedTopics.length > 0
       ? config.selectedTopics
       : availableLessons.length > 0
       ? Array.from(new Set(availableLessons.map((l) => l.baiHoc)))
-      : ['Căn bậc hai và hằng đẳng thức', 'Liên hệ giữa phép nhân và khai phương'];
+      : gradeDefaultTopics;
 
   // Số lượng câu hỏi tùy chỉnh
   let countMcq = config.countPart1Mcq !== undefined ? config.countPart1Mcq : isKttx ? 10 : 12;
@@ -1308,9 +1461,13 @@ export function generateCustomExamPaper(
   const usedPrompts = new Set<string>();
   let qNum = 1;
 
+  // Kiểm tra xem danh sách chủ đề được chọn có chứa Xác suất & Thống kê hay không
+  const selectionHasProbStats = hasProbStatsInTopics(topicsToUse);
+
   // 1. Phần I: Trắc nghiệm 4 lựa chọn
   for (let i = 0; i < countMcq; i++) {
     const topic = topicsToUse[i % topicsToUse.length];
+    const allowProbStats = selectionHasProbStats && isProbStatsText(topic);
     
     // Mức độ nhận thức: KTTX hoặc 100% TN mặc định 70% Nhận biết, 30% Thông hiểu
     let cogLevel: 'nhanBiet' | 'thongHieu' | 'vanDung' | 'vanDungCao';
@@ -1326,9 +1483,9 @@ export function generateCustomExamPaper(
           : 'vanDung';
     }
 
-    let qTemplate = findBestQuestionFromBank(subject, grade, topic, 'part1_mcq', cogLevel, usedPrompts, customBank);
+    let qTemplate = findBestQuestionFromBank(subject, grade, topic, 'part1_mcq', cogLevel, usedPrompts, customBank, allowProbStats);
     if (!qTemplate) {
-      qTemplate = createFallbackQuestion(subject, grade, 'Chủ đề kiểm tra', topic, 'part1_mcq', cogLevel, i + 1);
+      qTemplate = createFallbackQuestion(subject, grade, 'Chủ đề kiểm tra', topic, 'part1_mcq', cogLevel, i + 1, allowProbStats);
     }
     usedPrompts.add(qTemplate.prompt);
 
@@ -1356,10 +1513,11 @@ export function generateCustomExamPaper(
   // 2. Phần II: Trắc nghiệm Đúng/Sai
   for (let i = 0; i < countTf; i++) {
     const topic = topicsToUse[i % topicsToUse.length];
+    const allowProbStats = selectionHasProbStats && isProbStatsText(topic);
     const cogLevel = i === 0 ? 'thongHieu' : 'vanDung';
-    let qTemplate = findBestQuestionFromBank(subject, grade, topic, 'part2_true_false', cogLevel, usedPrompts, customBank);
+    let qTemplate = findBestQuestionFromBank(subject, grade, topic, 'part2_true_false', cogLevel, usedPrompts, customBank, allowProbStats);
     if (!qTemplate) {
-      qTemplate = createFallbackQuestion(subject, grade, 'Chủ đề kiểm tra', topic, 'part2_true_false', cogLevel, i + 1);
+      qTemplate = createFallbackQuestion(subject, grade, 'Chủ đề kiểm tra', topic, 'part2_true_false', cogLevel, i + 1, allowProbStats);
     }
     usedPrompts.add(qTemplate.prompt);
 
@@ -1386,10 +1544,11 @@ export function generateCustomExamPaper(
   // 3. Phần III: Trắc nghiệm trả lời ngắn
   for (let i = 0; i < countShort; i++) {
     const topic = topicsToUse[i % topicsToUse.length];
+    const allowProbStats = selectionHasProbStats && isProbStatsText(topic);
     const cogLevel = i < Math.floor(countShort * 0.5) ? 'thongHieu' : 'vanDung';
-    let qTemplate = findBestQuestionFromBank(subject, grade, topic, 'part3_short_answer', cogLevel, usedPrompts, customBank);
+    let qTemplate = findBestQuestionFromBank(subject, grade, topic, 'part3_short_answer', cogLevel, usedPrompts, customBank, allowProbStats);
     if (!qTemplate) {
-      qTemplate = createFallbackQuestion(subject, grade, 'Chủ đề kiểm tra', topic, 'part3_short_answer', cogLevel, i + 1);
+      qTemplate = createFallbackQuestion(subject, grade, 'Chủ đề kiểm tra', topic, 'part3_short_answer', cogLevel, i + 1, allowProbStats);
     }
     usedPrompts.add(qTemplate.prompt);
 
@@ -1416,12 +1575,13 @@ export function generateCustomExamPaper(
   // 4. Phần IV: Tự luận
   for (let i = 0; i < countEssay; i++) {
     const topic = topicsToUse[i % topicsToUse.length];
+    const allowProbStats = selectionHasProbStats && isProbStatsText(topic);
     const cogLevel: 'thongHieu' | 'vanDung' | 'vanDungCao' =
       i === 0 ? 'thongHieu' : i === 1 ? 'vanDung' : 'vanDungCao';
 
-    let qTemplate = findBestQuestionFromBank(subject, grade, topic, 'part4_essay', cogLevel, usedPrompts, customBank);
+    let qTemplate = findBestQuestionFromBank(subject, grade, topic, 'part4_essay', cogLevel, usedPrompts, customBank, allowProbStats);
     if (!qTemplate) {
-      qTemplate = createFallbackQuestion(subject, grade, 'Chủ đề kiểm tra', topic, 'part4_essay', cogLevel, i + 1);
+      qTemplate = createFallbackQuestion(subject, grade, 'Chủ đề kiểm tra', topic, 'part4_essay', cogLevel, i + 1, allowProbStats);
     }
     usedPrompts.add(qTemplate.prompt);
 
@@ -1558,19 +1718,607 @@ export function shuffleExamPaper(originalPaper: ExamPaper, newCode: string): Exa
 // =================================================================
 
 /**
+ * Tự động sinh danh sách câu hỏi đa dạng phong phú (> 10 câu)
+ * bám sát chuẩn kiến thức từng Khối lớp (6, 7, 8, 9), dạng phần và mức độ nhận thức.
+ * Tuyệt đối tôn trọng: nếu allowProbStats = false, không bao giờ sinh câu hỏi về Xác suất & Thống kê.
+ */
+function generateDiverseSuggestions(
+  grade: string,
+  chapter: string,
+  lesson: string,
+  section: 'part1_mcq' | 'part2_true_false' | 'part3_short_answer' | 'part4_essay',
+  cognitiveLevel: CognitiveLevel,
+  targetCount: number,
+  existingPrompts: Set<string>,
+  allowProbStats: boolean
+): BankQuestionTemplate[] {
+  const normGrade = String(grade || '').replace(/\D/g, '') || '9';
+  const cogLabel =
+    cognitiveLevel === 'nhanBiet'
+      ? 'Nhận biết'
+      : cognitiveLevel === 'thongHieu'
+      ? 'Thông hiểu'
+      : cognitiveLevel === 'vanDung'
+      ? 'Vận dụng'
+      : 'Vận dụng cao';
+
+  const candidates: BankQuestionTemplate[] = [];
+
+  // ==================== KHỐI 6 ====================
+  if (normGrade === '6') {
+    if (section === 'part1_mcq') {
+      const g6Mcq = [
+        {
+          prompt: `Cho tập hợp $M = \\{x \\in \\mathbb{N}^* \\mid x \\le 5\\}$. Số phần tử của tập hợp $M$ là:`,
+          options: [{ key: 'A' as const, text: '$5$' }, { key: 'B' as const, text: '$6$' }, { key: 'C' as const, text: '$4$' }, { key: 'D' as const, text: '$7$' }],
+          correct: 'A' as const,
+          sol: 'Tập hợp $M = \\{1; 2; 3; 4; 5\\}$ có đúng 5 phần tử.',
+        },
+        {
+          prompt: `Trong các số $120; 245; 372; 450$, số nào chia hết cho cả $2, 5$ và $9$?`,
+          options: [{ key: 'A' as const, text: '$450$' }, { key: 'B' as const, text: '$120$' }, { key: 'C' as const, text: '$245$' }, { key: 'D' as const, text: '$372$' }],
+          correct: 'A' as const,
+          sol: 'Số $450$ có chữ số tận cùng là 0 nên chia hết cho cả 2 và 5; tổng các chữ số $4 + 5 + 0 = 9$ chia hết cho 9.',
+        },
+        {
+          prompt: `Viết kết quả của phép tính $3^4 \\cdot 3^5$ dưới dạng một lũy thừa:`,
+          options: [{ key: 'A' as const, text: '$3^9$' }, { key: 'B' as const, text: '$3^{20}$' }, { key: 'C' as const, text: '$9^9$' }, { key: 'D' as const, text: '$3^1$' }],
+          correct: 'A' as const,
+          sol: '$3^4 \\cdot 3^5 = 3^{4+5} = 3^9$.',
+        },
+        {
+          prompt: `Nhiệt độ tại Sa Pa lúc 6 giờ sáng là $-2^\\circ\\text{C}$, đến 12 giờ trưa tăng thêm $5^\\circ\\text{C}$. Nhiệt độ lúc 12 giờ trưa là:`,
+          options: [{ key: 'A' as const, text: '$3^\\circ\\text{C}$' }, { key: 'B' as const, text: '$-7^\\circ\\text{C}$' }, { key: 'C' as const, text: '$7^\\circ\\text{C}$' }, { key: 'D' as const, text: '$-3^\\circ\\text{C}$' }],
+          correct: 'A' as const,
+          sol: 'Nhiệt độ lúc 12 giờ trưa là: $(-2) + 5 = 3^\\circ\\text{C}$.',
+        },
+        {
+          prompt: `Số đối của số nguyên $-18$ là:`,
+          options: [{ key: 'A' as const, text: '$18$' }, { key: 'B' as const, text: '$-18$' }, { key: 'C' as const, text: '$\\frac{1}{18}$' }, { key: 'D' as const, text: '$0$' }],
+          correct: 'A' as const,
+          sol: 'Số đối của $-18$ là $-(-18) = 18$.',
+        },
+        {
+          prompt: `Một tam giác đều có cạnh bằng $8\\text{ cm}$. Chu vi của tam giác đều đó là:`,
+          options: [{ key: 'A' as const, text: '$24\\text{ cm}$' }, { key: 'B' as const, text: '$16\\text{ cm}$' }, { key: 'C' as const, text: '$32\\text{ cm}$' }, { key: 'D' as const, text: '$64\\text{ cm}$' }],
+          correct: 'A' as const,
+          sol: 'Chu vi tam giác đều cạnh $a = 8\\text{ cm}$ là $C = 3 \\cdot 8 = 24\\text{ cm}$.',
+        },
+        {
+          prompt: `Một mảnh đất hình thoi có độ dài hai đường chéo lần lượt là $10\\text{ m}$ và $14\\text{ m}$. Diện tích mảnh đất là:`,
+          options: [{ key: 'A' as const, text: '$70\\text{ m}^2$' }, { key: 'B' as const, text: '$140\\text{ m}^2$' }, { key: 'C' as const, text: '$48\\text{ m}^2$' }, { key: 'D' as const, text: '$24\\text{ m}^2$' }],
+          correct: 'A' as const,
+          sol: 'Diện tích hình thoi bằng $\\frac{1}{2} d_1 d_2 = \\frac{1}{2} \\cdot 10 \\cdot 14 = 70\\text{ m}^2$.',
+        },
+        {
+          prompt: `Phân số đối của phân số $-\\frac{5}{9}$ là:`,
+          options: [{ key: 'A' as const, text: '$\\frac{5}{9}$' }, { key: 'B' as const, text: '$-\\frac{9}{5}$' }, { key: 'C' as const, text: '$\\frac{9}{5}$' }, { key: 'D' as const, text: '$\\frac{-5}{-9}$' }],
+          correct: 'A' as const,
+          sol: 'Số đối của $-\\frac{5}{9}$ là $\\frac{5}{9}$.',
+        },
+        {
+          prompt: `Tìm số tự nhiên $x$ thỏa mãn $\\frac{x}{12} = \\frac{3}{4}$:`,
+          options: [{ key: 'A' as const, text: '$9$' }, { key: 'B' as const, text: '$6$' }, { key: 'C' as const, text: '$8$' }, { key: 'D' as const, text: '$12$' }],
+          correct: 'A' as const,
+          sol: '$x = \\frac{12 \\cdot 3}{4} = 9$.',
+        },
+        {
+          prompt: `Cho đoạn thẳng $AB = 8\\text{ cm}$. Điểm $M$ là trung điểm của $AB$. Độ dài đoạn thẳng $AM$ là:`,
+          options: [{ key: 'A' as const, text: '$4\\text{ cm}$' }, { key: 'B' as const, text: '$2\\text{ cm}$' }, { key: 'C' as const, text: '$6\\text{ cm}$' }, { key: 'D' as const, text: '$16\\text{ cm}$' }],
+          correct: 'A' as const,
+          sol: '$AM = \\frac{AB}{2} = \\frac{8}{2} = 4\\text{ cm}$.',
+        },
+        {
+          prompt: `Cho hai góc kề bù $\\widehat{xOy}$ và $\\widehat{yOz}$, biết $\\widehat{xOy} = 65^\\circ$. Số đo góc $\\widehat{yOz}$ là:`,
+          options: [{ key: 'A' as const, text: '$115^\\circ$' }, { key: 'B' as const, text: '$125^\\circ$' }, { key: 'C' as const, text: '$25^\\circ$' }, { key: 'D' as const, text: '$90^\\circ$' }],
+          correct: 'A' as const,
+          sol: 'Hai góc kề bù có tổng số đo bằng $180^\\circ$, suy ra $\\widehat{yOz} = 180^\\circ - 65^\\circ = 115^\\circ$.',
+        },
+        {
+          prompt: `Thực hiện phép tính $125 \\cdot 37 + 125 \\cdot 63$ ta được kết quả là:`,
+          options: [{ key: 'A' as const, text: '$12500$' }, { key: 'B' as const, text: '$1250$' }, { key: 'C' as const, text: '$25000$' }, { key: 'D' as const, text: '$10000$' }],
+          correct: 'A' as const,
+          sol: '$125 \\cdot (37 + 63) = 125 \\cdot 100 = 12500$.',
+        },
+        {
+          prompt: `Trong các số $13; 15; 21; 27$, số nguyên tố là:`,
+          options: [{ key: 'A' as const, text: '$13$' }, { key: 'B' as const, text: '$15$' }, { key: 'C' as const, text: '$21$' }, { key: 'D' as const, text: '$27$' }],
+          correct: 'A' as const,
+          sol: 'Số 13 chỉ có hai ước là 1 và chính nó nên là số nguyên tố.',
+        },
+        {
+          prompt: `Hình vuông có diện tích bằng $36\\text{ cm}^2$. Chu vi của hình vuông đó là:`,
+          options: [{ key: 'A' as const, text: '$24\\text{ cm}$' }, { key: 'B' as const, text: '$12\\text{ cm}$' }, { key: 'C' as const, text: '$36\\text{ cm}$' }, { key: 'D' as const, text: '$18\\text{ cm}$' }],
+          correct: 'A' as const,
+          sol: 'Cạnh hình vuông là $\\sqrt{36} = 6\\text{ cm}$. Chu vi là $4 \\cdot 6 = 24\\text{ cm}$.',
+        },
+      ];
+      g6Mcq.forEach((m) => {
+        candidates.push({
+          subject: 'Toán',
+          grade: '6',
+          topicKeywords: [lesson, chapter],
+          section: 'part1_mcq',
+          type: 'multiple_choice',
+          cognitiveLevel,
+          prompt: m.prompt,
+          options: m.options,
+          correctOption: m.correct,
+          solutionExplanation: m.sol,
+          learningObjective: `${cogLabel} kiến thức trọng tâm Toán lớp 6.`,
+        });
+      });
+    } else if (section === 'part2_true_false') {
+      const g6Tf = [
+        {
+          prompt: `Xét tính Đúng/Sai của các khẳng định sau về số tự nhiên và số nguyên:`,
+          tf: [
+            { subKey: 'a' as const, text: 'Số 0 là số nguyên nhưng không phải là số tự nhiên.', isCorrect: false, explanation: 'Sai vì 0 vừa là số tự nhiên vừa là số nguyên.' },
+            { subKey: 'b' as const, text: 'Tổng của hai số nguyên âm luôn là một số nguyên âm.', isCorrect: true, explanation: 'Đúng theo quy tắc cộng hai số nguyên cùng dấu âm.' },
+            { subKey: 'c' as const, text: 'Mọi số nguyên tố đều là số lẻ.', isCorrect: false, explanation: 'Sai vì số 2 là số nguyên tố chẵn duy nhất.' },
+            { subKey: 'd' as const, text: 'Tập hợp các ước chung của 12 và 18 gồm cả các số nguyên âm.', isCorrect: true, explanation: 'Đúng vì ước chung trong $\\mathbb{Z}$ bao gồm cả ước âm.' },
+          ],
+        },
+        {
+          prompt: `Xét tính Đúng/Sai của các mệnh đề sau về hình học trực quan:`,
+          tf: [
+            { subKey: 'a' as const, text: 'Hình thoi có bốn cạnh bằng nhau và hai đường chéo vuông góc với nhau.', isCorrect: true, explanation: 'Đúng theo tính chất hình thoi.' },
+            { subKey: 'b' as const, text: 'Hình bình hành có hai đường chéo bằng nhau.', isCorrect: false, explanation: 'Sai vì chỉ hình chữ nhật hoặc hình thang cân mới có hai đường chéo bằng nhau.' },
+            { subKey: 'c' as const, text: 'Hình lục giác đều có 6 cạnh bằng nhau và 6 góc bằng nhau.', isCorrect: true, explanation: 'Đúng theo định nghĩa lục giác đều.' },
+            { subKey: 'd' as const, text: 'Diện tích hình chữ nhật có kích thước $a, b$ là $(a + b) \\times 2$.', isCorrect: false, explanation: 'Sai vì diện tích là $a \\times b$, còn $(a+b)\\times 2$ là chu vi.' },
+          ],
+        },
+      ];
+      g6Tf.forEach((tfItem) => {
+        candidates.push({
+          subject: 'Toán',
+          grade: '6',
+          topicKeywords: [lesson, chapter],
+          section: 'part2_true_false',
+          type: 'true_false',
+          cognitiveLevel,
+          prompt: tfItem.prompt,
+          tfStatements: tfItem.tf,
+          solutionExplanation: 'Vận dụng lý thuyết số học và hình học trực quan môn Toán lớp 6.',
+          learningObjective: `${cogLabel} các mệnh đề lý thuyết môn Toán lớp 6.`,
+        });
+      });
+    } else if (section === 'part3_short_answer') {
+      const g6Short = [
+        { prompt: `Tính nhanh giá trị biểu thức: $125 \\cdot 18 - 125 \\cdot 8$`, ans: '1250' },
+        { prompt: `Tìm số tự nhiên $x$ thỏa mãn: $2x + 15 = 47$`, ans: '16' },
+        { prompt: `Tìm ước chung lớn nhất của hai số $36$ và $90$: $\\text{ƯCLN}(36, 90) = ?$`, ans: '18' },
+        { prompt: `Một mảnh sân hình chữ nhật có chiều dài $15\\text{ m}$ và chiều rộng $8\\text{ m}$. Tính diện tích mảnh sân đó theo đơn vị mét vuông:`, ans: '120' },
+        { prompt: `Tính chu vi của hình vuông có diện tích bằng $49\\text{ cm}^2$ (kết quả theo đơn vị $\\text{cm}$):`, ans: '28' },
+        { prompt: `Thực hiện phép tính số nguyên: $(-15) + 38 - 23$`, ans: '0' },
+        { prompt: `Tìm số tự nhiên $x$ biết: $3^x = 81$`, ans: '4' },
+      ];
+      g6Short.forEach((s) => {
+        candidates.push({
+          subject: 'Toán',
+          grade: '6',
+          topicKeywords: [lesson, chapter],
+          section: 'part3_short_answer',
+          type: 'short_answer',
+          cognitiveLevel,
+          prompt: s.prompt,
+          shortAnswerText: s.ans,
+          solutionExplanation: `Tính toán cẩn thận ta thu được kết quả chính xác là ${s.ans}.`,
+          learningObjective: `${cogLabel} tính toán đáp số nhanh môn Toán lớp 6.`,
+        });
+      });
+    } else {
+      candidates.push({
+        subject: 'Toán',
+        grade: '6',
+        topicKeywords: [lesson, chapter],
+        section: 'part4_essay',
+        type: 'essay',
+        cognitiveLevel,
+        prompt: `Bác Nam có một mảnh vườn hình chữ nhật có chiều dài $12\\text{ m}$ và chiều rộng $8\\text{ m}$.\na) Tính diện tích mảnh vườn của bác Nam. (1.0 điểm)\nb) Bác Nam muốn lát gạch toàn bộ mảnh vườn bằng những viên gạch hình vuông có cạnh $40\\text{ cm}$. Hỏi bác Nam cần bao nhiêu viên gạch (bỏ qua mép vữa)? (1.0 điểm)`,
+        essayGradingSteps: [
+          { step: 'Diện tích mảnh vườn: $12 \\times 8 = 96\\text{ m}^2$.', point: 1.0 },
+          { step: 'Đổi $40\\text{ cm} = 0,4\\text{ m}$. Diện tích một viên gạch: $0,4 \\times 0,4 = 0,16\\text{ m}^2$. Số viên gạch cần dùng: $96 : 0,16 = 600$ (viên).', point: 1.0 },
+        ],
+        solutionExplanation: 'Bài toán thực tế ứng dụng diện tích hình chữ nhật và hình vuông.',
+        learningObjective: `${cogLabel} bài toán thực tế diện tích.`,
+      });
+    }
+  }
+
+  // ==================== KHỐI 7 ====================
+  else if (normGrade === '7') {
+    if (section === 'part1_mcq') {
+      const g7Mcq = [
+        {
+          prompt: `Số nào sau đây là số hữu tỉ dương?`,
+          options: [{ key: 'A' as const, text: '$\\frac{-3}{-4}$' }, { key: 'B' as const, text: '$\\frac{-2}{5}$' }, { key: 'C' as const, text: '$\\frac{3}{-7}$' }, { key: 'D' as const, text: '$0$' }],
+          correct: 'A' as const,
+          sol: '$\\frac{-3}{-4} = \\frac{3}{4} > 0$ là số hữu tỉ dương.',
+        },
+        {
+          prompt: `Kết quả của phép tính $(-\\frac{1}{3})^3$ bằng:`,
+          options: [{ key: 'A' as const, text: '$-\\frac{1}{27}$' }, { key: 'B' as const, text: '$\\frac{1}{27}$' }, { key: 'C' as const, text: '$-\\frac{1}{9}$' }, { key: 'D' as const, text: '$\\frac{1}{9}$' }],
+          correct: 'A' as const,
+          sol: 'Lũy thừa bậc lẻ của số âm là số âm: $(-\\frac{1}{3})^3 = -\\frac{1}{27}$.',
+        },
+        {
+          prompt: `Giá trị của biểu thức $|-4,5| + |2,5|$ bằng:`,
+          options: [{ key: 'A' as const, text: '$7$' }, { key: 'B' as const, text: '$-2$' }, { key: 'C' as const, text: '$2$' }, { key: 'D' as const, text: '$-7$' }],
+          correct: 'A' as const,
+          sol: '$|-4,5| + |2,5| = 4,5 + 2,5 = 7$.',
+        },
+        {
+          prompt: `Căn bậc hai số học của số $49$ là:`,
+          options: [{ key: 'A' as const, text: '$7$' }, { key: 'B' as const, text: '$-7$' }, { key: 'C' as const, text: '$\\pm 7$' }, { key: 'D' as const, text: '$2401$' }],
+          correct: 'A' as const,
+          sol: 'Căn bậc hai số học của $49$ là $\\sqrt{49} = 7$ (không âm).',
+        },
+        {
+          prompt: `Cho hai góc đối đỉnh $\\widehat{xOy}$ và $\\widehat{x\'Oy\'}$. Biết $\\widehat{xOy} = 55^\\circ$. Số đo góc $\\widehat{x\'Oy\'}$ là:`,
+          options: [{ key: 'A' as const, text: '$55^\\circ$' }, { key: 'B' as const, text: '$125^\\circ$' }, { key: 'C' as const, text: '$35^\\circ$' }, { key: 'D' as const, text: '$90^\\circ$' }],
+          correct: 'A' as const,
+          sol: 'Hai góc đối đỉnh thì bằng nhau, nên $\\widehat{x\'Oy\'} = 55^\\circ$.',
+        },
+        {
+          prompt: `Tổng ba góc trong một tam giác luôn bằng:`,
+          options: [{ key: 'A' as const, text: '$180^\\circ$' }, { key: 'B' as const, text: '$360^\\circ$' }, { key: 'C' as const, text: '$90^\\circ$' }, { key: 'D' as const, text: '$100^\\circ$' }],
+          correct: 'A' as const,
+          sol: 'Định lý tổng ba góc trong một tam giác bằng $180^\\circ$.',
+        },
+        {
+          prompt: `Cho tam giác $ABC$ cân tại $A$ có $\\widehat{A} = 40^\\circ$. Số đo góc $B$ là:`,
+          options: [{ key: 'A' as const, text: '$70^\\circ$' }, { key: 'B' as const, text: '$40^\\circ$' }, { key: 'C' as const, text: '$80^\\circ$' }, { key: 'D' as const, text: '$140^\\circ$' }],
+          correct: 'A' as const,
+          sol: 'Tam giác cân tại $A$ có $\\widehat{B} = \\frac{180^\\circ - 40^\\circ}{2} = 70^\\circ$.',
+        },
+        {
+          prompt: `Bậc của đa thức $A(x) = 5x^4 - 2x^3 + x - 7$ là:`,
+          options: [{ key: 'A' as const, text: '$4$' }, { key: 'B' as const, text: '$5$' }, { key: 'C' as const, text: '$3$' }, { key: 'D' as const, text: '$-7$' }],
+          correct: 'A' as const,
+          sol: 'Hạng tử có số mũ lớn nhất là $5x^4$ (bậc 4).',
+        },
+        {
+          prompt: `Nghiệm của đa thức một biến $P(x) = 3x - 12$ là:`,
+          options: [{ key: 'A' as const, text: '$x = 4$' }, { key: 'B' as const, text: '$x = -4$' }, { key: 'C' as const, text: '$x = 12$' }, { key: 'D' as const, text: '$x = 3$' }],
+          correct: 'A' as const,
+          sol: '$3x - 12 = 0 \\Leftrightarrow x = 4$.',
+        },
+        {
+          prompt: `Từ tỉ lệ thức $\\frac{x}{6} = \\frac{5}{2}$, giá trị của $x$ là:`,
+          options: [{ key: 'A' as const, text: '$15$' }, { key: 'B' as const, text: '$12$' }, { key: 'C' as const, text: '$10$' }, { key: 'D' as const, text: '$30$' }],
+          correct: 'A' as const,
+          sol: '$x = \\frac{6 \\cdot 5}{2} = 15$.',
+        },
+        {
+          prompt: `Trong các số $\\sqrt{2}; \\frac{1}{3}; 0,25; -5$, số vô tỉ là:`,
+          options: [{ key: 'A' as const, text: '$\\sqrt{2}$' }, { key: 'B' as const, text: '$\\frac{1}{3}$' }, { key: 'C' as const, text: '$0,25$' }, { key: 'D' as const, text: '$-5$' }],
+          correct: 'A' as const,
+          sol: '$\\sqrt{2} \\approx 1,4142...$ là số thập phân vô hạn không tuần hoàn nên là số vô tỉ.',
+        },
+        {
+          prompt: `Giao điểm của ba đường trung tuyến trong một tam giác được gọi là:`,
+          options: [{ key: 'A' as const, text: 'Trọng tâm tam giác' }, { key: 'B' as const, text: 'Trực tâm tam giác' }, { key: 'C' as const, text: 'Tâm đường tròn ngoại tiếp' }, { key: 'D' as const, text: 'Điểm đối xứng' }],
+          correct: 'A' as const,
+          sol: 'Giao điểm ba đường trung tuyến là trọng tâm tam giác.',
+        },
+      ];
+      g7Mcq.forEach((m) => {
+        candidates.push({
+          subject: 'Toán',
+          grade: '7',
+          topicKeywords: [lesson, chapter],
+          section: 'part1_mcq',
+          type: 'multiple_choice',
+          cognitiveLevel,
+          prompt: m.prompt,
+          options: m.options,
+          correctOption: m.correct,
+          solutionExplanation: m.sol,
+          learningObjective: `${cogLabel} kiến thức trọng tâm Toán lớp 7.`,
+        });
+      });
+    } else if (section === 'part3_short_answer') {
+      const g7Short = [
+        { prompt: `Tính giá trị của biểu thức: $(-\\frac{3}{4})^2 + \\frac{7}{16}$`, ans: '1' },
+        { prompt: `Tìm $x$ trong tỉ lệ thức: $\\frac{x}{18} = \\frac{4}{3}$`, ans: '24' },
+        { prompt: `Tìm nghiệm của đa thức $M(x) = 4x - 28$`, ans: '7' },
+        { prompt: `Cho tam giác $ABC$ vuông tại $A$ có $AB = 6\\text{ cm}, AC = 8\\text{ cm}$. Tính độ dài cạnh huyền $BC$ theo định lý Pythagore:`, ans: '10' },
+        { prompt: `Cho tam giác có $\\widehat{A} = 75^\\circ, \\widehat{B} = 45^\\circ$. Tính số đo góc $\\widehat{C}$ (độ):`, ans: '60' },
+      ];
+      g7Short.forEach((s) => {
+        candidates.push({
+          subject: 'Toán',
+          grade: '7',
+          topicKeywords: [lesson, chapter],
+          section: 'part3_short_answer',
+          type: 'short_answer',
+          cognitiveLevel,
+          prompt: s.prompt,
+          shortAnswerText: s.ans,
+          solutionExplanation: `Tính toán thu được kết quả chính xác là ${s.ans}.`,
+          learningObjective: `${cogLabel} tính toán chuẩn xác Toán lớp 7.`,
+        });
+      });
+    }
+  }
+
+  // ==================== KHỐI 8 ====================
+  else if (normGrade === '8') {
+    if (section === 'part1_mcq') {
+      const g8Mcq = [
+        {
+          prompt: `Bậc của đơn thức $4x^3y^2z$ là:`,
+          options: [{ key: 'A' as const, text: '$6$' }, { key: 'B' as const, text: '$5$' }, { key: 'C' as const, text: '$4$' }, { key: 'D' as const, text: '$3$' }],
+          correct: 'A' as const,
+          sol: 'Bậc của đơn thức là tổng số mũ của các biến: $3 + 2 + 1 = 6$.',
+        },
+        {
+          prompt: `Khai triển hằng đẳng thức $(x + 2y)^2$ ta được kết quả là:`,
+          options: [{ key: 'A' as const, text: '$x^2 + 4xy + 4y^2$' }, { key: 'B' as const, text: '$x^2 + 2xy + 4y^2$' }, { key: 'C' as const, text: '$x^2 + 4y^2$' }, { key: 'D' as const, text: '$x^2 + 4xy + 2y^2$' }],
+          correct: 'A' as const,
+          sol: '$(x + 2y)^2 = x^2 + 2 \\cdot x \\cdot 2y + (2y)^2 = x^2 + 4xy + 4y^2$.',
+        },
+        {
+          prompt: `Phân tích đa thức $x^2 - 9$ thành nhân tử được kết quả là:`,
+          options: [{ key: 'A' as const, text: '$(x - 3)(x + 3)$' }, { key: 'B' as const, text: '$(x - 3)^2$' }, { key: 'C' as const, text: '$(x + 3)^2$' }, { key: 'D' as const, text: '$x(x - 9)$' }],
+          correct: 'A' as const,
+          sol: 'Hằng đẳng thức hiệu hai bình phương: $x^2 - 3^2 = (x - 3)(x + 3)$.',
+        },
+        {
+          prompt: `Điều kiện xác định của phân thức $\\frac{2x - 1}{x - 4}$ là:`,
+          options: [{ key: 'A' as const, text: '$x \\ne 4$' }, { key: 'B' as const, text: '$x \\ne \\frac{1}{2}$' }, { key: 'C' as const, text: '$x = 4$' }, { key: 'D' as const, text: '$x > 4$' }],
+          correct: 'A' as const,
+          sol: 'Mẫu thức phải khác 0: $x - 4 \\ne 0 \\Leftrightarrow x \\ne 4$.',
+        },
+        {
+          prompt: `Rút gọn phân thức $\\frac{x^2 - 16}{x + 4}$ với $x \\ne -4$ ta được:`,
+          options: [{ key: 'A' as const, text: '$x - 4$' }, { key: 'B' as const, text: '$x + 4$' }, { key: 'C' as const, text: '$\\frac{1}{x - 4}$' }, { key: 'D' as const, text: '$x - 16$' }],
+          correct: 'A' as const,
+          sol: '$\\frac{(x - 4)(x + 4)}{x + 4} = x - 4$.',
+        },
+        {
+          prompt: `Tổng các góc trong một tứ giác lồi luôn bằng:`,
+          options: [{ key: 'A' as const, text: '$360^\\circ$' }, { key: 'B' as const, text: '$180^\\circ$' }, { key: 'C' as const, text: '$270^\\circ$' }, { key: 'D' as const, text: '$540^\\circ$' }],
+          correct: 'A' as const,
+          sol: 'Định lý tổng các góc của tứ giác bằng $360^\\circ$.',
+        },
+        {
+          prompt: `Hình bình hành có hai đường chéo bằng nhau là hình gì?`,
+          options: [{ key: 'A' as const, text: 'Hình chữ nhật' }, { key: 'B' as const, text: 'Hình thoi' }, { key: 'C' as const, text: 'Hình thang cân' }, { key: 'D' as const, text: 'Hình vuông' }],
+          correct: 'A' as const,
+          sol: 'Dấu hiệu nhận biết: Hình bình hành có hai đường chéo bằng nhau là hình chữ nhật.',
+        },
+        {
+          prompt: `Cho tam giác $ABC$, $MN // BC$ ($M \\in AB, N \\in AC$). Khẳng định nào sau đây đúng theo định lý Thalès?`,
+          options: [{ key: 'A' as const, text: '$\\frac{AM}{AB} = \\frac{AN}{AC}$' }, { key: 'B' as const, text: '$\\frac{AM}{MB} = \\frac{NC}{AN}$' }, { key: 'C' as const, text: '$\\frac{AM}{AC} = \\frac{AN}{AB}$' }, { key: 'D' as const, text: '$AM \\cdot AN = MB \\cdot NC$' }],
+          correct: 'A' as const,
+          sol: 'Định lý Thalès khẳng định: $\\frac{AM}{AB} = \\frac{AN}{AC}$.',
+        },
+        {
+          prompt: `Một hình chóp tam giác đều có diện tích đáy bằng $15\\text{ cm}^2$ và chiều cao bằng $6\\text{ cm}$. Thể tích của hình chóp đó là:`,
+          options: [{ key: 'A' as const, text: '$30\\text{ cm}^3$' }, { key: 'B' as const, text: '$90\\text{ cm}^3$' }, { key: 'C' as const, text: '$45\\text{ cm}^3$' }, { key: 'D' as const, text: '$60\\text{ cm}^3$' }],
+          correct: 'A' as const,
+          sol: '$V = \\frac{1}{3} S_{\\text{đáy}} \\cdot h = \\frac{1}{3} \\cdot 15 \\cdot 6 = 30\\text{ cm}^3$.',
+        },
+        {
+          prompt: `Tính giá trị của biểu thức $x^2 - 6x + 9$ tại $x = 13$:`,
+          options: [{ key: 'A' as const, text: '$100$' }, { key: 'B' as const, text: '$120$' }, { key: 'C' as const, text: '$81$' }, { key: 'D' as const, text: '$64$' }],
+          correct: 'A' as const,
+          sol: '$x^2 - 6x + 9 = (x - 3)^2$. Thay $x = 13$: $(13 - 3)^2 = 10^2 = 100$.',
+        },
+      ];
+      g8Mcq.forEach((m) => {
+        candidates.push({
+          subject: 'Toán',
+          grade: '8',
+          topicKeywords: [lesson, chapter],
+          section: 'part1_mcq',
+          type: 'multiple_choice',
+          cognitiveLevel,
+          prompt: m.prompt,
+          options: m.options,
+          correctOption: m.correct,
+          solutionExplanation: m.sol,
+          learningObjective: `${cogLabel} kiến thức trọng tâm Toán lớp 8.`,
+        });
+      });
+    } else if (section === 'part3_short_answer') {
+      const g8Short = [
+        { prompt: `Rút gọn và tính giá trị của $(x+3)^2 - (x-3)^2$ tại $x = 5$`, ans: '60' },
+        { prompt: `Một hình chóp tứ giác đều có cạnh đáy $6\\text{ cm}$ và chiều cao $5\\text{ cm}$. Tính thể tích của hình chóp theo $\\text{cm}^3$:`, ans: '60' },
+        { prompt: `Cho tam giác $ABC$ có $DE // BC$, biết $AD = 4\\text{ cm}, DB = 6\\text{ cm}, AE = 5\\text{ cm}$. Tính độ dài đoạn $EC$ theo đơn vị $\\text{cm}$:`, ans: '7,5' },
+        { prompt: `Tính giá trị của phân thức $\\frac{x^2 - 1}{x - 1}$ tại $x = 99$:`, ans: '100' },
+      ];
+      g8Short.forEach((s) => {
+        candidates.push({
+          subject: 'Toán',
+          grade: '8',
+          topicKeywords: [lesson, chapter],
+          section: 'part3_short_answer',
+          type: 'short_answer',
+          cognitiveLevel,
+          prompt: s.prompt,
+          shortAnswerText: s.ans,
+          solutionExplanation: `Tính toán cẩn thận cho kết quả là ${s.ans}.`,
+          learningObjective: `${cogLabel} tính toán chuẩn xác Toán lớp 8.`,
+        });
+      });
+    }
+  }
+
+  // ==================== KHỐI 9 ====================
+  else {
+    if (section === 'part1_mcq') {
+      const g9Mcq = [
+        {
+          prompt: `Căn bậc hai số học của $81$ là:`,
+          options: [{ key: 'A' as const, text: '$9$' }, { key: 'B' as const, text: '$-9$' }, { key: 'C' as const, text: '$\\pm 9$' }, { key: 'D' as const, text: '$81$' }],
+          correct: 'A' as const,
+          sol: 'Căn bậc hai số học của $81$ là $\\sqrt{81} = 9$.',
+        },
+        {
+          prompt: `Biểu thức $\\sqrt{2x - 6}$ xác định khi và chỉ khi:`,
+          options: [{ key: 'A' as const, text: '$x \\ge 3$' }, { key: 'B' as const, text: '$x \\le 3$' }, { key: 'C' as const, text: '$x > 3$' }, { key: 'D' as const, text: '$x \\ne 3$' }],
+          correct: 'A' as const,
+          sol: 'Biểu thức dưới dấu căn không âm: $2x - 6 \\ge 0 \\Leftrightarrow x \\ge 3$.',
+        },
+        {
+          prompt: `Trục căn thức ở mẫu của biểu thức $\\frac{6}{\\sqrt{3}}$ ta được kết quả là:`,
+          options: [{ key: 'A' as const, text: '$2\\sqrt{3}$' }, { key: 'B' as const, text: '$3\\sqrt{3}$' }, { key: 'C' as const, text: '$6\\sqrt{3}$' }, { key: 'D' as const, text: '$\\sqrt{3}$' }],
+          correct: 'A' as const,
+          sol: '$\\frac{6}{\\sqrt{3}} = \\frac{6\\sqrt{3}}{3} = 2\\sqrt{3}$.',
+        },
+        {
+          prompt: `Rút gọn biểu thức $\\sqrt{50} - \\sqrt{18}$ ta được kết quả là:`,
+          options: [{ key: 'A' as const, text: '$2\\sqrt{2}$' }, { key: 'B' as const, text: '$\\sqrt{32}$' }, { key: 'C' as const, text: '$4\\sqrt{2}$' }, { key: 'D' as const, text: '$8\\sqrt{2}$' }],
+          correct: 'A' as const,
+          sol: '$\\sqrt{50} - \\sqrt{18} = 5\\sqrt{2} - 3\\sqrt{2} = 2\\sqrt{2}$.',
+        },
+        {
+          prompt: `Hàm số bậc nhất $y = (3 - m)x + 5$ nghịch biến trên $\\mathbb{R}$ khi:`,
+          options: [{ key: 'A' as const, text: '$m > 3$' }, { key: 'B' as const, text: '$m < 3$' }, { key: 'C' as const, text: '$m \\ge 3$' }, { key: 'D' as const, text: '$m \\ne 3$' }],
+          correct: 'A' as const,
+          sol: 'Hàm số nghịch biến khi hệ số $a < 0 \\Leftrightarrow 3 - m < 0 \\Leftrightarrow m > 3$.',
+        },
+        {
+          prompt: `Hai đường thẳng $y = 2x + 1$ và $y = 2x - 5$ có vị trí tương đối là:`,
+          options: [{ key: 'A' as const, text: 'Song song với nhau' }, { key: 'B' as const, text: 'Cắt nhau' }, { key: 'C' as const, text: 'Trùng nhau' }, { key: 'D' as const, text: 'Vuông góc với nhau' }],
+          correct: 'A' as const,
+          sol: 'Vì $a = a\' = 2$ và $b \\ne b\'$ ($1 \\ne -5$) nên hai đường thẳng song song.',
+        },
+        {
+          prompt: `Nghiệm của hệ phương trình $\\begin{cases} x + y = 7 \\\\ x - y = 3 \\end{cases}$ là:`,
+          options: [{ key: 'A' as const, text: '$(5; 2)$' }, { key: 'B' as const, text: '$(2; 5)$' }, { key: 'C' as const, text: '$(4; 3)$' }, { key: 'D' as const, text: '$(6; 1)$' }],
+          correct: 'A' as const,
+          sol: 'Cộng hai phương trình: $2x = 10 \\Rightarrow x = 5 \\Rightarrow y = 2$. Nghiệm là $(5; 2)$.',
+        },
+        {
+          prompt: `Phương trình bậc hai $x^2 - 5x + 6 = 0$ có hai nghiệm là:`,
+          options: [{ key: 'A' as const, text: '$x_1 = 2; x_2 = 3$' }, { key: 'B' as const, text: '$x_1 = -2; x_2 = -3$' }, { key: 'C' as const, text: '$x_1 = 1; x_2 = 6$' }, { key: 'D' as const, text: '$x_1 = -1; x_2 = -6$' }],
+          correct: 'A' as const,
+          sol: '$(x - 2)(x - 3) = 0 \\Leftrightarrow x = 2$ hoặc $x = 3$.',
+        },
+        {
+          prompt: `Theo định lý Viète, tổng hai nghiệm của phương trình $2x^2 - 7x + 3 = 0$ bằng:`,
+          options: [{ key: 'A' as const, text: '$\\frac{7}{2}$' }, { key: 'B' as const, text: '$-\\frac{7}{2}$' }, { key: 'C' as const, text: '$\\frac{3}{2}$' }, { key: 'D' as const, text: '$7$' }],
+          correct: 'A' as const,
+          sol: '$x_1 + x_2 = -\\frac{b}{a} = -\\frac{-7}{2} = \\frac{7}{2}$.',
+        },
+        {
+          prompt: `Cho tam giác $ABC$ vuông tại $A$, đường cao $AH$. Biết $BH = 2\\text{ cm}, CH = 8\\text{ cm}$. Độ dài đoạn thẳng $AH$ là:`,
+          options: [{ key: 'A' as const, text: '$4\\text{ cm}$' }, { key: 'B' as const, text: '$16\\text{ cm}$' }, { key: 'C' as const, text: '$5\\text{ cm}$' }, { key: 'D' as const, text: '$10\\text{ cm}$' }],
+          correct: 'A' as const,
+          sol: 'Hệ thức lượng trong tam giác vuông: $AH^2 = BH \\cdot CH = 2 \\cdot 8 = 16 \\Rightarrow AH = 4\\text{ cm}$.',
+        },
+        {
+          prompt: `Cho tam giác vuông có một góc nhọn bằng $30^\\circ$. Giá trị $\\sin 30^\\circ$ bằng:`,
+          options: [{ key: 'A' as const, text: '$\\frac{1}{2}$' }, { key: 'B' as const, text: '$\\frac{\\sqrt{3}}{2}$' }, { key: 'C' as const, text: '$\\frac{\\sqrt{2}}{2}$' }, { key: 'D' as const, text: '$1$' }],
+          correct: 'A' as const,
+          sol: 'Tỉ số lượng giác: $\\sin 30^\\circ = \\frac{1}{2}$.',
+        },
+        {
+          prompt: `Số đo của góc nội tiếp chắn nửa đường tròn luôn bằng:`,
+          options: [{ key: 'A' as const, text: '$90^\\circ$' }, { key: 'B' as const, text: '$180^\\circ$' }, { key: 'C' as const, text: '$60^\\circ$' }, { key: 'D' as const, text: '$45^\\circ$' }],
+          correct: 'A' as const,
+          sol: 'Định lý góc nội tiếp chắn nửa đường tròn là góc vuông ($90^\\circ$).',
+        },
+        {
+          prompt: `Cho tứ giác $ABCD$ nội tiếp đường tròn $(O)$. Biết $\\widehat{A} = 85^\\circ$. Số đo góc đối diện $\\widehat{C}$ là:`,
+          options: [{ key: 'A' as const, text: '$95^\\circ$' }, { key: 'B' as const, text: '$85^\\circ$' }, { key: 'C' as const, text: '$105^\\circ$' }, { key: 'D' as const, text: '$180^\\circ$' }],
+          correct: 'A' as const,
+          sol: 'Trong tứ giác nội tiếp, tổng hai góc đối diện bằng $180^\\circ$. Do đó $\\widehat{C} = 180^\\circ - 85^\\circ = 95^\\circ$.',
+        },
+      ];
+      g9Mcq.forEach((m) => {
+        candidates.push({
+          subject: 'Toán',
+          grade: '9',
+          topicKeywords: [lesson, chapter],
+          section: 'part1_mcq',
+          type: 'multiple_choice',
+          cognitiveLevel,
+          prompt: m.prompt,
+          options: m.options,
+          correctOption: m.correct,
+          solutionExplanation: m.sol,
+          learningObjective: `${cogLabel} kiến thức trọng tâm Toán lớp 9.`,
+        });
+      });
+    } else if (section === 'part3_short_answer') {
+      const g9Short = [
+        { prompt: `Tính giá trị của biểu thức: $(\\sqrt{3} + 1)^2 - \\sqrt{12}$`, ans: '4' },
+        { prompt: `Tìm nghiệm dương của phương trình: $x^2 - 36 = 0$`, ans: '6' },
+        { prompt: `Cho tam giác vuông có hai cạnh góc vuông là $6\\text{ cm}$ và $8\\text{ cm}$. Tính độ dài đường cao ứng với cạnh huyền:`, ans: '4,8' },
+        { prompt: `Tìm giá trị của $m$ để đồ thị hàm số $y = mx + 2$ đi qua điểm $M(2; 8)$:`, ans: '3' },
+        { prompt: `Tính tổng hai nghiệm của phương trình bậc hai $x^2 - 15x + 26 = 0$:`, ans: '15' },
+        { prompt: `Cho tứ giác nội tiếp $ABCD$ có $\\widehat{A} = 70^\\circ$. Tính số đo góc $\\widehat{C}$ (độ):`, ans: '110' },
+      ];
+      g9Short.forEach((s) => {
+        candidates.push({
+          subject: 'Toán',
+          grade: '9',
+          topicKeywords: [lesson, chapter],
+          section: 'part3_short_answer',
+          type: 'short_answer',
+          cognitiveLevel,
+          prompt: s.prompt,
+          shortAnswerText: s.ans,
+          solutionExplanation: `Tính toán cẩn thận thu được kết quả chính xác là ${s.ans}.`,
+          learningObjective: `${cogLabel} giải nhanh và điền kết quả chuẩn xác Toán lớp 9.`,
+        });
+      });
+    }
+  }
+
+  // Lọc các câu chưa có trong đề hoặc gợi ý trước đó
+  const filtered = candidates.filter((c) => !existingPrompts.has(c.prompt.trim()));
+
+  // Nếu vẫn cần thêm để đủ targetCount, dùng fallback generator
+  let idx = 1;
+  while (filtered.length < targetCount && idx <= 20) {
+    const fb = createFallbackQuestion(
+      'Toán',
+      normGrade,
+      chapter,
+      lesson,
+      section,
+      cognitiveLevel,
+      idx * 3 + filtered.length,
+      allowProbStats
+    );
+    if (!existingPrompts.has(fb.prompt.trim()) && !filtered.some((f) => f.prompt.trim() === fb.prompt.trim())) {
+      filtered.push({ ...fb, source: 'ai_system' });
+    }
+    idx++;
+  }
+
+  return filtered.slice(0, targetCount);
+}
+
+/**
  * Lấy danh sách câu hỏi gợi ý cùng mức độ nhận thức (hoặc mức độ tùy chỉnh)
  * bám sát môn học, khối lớp (6, 7, 8, 9) và dạng thức câu hỏi.
+ * ĐẢM BẢO: Danh sách luôn đa dạng và NHIỀU HƠN 10 CÂU (14 - 16 câu).
+ * ĐẢM BẢO: Nếu nội dung không có Xác suất / Thống kê thì tuyệt đối KHÔNG sinh câu hỏi xác suất thống kê.
  */
 export function getSuggestedQuestions(
   currentQuestion: ExamQuestion,
   grade: string = '9',
   targetLevel?: CognitiveLevel,
-  customBank?: BankQuestionTemplate[]
+  customBank?: BankQuestionTemplate[],
+  allowProbStats?: boolean
 ): BankQuestionTemplate[] {
   const desiredLevel = targetLevel || currentQuestion.cognitiveLevel;
   const section = currentQuestion.section;
   const topicLower = (currentQuestion.lesson || '').toLowerCase();
   const normGrade = String(grade || '').replace(/\D/g, '') || '9';
+
+  // Xác định rõ ràng quyền sinh câu hỏi Xác suất / Thống kê
+  const shouldAllowProbStats =
+    allowProbStats !== undefined
+      ? allowProbStats
+      : isProbStatsQuestion(currentQuestion) || isProbStatsText(currentQuestion.lesson || '');
 
   // 1. Thu thập câu hỏi từ Ngân hàng do giáo viên tải lên trước
   const uploadedPool = customBank !== undefined ? customBank : getStoredUploadedQuestions();
@@ -1581,9 +2329,11 @@ export function getSuggestedQuestions(
       if (q.prompt.trim() === currentQuestion.prompt.trim()) return;
       if (q.section !== section) return;
       if (q.cognitiveLevel !== desiredLevel) return;
-      if ((q.grade || '9') === normGrade) {
-        uploadedCandidates.push({ ...q, source: 'uploaded' });
-      }
+      if ((q.grade || '9') !== normGrade) return;
+      const isQProb = isProbStatsQuestion(q);
+      if (!shouldAllowProbStats && isQProb) return;
+      if (shouldAllowProbStats && !isQProb) return;
+      uploadedCandidates.push({ ...q, source: 'uploaded' });
     });
 
     // Sắp xếp ưu tiên khớp chủ đề trong ngân hàng tải lên
@@ -1594,47 +2344,50 @@ export function getSuggestedQuestions(
     });
   }
 
-  // 2. Lọc từ QUESTION_BANK hệ thống cùng dạng thức (section) và cùng mức độ nhận thức
+  // 2. Lọc từ QUESTION_BANK hệ thống: Chuẩn xác 100% cùng Khối lớp, cùng dạng thức (section) và cùng mức độ nhận thức
   const matchingQuestions = QUESTION_BANK.filter((q) => {
     if (q.prompt.trim() === currentQuestion.prompt.trim()) return false;
     if (q.section !== section) return false;
     if (q.cognitiveLevel !== desiredLevel) return false;
+    if ((q.grade || '9') !== normGrade) return false; // Tuyệt đối không lẫn lộn giữa các khối
+    const isQProb = isProbStatsQuestion(q);
+    if (!shouldAllowProbStats && isQProb) return false;
+    if (shouldAllowProbStats && !isQProb) return false;
     return true;
   });
 
-  // Ưu tiên sắp xếp ngân hàng hệ thống
+  // Ưu tiên sắp xếp câu hỏi khớp với chủ đề bài học đang xét
   matchingQuestions.sort((a, b) => {
-    const aGrade = (a.grade || '9') === normGrade ? 2 : 0;
-    const bGrade = (b.grade || '9') === normGrade ? 2 : 0;
-
     const aTopic = a.topicKeywords.some((kw) => topicLower.includes(kw.toLowerCase())) ? 1 : 0;
     const bTopic = b.topicKeywords.some((kw) => topicLower.includes(kw.toLowerCase())) ? 1 : 0;
-
-    return (bGrade + bTopic) - (aGrade + aTopic);
+    return bTopic - aTopic;
   });
 
-  // Kết hợp ngân hàng tải lên lên đầu danh sách gợi ý
+  // Kết hợp ngân hàng tải lên lên đầu danh sách gợi ý (KHÔNG BỊ GIỚI HẠN .slice(0, 10))
   const results: BankQuestionTemplate[] = [
     ...uploadedCandidates,
     ...matchingQuestions.map((q) => ({ ...q, source: 'ai_system' as const })),
-  ].slice(0, 10);
+  ];
 
-  // Nếu số lượng câu hỏi gợi ý chưa đủ > 5 câu, tự động sinh các câu hỏi đa dạng chất lượng cao
-  if (results.length < 6) {
-    for (let i = 1; results.length < 8; i++) {
-      const fallback = createFallbackQuestion(
-        'Toán',
-        normGrade,
-        currentQuestion.chapter || 'Chủ đề bài học',
-        currentQuestion.lesson || 'Kiến thức trọng tâm',
-        section,
-        desiredLevel,
-        i * 7 + results.length
-      );
-      if (!results.some((r) => r.prompt.trim() === fallback.prompt.trim())) {
-        results.push({ ...fallback, source: 'ai_system' });
-      }
-    }
+  // Đảm bảo số lượng câu hỏi gợi ý luôn đa dạng và NHIỀU HƠN 10 CÂU (tối thiểu 14 đến 16 câu)
+  const existingPrompts = new Set<string>([
+    currentQuestion.prompt.trim(),
+    ...results.map((r) => r.prompt.trim()),
+  ]);
+
+  if (results.length < 14) {
+    const needed = 16 - results.length;
+    const generated = generateDiverseSuggestions(
+      normGrade,
+      currentQuestion.chapter || 'Toán học',
+      currentQuestion.lesson || 'Kiến thức trọng tâm',
+      section,
+      desiredLevel,
+      needed,
+      existingPrompts,
+      shouldAllowProbStats
+    );
+    results.push(...generated);
   }
 
   return results;
@@ -1644,10 +2397,16 @@ export function regenerateSingleQuestion(
   currentQuestion: ExamQuestion,
   allQuestionsInPaper: ExamQuestion[],
   grade: string = '9',
-  customBank?: BankQuestionTemplate[]
+  customBank?: BankQuestionTemplate[],
+  allowProbStats?: boolean
 ): ExamQuestion {
   const usedPrompts = new Set(allQuestionsInPaper.map((q) => q.prompt));
   const normGrade = String(grade || '').replace(/\D/g, '') || '9';
+
+  const shouldAllowProb =
+    allowProbStats !== undefined
+      ? allowProbStats
+      : isProbStatsQuestion(currentQuestion) || isProbStatsText(currentQuestion.lesson || '');
 
   let replacement = findBestQuestionFromBank(
     'Toán',
@@ -1656,7 +2415,8 @@ export function regenerateSingleQuestion(
     currentQuestion.section,
     currentQuestion.cognitiveLevel,
     usedPrompts,
-    customBank
+    customBank,
+    shouldAllowProb
   );
 
   if (!replacement) {
@@ -1667,7 +2427,8 @@ export function regenerateSingleQuestion(
       currentQuestion.lesson,
       currentQuestion.section,
       currentQuestion.cognitiveLevel,
-      Date.now() % 100
+      Date.now() % 100,
+      shouldAllowProb
     );
   }
 
@@ -1693,11 +2454,17 @@ export function createNewQuestionWithLevel(
   baseQuestion: ExamQuestion,
   allQuestionsInPaper: ExamQuestion[],
   targetLevel?: 'nhanBiet' | 'thongHieu' | 'vanDung' | 'vanDungCao',
-  grade: string = '9'
+  grade: string = '9',
+  allowProbStats?: boolean
 ): ExamQuestion {
   const level = targetLevel || baseQuestion.cognitiveLevel;
   const normGrade = String(grade || '').replace(/\D/g, '') || '9';
   const usedPrompts = new Set(allQuestionsInPaper.map((q) => q.prompt));
+
+  const shouldAllowProb =
+    allowProbStats !== undefined
+      ? allowProbStats
+      : isProbStatsQuestion(baseQuestion) || isProbStatsText(baseQuestion.lesson || '');
 
   let replacement = findBestQuestionFromBank(
     'Toán',
@@ -1705,7 +2472,9 @@ export function createNewQuestionWithLevel(
     baseQuestion.lesson,
     baseQuestion.section,
     level,
-    usedPrompts
+    usedPrompts,
+    undefined,
+    shouldAllowProb
   );
 
   if (!replacement) {
@@ -1716,7 +2485,8 @@ export function createNewQuestionWithLevel(
       baseQuestion.lesson,
       baseQuestion.section,
       level,
-      allQuestionsInPaper.length + 1
+      allQuestionsInPaper.length + 1,
+      shouldAllowProb
     );
   }
 

@@ -580,6 +580,8 @@ export default function App() {
             matrixRows={matrixRows}
             specRows={specRows}
             activePpct={activeDataset}
+            datasets={datasets}
+            onSelectDataset={(dsId) => setActiveDatasetId(dsId)}
             exams={exams}
             sgkBooks={sgkBooks}
             examSyncTimestamp={examSyncTimestamp}

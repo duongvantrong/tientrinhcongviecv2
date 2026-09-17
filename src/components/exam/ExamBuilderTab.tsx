@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   FileText,
   Sliders,
@@ -35,9 +35,13 @@ import {
   regenerateSingleQuestion,
   createNewQuestionWithLevel,
   calculateAlignmentSummary,
+  hasProbStatsInTopics,
+  isProbStatsText,
+  isProbStatsQuestion,
 } from '../../utils/examGenerator';
 import { generateQuestionNumericVariant } from '../../utils/mathVariationSync';
 import { getStoredUploadedQuestions } from '../../utils/questionBankStorage';
+import { defaultDatasets, defaultPpctDataset9 } from '../../data/defaultData';
 import { ExamPaperView } from './ExamPaperView';
 import { ExamConfigModal } from './ExamConfigModal';
 import { ExamQuestionEditModal } from './ExamQuestionEditModal';
@@ -49,6 +53,8 @@ interface ExamBuilderTabProps {
   matrixRows: MatrixRow[];
   specRows: SpecificationRow[];
   activePpct: PpctDataset;
+  datasets?: PpctDataset[];
+  onSelectDataset?: (id: string) => void;
   exams: ExamEvent[];
   sgkBooks?: SgkBook[];
   examSyncTimestamp?: number;
@@ -56,23 +62,67 @@ interface ExamBuilderTabProps {
 }
 
 const STORAGE_KEY = 'teacher_hub_active_exam_paper';
+const getGradeStorageKey = (g: string) => `teacher_hub_active_exam_paper_grade_${g}`;
 
 export const ExamBuilderTab: React.FC<ExamBuilderTabProps> = ({
   matrixConfig,
   matrixRows,
   specRows,
   activePpct,
+  datasets,
+  onSelectDataset,
   exams,
   sgkBooks,
   examSyncTimestamp,
   onOpenMatrixTab,
 }) => {
+  // Khối lớp đang được chọn để soạn đề (chuẩn hóa '6', '7', '8', '9')
+  const [activeGrade, setActiveGrade] = useState<string>(() => {
+    return String(activePpct?.grade || '9').replace(/\D/g, '') || '9';
+  });
+
+  // PPCT Dataset đồng bộ theo đúng Khối lớp đang chọn
+  const activeGradePpct = useMemo(() => {
+    if (activePpct && String(activePpct.grade || '').replace(/\D/g, '') === activeGrade) {
+      return activePpct;
+    }
+    const fromDatasets = datasets?.find(
+      (d) => String(d.grade || '').replace(/\D/g, '') === activeGrade
+    );
+    if (fromDatasets) return fromDatasets;
+    return (
+      defaultDatasets.find(
+        (d) => String(d.grade || '').replace(/\D/g, '') === activeGrade
+      ) || defaultPpctDataset9
+    );
+  }, [activeGrade, activePpct, datasets]);
+
+  // Ngân hàng câu hỏi tham khảo tải lên
+  const [uploadedQuestions, setUploadedQuestions] = useState<BankQuestionTemplate[]>(() => {
+    return getStoredUploadedQuestions();
+  });
+
+  // Lọc riêng ngân hàng câu hỏi của đúng Khối lớp đang chọn
+  const uploadedForActiveGrade = useMemo(() => {
+    return uploadedQuestions.filter(
+      (q) => (String(q.grade || '').replace(/\D/g, '') || '9') === activeGrade
+    );
+  }, [uploadedQuestions, activeGrade]);
+
   // Active exam paper
   const [examPaper, setExamPaper] = useState<ExamPaper | null>(() => {
+    const initialG = String(activePpct?.grade || '9').replace(/\D/g, '') || '9';
     try {
+      const gradeSaved = localStorage.getItem(getGradeStorageKey(initialG));
+      if (gradeSaved) {
+        return JSON.parse(gradeSaved);
+      }
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        if (String(parsed?.config?.grade || '').replace(/\D/g, '') === initialG) {
+          return parsed;
+        }
       }
     } catch (e) {
       console.error('Failed to load saved exam paper', e);
@@ -85,31 +135,101 @@ export const ExamBuilderTab: React.FC<ExamBuilderTabProps> = ({
   const [suggestingQuestion, setSuggestingQuestion] = useState<ExamQuestion | null>(null);
   const [syncToast, setSyncToast] = useState<string | null>(null);
   const [isQuestionBankModalOpen, setIsQuestionBankModalOpen] = useState<boolean>(false);
-  const [uploadedQuestions, setUploadedQuestions] = useState<BankQuestionTemplate[]>(() => {
-    return getStoredUploadedQuestions();
-  });
+
+  // Lưu đề thi vào localStorage theo từng khối
+  const savePaper = (paper: ExamPaper | null, gradeOverride?: string) => {
+    setExamPaper(paper);
+    if (paper) {
+      const g = gradeOverride || String(paper.config?.grade || activeGrade).replace(/\D/g, '') || '9';
+      try {
+        localStorage.setItem(getGradeStorageKey(g), JSON.stringify(paper));
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(paper));
+      } catch (e) {
+        console.error(e);
+      }
+    }
+  };
+
+  // Đồng bộ khối khi prop activePpct thay đổi từ ngoài
+  useEffect(() => {
+    const norm = String(activePpct?.grade || '').replace(/\D/g, '');
+    if (norm && norm !== activeGrade) {
+      handleSelectGrade(norm);
+    }
+  }, [activePpct?.grade]);
 
   // Auto-generate a default exam paper on first visit if none exists
   useEffect(() => {
     if (!examPaper) {
       const defaultPaper = generateExamPaperFromMatrix(
-        matrixConfig,
-        matrixRows,
-        specRows,
-        activePpct,
+        { ...matrixConfig, grade: activeGrade },
+        matrixConfig.grade === activeGrade ? matrixRows : [],
+        matrixConfig.grade === activeGrade ? specRows : [],
+        activeGradePpct,
         'giua_ky',
         '101',
         sgkBooks,
         uploadedQuestions
       );
-      setExamPaper(defaultPaper);
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(defaultPaper));
-      } catch (e) {
-        console.error(e);
-      }
+      savePaper(defaultPaper, activeGrade);
     }
   }, []);
+
+  // Chuyển khối lớp và đồng bộ ngay đề thi + câu hỏi theo khối
+  const handleSelectGrade = (targetGrade: string) => {
+    const normGrade = String(targetGrade).replace(/\D/g, '') || '9';
+    if (normGrade === activeGrade && examPaper) return;
+
+    setActiveGrade(normGrade);
+
+    // Đồng bộ active dataset trong App nếu có callback
+    const targetDataset =
+      (activePpct && String(activePpct.grade || '').replace(/\D/g, '') === normGrade)
+        ? activePpct
+        : datasets?.find((d) => String(d.grade || '').replace(/\D/g, '') === normGrade) ||
+          defaultDatasets.find((d) => String(d.grade || '').replace(/\D/g, '') === normGrade) ||
+          defaultPpctDataset9;
+
+    if (onSelectDataset && targetDataset) {
+      onSelectDataset(targetDataset.id);
+    }
+
+    // Kiểm tra đề đã lưu của khối này
+    try {
+      const saved = localStorage.getItem(getGradeStorageKey(normGrade));
+      if (saved) {
+        const parsed: ExamPaper = JSON.parse(saved);
+        setExamPaper(parsed);
+        setSyncToast(`Đã chuyển sang Khối ${normGrade}: Nội dung và ngân hàng câu hỏi được đồng bộ theo Khối ${normGrade}!`);
+        setTimeout(() => setSyncToast(null), 3500);
+        return;
+      }
+    } catch (e) {
+      console.error(e);
+    }
+
+    // Nếu chưa có, tạo đề thi mới chuẩn xác theo khối được chọn
+    const targetMatrixConfig: MatrixConfig = {
+      ...matrixConfig,
+      grade: normGrade,
+    };
+    const targetRows = (matrixConfig.grade === normGrade && matrixRows.length > 0) ? matrixRows : [];
+    const targetSpecRows = (matrixConfig.grade === normGrade && specRows.length > 0) ? specRows : [];
+
+    const newPaper = generateExamPaperFromMatrix(
+      targetMatrixConfig,
+      targetRows,
+      targetSpecRows,
+      targetDataset,
+      'giua_ky',
+      '101',
+      sgkBooks,
+      uploadedQuestions
+    );
+    savePaper(newPaper, normGrade);
+    setSyncToast(`Đã chuyển sang Khối ${normGrade}: Nội dung kiến thức và ngân hàng câu hỏi đã đồng bộ theo Khối ${normGrade}!`);
+    setTimeout(() => setSyncToast(null), 3500);
+  };
 
   // Sync whenever examSyncTimestamp updates from Matrix tab
   useEffect(() => {
@@ -132,46 +252,57 @@ export const ExamBuilderTab: React.FC<ExamBuilderTabProps> = ({
     }
   }, [examSyncTimestamp]);
 
-  // Save to localStorage when changed
-  const savePaper = (paper: ExamPaper | null) => {
-    setExamPaper(paper);
-    if (paper) {
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(paper));
-      } catch (e) {
-        console.error(e);
-      }
-    }
-  };
-
   // Re-sync from current matrix explicitly
   const handleManualSyncMatrix = () => {
+    const targetGrade = activeGrade;
+    const targetDataset = activeGradePpct;
     const isFinal = matrixConfig.examPeriod.toLowerCase().includes('cuối');
     const isKttx = matrixConfig.examPeriod.toLowerCase().includes('thường xuyên');
     const level: ExamLevelType = isKttx ? 'kttx' : isFinal ? 'cuoi_ky' : 'giua_ky';
 
+    const targetMatrixConfig = { ...matrixConfig, grade: targetGrade };
+    const targetRows = (matrixConfig.grade === targetGrade && matrixRows.length > 0) ? matrixRows : [];
+    const targetSpecRows = (matrixConfig.grade === targetGrade && specRows.length > 0) ? specRows : [];
+
     const synced = generateExamPaperFromMatrix(
-      matrixConfig,
-      matrixRows,
-      specRows,
-      activePpct,
+      targetMatrixConfig,
+      targetRows,
+      targetSpecRows,
+      targetDataset,
       level,
       examPaper?.config.examCode || '101',
       sgkBooks,
       uploadedQuestions
     );
-    savePaper(synced);
-    setSyncToast('Đã tái lập và đồng bộ toàn diện Đề thi & Đáp án theo Ma trận hiện tại!');
+    savePaper(synced, targetGrade);
+    setSyncToast(`Đã tái lập và đồng bộ toàn diện Đề thi & Đáp án Toán ${targetGrade} theo Ma trận!`);
     const timer = setTimeout(() => setSyncToast(null), 4000);
   };
 
+  // Kiểm tra xem đề thi hiện tại có bao gồm kiến thức Xác suất & Thống kê hay không
+  const paperHasProbStats = useMemo(() => {
+    if (!examPaper) return true;
+    if (examPaper.config.selectedTopics && examPaper.config.selectedTopics.length > 0) {
+      return hasProbStatsInTopics(examPaper.config.selectedTopics);
+    }
+    if (examPaper.config.mode === 'matrix_aligned' && matrixRows.length > 0) {
+      return matrixRows.some(
+        (r) => isProbStatsText(r.chuong || '') || isProbStatsText(r.noiDung || '')
+      );
+    }
+    return examPaper.questions.some((q) => isProbStatsQuestion(q));
+  }, [examPaper, matrixRows]);
+
   // Handler for Quick Generator buttons
   const handleQuickGenerate = (level: ExamLevelType | 'kttx_tn' | 'kttx_tl') => {
+    const targetGrade = activeGrade;
+    const targetDataset = activeGradePpct;
+
     if (level === 'kttx' || level === 'kttx_tn') {
       const newPaper = generateCustomExamPaper(
         {
           examLevel: 'kttx',
-          title: 'ĐỀ KIỂM TRA THƯỜNG XUYÊN 15 PHÚT (100% TRẮC NGHIỆM)',
+          title: `ĐỀ KIỂM TRA THƯỜNG XUYÊN 15 PHÚT - TOÁN ${targetGrade} (100% TRẮC NGHIỆM)`,
           schoolName: 'TRƯỜNG THCS VÀ THPT PHÚ THÀNH',
           department: 'TỔ TOÁN - TIN HỌC',
           academicYear: '2026 - 2027',
@@ -186,21 +317,21 @@ export const ExamBuilderTab: React.FC<ExamBuilderTabProps> = ({
           ratioTl: 0,
           weekFrom: 1,
           weekTo: 4,
-          subject: activePpct.subject || 'Toán',
-          grade: activePpct.grade || '9',
+          subject: targetDataset.subject || 'Toán',
+          grade: targetGrade,
         },
-        activePpct,
+        targetDataset,
         sgkBooks,
         uploadedQuestions
       );
-      savePaper(newPaper);
-      setSyncToast('Đã tạo đề KTTX 100% Trắc nghiệm (70% Nhận biết, 30% Thông hiểu)!');
+      savePaper(newPaper, targetGrade);
+      setSyncToast(`Đã tạo đề KTTX Toán ${targetGrade} 100% Trắc nghiệm (70% Nhận biết, 30% Thông hiểu)!`);
       setTimeout(() => setSyncToast(null), 3500);
     } else if (level === 'kttx_tl') {
       const newPaper = generateCustomExamPaper(
         {
           examLevel: 'kttx',
-          title: 'ĐỀ KIỂM TRA THƯỜNG XUYÊN 15 PHÚT (100% TỰ LUẬN)',
+          title: `ĐỀ KIỂM TRA THƯỜNG XUYÊN 15 PHÚT - TOÁN ${targetGrade} (100% TỰ LUẬN)`,
           schoolName: 'TRƯỜNG THCS VÀ THPT PHÚ THÀNH',
           department: 'TỔ TOÁN - TIN HỌC',
           academicYear: '2026 - 2027',
@@ -214,68 +345,97 @@ export const ExamBuilderTab: React.FC<ExamBuilderTabProps> = ({
           ratioTl: 100,
           weekFrom: 1,
           weekTo: 4,
-          subject: activePpct.subject || 'Toán',
-          grade: activePpct.grade || '9',
+          subject: targetDataset.subject || 'Toán',
+          grade: targetGrade,
         },
-        activePpct,
+        targetDataset,
         sgkBooks,
         uploadedQuestions
       );
-      savePaper(newPaper);
-      setSyncToast('Đã tạo đề KTTX 100% Tự luận (Đầy đủ lời giải và thang điểm chi tiết)!');
+      savePaper(newPaper, targetGrade);
+      setSyncToast(`Đã tạo đề KTTX Toán ${targetGrade} 100% Tự luận (Đầy đủ lời giải và thang điểm chi tiết)!`);
       setTimeout(() => setSyncToast(null), 3500);
     } else {
       // Giữa kì hoặc Cuối kì: Chuẩn Ma trận & YCCĐ
+      const targetMatrixConfig = { ...matrixConfig, grade: targetGrade };
+      const targetRows = (matrixConfig.grade === targetGrade && matrixRows.length > 0) ? matrixRows : [];
+      const targetSpecRows = (matrixConfig.grade === targetGrade && specRows.length > 0) ? specRows : [];
+
       const newPaper = generateExamPaperFromMatrix(
-        matrixConfig,
-        matrixRows,
-        specRows,
-        activePpct,
+        targetMatrixConfig,
+        targetRows,
+        targetSpecRows,
+        targetDataset,
         level,
         '101',
         sgkBooks,
         uploadedQuestions
       );
-      savePaper(newPaper);
+      savePaper(newPaper, targetGrade);
+      const examName = level === 'cuoi_ky' ? 'Cuối kỳ' : 'Giữa kỳ';
+      setSyncToast(`Đã tạo đề ${examName} Toán ${targetGrade} theo chuẩn Ma trận & YCCĐ!`);
+      setTimeout(() => setSyncToast(null), 3500);
     }
   };
 
   // Handler for applying new config from Modal
   const handleApplyConfig = (newConfig: ExamPaperConfig, generateNew: boolean) => {
+    const targetGrade = String(newConfig.grade || activeGrade).replace(/\D/g, '') || '9';
+    if (targetGrade !== activeGrade) {
+      setActiveGrade(targetGrade);
+    }
+
+    const targetDataset =
+      (activePpct && String(activePpct.grade || '').replace(/\D/g, '') === targetGrade)
+        ? activePpct
+        : datasets?.find((d) => String(d.grade || '').replace(/\D/g, '') === targetGrade) ||
+          defaultDatasets.find((d) => String(d.grade || '').replace(/\D/g, '') === targetGrade) ||
+          defaultPpctDataset9;
+
     if (generateNew) {
       let newPaper: ExamPaper;
       if (newConfig.mode === 'matrix_aligned') {
+        const targetMatrixConfig = { ...matrixConfig, grade: targetGrade };
+        const targetRows = (matrixConfig.grade === targetGrade && matrixRows.length > 0) ? matrixRows : [];
+        const targetSpecRows = (matrixConfig.grade === targetGrade && specRows.length > 0) ? specRows : [];
+
         newPaper = generateExamPaperFromMatrix(
-          matrixConfig,
-          matrixRows,
-          specRows,
-          activePpct,
+          targetMatrixConfig,
+          targetRows,
+          targetSpecRows,
+          targetDataset,
           newConfig.examLevel,
           newConfig.examCode,
           sgkBooks,
           uploadedQuestions
         );
-        // Cập nhật các thông tin tùy chỉnh như tên trường, thời lượng
         newPaper = {
           ...newPaper,
           config: {
             ...newPaper.config,
-            title: newConfig.title,
-            schoolName: newConfig.schoolName,
-            department: newConfig.department,
-            durationMinutes: newConfig.durationMinutes,
-            examCode: newConfig.examCode,
+            ...newConfig,
+            grade: targetGrade,
           },
         };
       } else {
-        newPaper = generateCustomExamPaper(newConfig, activePpct, sgkBooks, uploadedQuestions);
+        newPaper = generateCustomExamPaper(
+          { ...newConfig, grade: targetGrade },
+          targetDataset,
+          sgkBooks,
+          uploadedQuestions
+        );
       }
-      savePaper(newPaper);
+      savePaper(newPaper, targetGrade);
+      setSyncToast(`Đã áp dụng cấu hình và tạo mới đề thi Toán ${targetGrade}!`);
+      setTimeout(() => setSyncToast(null), 3500);
     } else if (examPaper) {
       savePaper({
         ...examPaper,
-        config: newConfig,
-      });
+        config: {
+          ...newConfig,
+          grade: targetGrade,
+        },
+      }, targetGrade);
     }
   };
 
@@ -515,13 +675,19 @@ export const ExamBuilderTab: React.FC<ExamBuilderTabProps> = ({
   // Đổi câu hỏi tương đương từ ngân hàng
   const handleRegenerateEquivalent = (question: ExamQuestion) => {
     if (!examPaper) return;
-    const currentGrade = examPaper.config.grade || activePpct.grade || '9';
-    const replaced = regenerateSingleQuestion(question, examPaper.questions, currentGrade, uploadedQuestions);
+    const currentGrade = activeGrade;
+    const replaced = regenerateSingleQuestion(
+      question,
+      examPaper.questions,
+      currentGrade,
+      uploadedQuestions,
+      paperHasProbStats
+    );
     const updatedQuestions = examPaper.questions.map((q) => (q.id === question.id ? replaced : q));
     savePaper({
       ...examPaper,
       questions: updatedQuestions,
-    });
+    }, currentGrade);
   };
 
   // Xóa câu hỏi
@@ -533,7 +699,7 @@ export const ExamBuilderTab: React.FC<ExamBuilderTabProps> = ({
     savePaper({
       ...examPaper,
       questions: reIndexed,
-    });
+    }, activeGrade);
   };
 
   // Thay thế câu hỏi từ Ngân hàng gợi ý và tự động cập nhật đáp án
@@ -576,7 +742,7 @@ export const ExamBuilderTab: React.FC<ExamBuilderTabProps> = ({
     savePaper({
       ...examPaper,
       questions: updatedQuestions,
-    });
+    }, activeGrade);
 
     setSuggestingQuestion(null);
     setSyncToast(`Đã thay đổi ${suggestingQuestion.code} và tự động cập nhật đáp án mới!`);
@@ -585,13 +751,19 @@ export const ExamBuilderTab: React.FC<ExamBuilderTabProps> = ({
   // Đổi mới toàn bộ đề và đáp án theo Ma trận hiện tại
   const handleRegenerateWholeExam = () => {
     if (!examPaper) return;
+    const currentGrade = activeGrade;
+    const currentDataset = activeGradePpct;
     let newPaper: ExamPaper;
     if (examPaper.config.mode === 'matrix_aligned') {
+      const targetMatrixConfig = { ...matrixConfig, grade: currentGrade };
+      const targetRows = (matrixConfig.grade === currentGrade && matrixRows.length > 0) ? matrixRows : [];
+      const targetSpecRows = (matrixConfig.grade === currentGrade && specRows.length > 0) ? specRows : [];
+
       newPaper = generateExamPaperFromMatrix(
-        matrixConfig,
-        matrixRows,
-        specRows,
-        activePpct,
+        targetMatrixConfig,
+        targetRows,
+        targetSpecRows,
+        currentDataset,
         examPaper.config.levelType || 'giua_ky',
         examPaper.config.examCode || '101',
         sgkBooks,
@@ -606,19 +778,25 @@ export const ExamBuilderTab: React.FC<ExamBuilderTabProps> = ({
           department: examPaper.config.department,
           durationMinutes: examPaper.config.durationMinutes,
           examCode: examPaper.config.examCode,
+          grade: currentGrade,
         },
       };
     } else {
-      newPaper = generateCustomExamPaper(examPaper.config, activePpct, sgkBooks, uploadedQuestions);
+      newPaper = generateCustomExamPaper(
+        { ...examPaper.config, grade: currentGrade },
+        currentDataset,
+        sgkBooks,
+        uploadedQuestions
+      );
     }
-    savePaper(newPaper);
-    setSyncToast('Đã đổi mới toàn bộ đề và cập nhật toàn bộ đáp án chuẩn xác!');
+    savePaper(newPaper, currentGrade);
+    setSyncToast(`Đã đổi mới toàn bộ đề Toán ${currentGrade} và cập nhật toàn bộ đáp án chuẩn xác!`);
   };
 
   // Đổi mới một Phần cụ thể (I, II, III, IV) và cập nhật đáp án tương ứng
   const handleRegenerateSection = (section: 'part1_mcq' | 'part2_true_false' | 'part3_short_answer' | 'part4_essay') => {
     if (!examPaper) return;
-    const currentGrade = examPaper.config.grade || activePpct.grade || '9';
+    const currentGrade = activeGrade;
     const currentQuestions = [...examPaper.questions];
     const updatedQuestions = currentQuestions.map((q) => {
       if (q.section === section) {
@@ -629,7 +807,7 @@ export const ExamBuilderTab: React.FC<ExamBuilderTabProps> = ({
     savePaper({
       ...examPaper,
       questions: updatedQuestions,
-    });
+    }, currentGrade);
     const sectionLabel =
       section === 'part1_mcq'
         ? 'Phần I'
@@ -644,7 +822,7 @@ export const ExamBuilderTab: React.FC<ExamBuilderTabProps> = ({
   // Đổi mới nhiều câu hỏi được chọn cùng lúc và cập nhật đáp án
   const handleRegenerateMultipleQuestions = (questionIds: string[]) => {
     if (!examPaper || questionIds.length === 0) return;
-    const currentGrade = examPaper.config.grade || activePpct.grade || '9';
+    const currentGrade = activeGrade;
     const idSet = new Set(questionIds);
     const currentQuestions = [...examPaper.questions];
     const updatedQuestions = currentQuestions.map((q) => {
@@ -656,7 +834,7 @@ export const ExamBuilderTab: React.FC<ExamBuilderTabProps> = ({
     savePaper({
       ...examPaper,
       questions: updatedQuestions,
-    });
+    }, currentGrade);
     setSyncToast(`Đã đổi mới ${questionIds.length} câu hỏi và cập nhật đáp án tương ứng!`);
   };
 
@@ -668,7 +846,7 @@ export const ExamBuilderTab: React.FC<ExamBuilderTabProps> = ({
     savePaper({
       ...examPaper,
       questions: updatedQuestions,
-    });
+    }, activeGrade);
     setSyncToast(`Đã đổi số liệu ${question.code || 'câu hỏi'} và tự động cập nhật, đồng bộ đáp án chính xác!`);
     setTimeout(() => setSyncToast(null), 3500);
   };
@@ -680,7 +858,7 @@ export const ExamBuilderTab: React.FC<ExamBuilderTabProps> = ({
     savePaper({
       ...examPaper,
       questions: updatedQuestions,
-    });
+    }, activeGrade);
     setSyncToast('Đã đổi số liệu toàn bộ đề thi và tự động đồng bộ tất cả đáp án/thang điểm!');
     setTimeout(() => setSyncToast(null), 3500);
   };
@@ -788,12 +966,66 @@ export const ExamBuilderTab: React.FC<ExamBuilderTabProps> = ({
           >
             <Sparkles size={14} className="text-blue-600" />
             <span>Ngân hàng câu hỏi ({uploadedQuestions.length})</span>
-            {uploadedQuestions.filter(q => q.grade === (activePpct.grade || '9')).length > 0 && (
+            {uploadedForActiveGrade.length > 0 && (
               <span className="text-[10px] bg-blue-600 text-white font-bold px-1.5 py-0.2 rounded-full">
-                K{activePpct.grade}: {uploadedQuestions.filter(q => q.grade === (activePpct.grade || '9')).length}
+                K{activeGrade}: {uploadedForActiveGrade.length}
               </span>
             )}
           </button>
+        </div>
+      </div>
+
+      {/* Thanh chuyển đổi và đồng bộ Khối lớp soạn đề */}
+      <div className="bg-white rounded-2xl p-4 shadow-xs border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold">
+            <Layers size={18} />
+          </div>
+          <div>
+            <div className="text-xs font-bold text-slate-900 flex items-center gap-2">
+              <span>Đồng bộ Khối lớp Soạn đề:</span>
+              <span className="px-2 py-0.5 rounded-md bg-indigo-100 text-indigo-800 text-[11px] font-extrabold border border-indigo-200">
+                Toán Khối {activeGrade}
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-500 mt-0.5">
+              Chọn khối để đồng bộ tức thì nội dung chương bài, SGK và chỉ nạp câu hỏi của riêng Khối {activeGrade}, ngăn chặn tuyệt đối tình trạng lẫn lộn.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-1.5 p-1 bg-slate-100/90 rounded-xl border border-slate-200/80 shrink-0">
+          {(['6', '7', '8', '9'] as const).map((gradeNum) => {
+            const countForGrade = uploadedQuestions.filter(
+              (q) => (String(q.grade || '').replace(/\D/g, '') || '9') === gradeNum
+            ).length;
+            const isSelected = activeGrade === gradeNum;
+            return (
+              <button
+                key={gradeNum}
+                type="button"
+                onClick={() => handleSelectGrade(gradeNum)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  isSelected
+                    ? 'bg-indigo-600 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/70'
+                }`}
+              >
+                <span>Khối {gradeNum}</span>
+                {countForGrade > 0 && (
+                  <span
+                    className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                      isSelected
+                        ? 'bg-white/25 text-white'
+                        : 'bg-slate-200 text-slate-700'
+                    }`}
+                  >
+                    {countForGrade}
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -813,11 +1045,11 @@ export const ExamBuilderTab: React.FC<ExamBuilderTabProps> = ({
             <h3 className="text-base font-bold text-white flex items-center gap-2">
               <span>{matrixConfig.examPeriod || 'Kiểm tra Giữa kì I'}</span>
               <span className="text-xs font-normal text-indigo-200">
-                (Môn {matrixConfig.subject || activePpct.subject} {matrixConfig.grade || activePpct.grade} • Tuần {matrixConfig.limitWeekFrom || 1} đến {matrixConfig.limitWeekTo || 9})
+                (Môn {matrixConfig.subject || activeGradePpct.subject} {activeGrade} • Tuần {matrixConfig.limitWeekFrom || 1} đến {matrixConfig.limitWeekTo || 9})
               </span>
             </h3>
             <p className="text-xs text-indigo-200 max-w-2xl">
-              Căn cứ chính xác theo Khung Ma trận {matrixRows.length} bài học và Bảng đặc tả Yêu cầu cần đạt. Mọi thay đổi trong Ma trận được liên thông tự động vào Đề thi & Đáp án.
+              Căn cứ chính xác theo Khung Ma trận {matrixRows.length} bài học và Bảng đặc tả Yêu cầu cần đạt Khối {activeGrade}. Mọi thay đổi trong Ma trận được liên thông tự động vào Đề thi & Đáp án.
             </p>
           </div>
 
@@ -952,8 +1184,8 @@ export const ExamBuilderTab: React.FC<ExamBuilderTabProps> = ({
           isOpen={isConfigModalOpen}
           onClose={() => setIsConfigModalOpen(false)}
           initialConfig={examPaper.config}
-          matrixConfig={matrixConfig}
-          ppctDataset={activePpct}
+          matrixConfig={{ ...matrixConfig, grade: activeGrade }}
+          ppctDataset={activeGradePpct}
           onApplyConfig={handleApplyConfig}
         />
       )}
@@ -963,8 +1195,9 @@ export const ExamBuilderTab: React.FC<ExamBuilderTabProps> = ({
         <ExamQuestionPickerModal
           isOpen={!!suggestingQuestion}
           question={suggestingQuestion}
-          grade={activePpct.grade}
-          customBank={uploadedQuestions}
+          grade={activeGrade}
+          customBank={uploadedForActiveGrade}
+          allowProbStats={paperHasProbStats}
           onClose={() => setSuggestingQuestion(null)}
           onSelectReplacement={handleSelectReplacementTemplate}
           onRegenerateEquivalent={handleRegenerateEquivalent}
@@ -988,7 +1221,7 @@ export const ExamBuilderTab: React.FC<ExamBuilderTabProps> = ({
       <QuestionBankManagerModal
         isOpen={isQuestionBankModalOpen}
         onClose={() => setIsQuestionBankModalOpen(false)}
-        initialGrade={activePpct.grade || '9'}
+        initialGrade={activeGrade}
         onSaveQuestions={(newBank) => {
           setUploadedQuestions(newBank);
           setSyncToast(`Đã lưu ${newBank.length} câu hỏi vào Ngân hàng tham khảo. Sẵn sàng kết hợp AI soạn đề!`);

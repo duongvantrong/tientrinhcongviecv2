@@ -21,6 +21,8 @@ interface ExamQuestionSuggestionModalProps {
   question: ExamQuestion | null;
   grade?: string;
   initialLevel?: CognitiveLevel;
+  customBank?: BankQuestionTemplate[];
+  allowProbStats?: boolean;
   onApplyQuestion: (newQuestion: ExamQuestion) => void;
 }
 
@@ -61,6 +63,8 @@ export const ExamQuestionSuggestionModal: React.FC<ExamQuestionSuggestionModalPr
   question,
   grade = '9',
   initialLevel,
+  customBank,
+  allowProbStats,
   onApplyQuestion,
 }) => {
   if (!isOpen || !question) return null;
@@ -79,9 +83,9 @@ export const ExamQuestionSuggestionModal: React.FC<ExamQuestionSuggestionModalPr
 
   // Get suggestions matching active level
   const suggestions: BankQuestionTemplate[] = useMemo(() => {
-    return getSuggestedQuestions(question, grade, activeLevel);
+    return getSuggestedQuestions(question, grade, activeLevel, customBank, allowProbStats);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [question, grade, activeLevel, refreshKey]);
+  }, [question, grade, activeLevel, customBank, allowProbStats, refreshKey]);
 
   const handleSelectSuggestion = (tpl: BankQuestionTemplate) => {
     const levelLabel =
