@@ -242,6 +242,66 @@ b) Biết mỗi thùng gạch gồm $4$ viên gạch và có giá $160\\,000$ đ
     solutionExplanation: 'Đổi đơn vị đo phù hợp, tính diện tích phòng, diện tích một viên gạch, tìm số gạch rồi tính tổng chi phí.',
     learningObjective: 'Vận dụng cao diện tích hình học vào bài toán chi phí xây dựng thực tiễn.',
   },
+  // --- THỐNG KÊ & XÁC SUẤT KHỐI 6 ---
+  {
+    subject: 'Toán',
+    grade: '6',
+    topicKeywords: ['thống kê', 'thu thập dữ liệu', 'bảng số liệu'],
+    section: 'part1_mcq',
+    type: 'multiple_choice',
+    cognitiveLevel: 'nhanBiet',
+    prompt: 'Để điều tra về môn thể thao yêu thích của học sinh lớp 6A, giáo viên nên dùng phương pháp nào sau đây?',
+    options: [
+      { key: 'A', text: 'Lập phiếu hỏi hoặc quan sát, phỏng vấn' },
+      { key: 'B', text: 'Đo đạc chiều cao của học sinh' },
+      { key: 'C', text: 'Cân trọng lượng của học sinh' },
+      { key: 'D', text: 'Tính điểm thi học kì môn Toán' },
+    ],
+    correctOption: 'A',
+    solutionExplanation: 'Thu thập dữ liệu về sở thích thường dùng phương pháp lập phiếu hỏi hoặc phỏng vấn trực tiếp.',
+    learningObjective: 'Nhận biết phương pháp thu thập và phân loại dữ liệu thống kê ban đầu.',
+  },
+  {
+    subject: 'Toán',
+    grade: '6',
+    topicKeywords: ['xác suất', 'xác suất thực nghiệm', 'gieo xúc xắc', 'đồng xu'],
+    section: 'part1_mcq',
+    type: 'multiple_choice',
+    cognitiveLevel: 'thongHieu',
+    prompt: 'Tung một đồng xu $20$ lần liên tiếp, có $12$ lần xuất hiện mặt Ngửa ($N$). Xác suất thực nghiệm xuất hiện mặt Ngửa là:',
+    options: [
+      { key: 'A', text: '$\\frac{3}{5}$' },
+      { key: 'B', text: '$\\frac{2}{5}$' },
+      { key: 'C', text: '$\\frac{1}{2}$' },
+      { key: 'D', text: '$\\frac{3}{10}$' },
+    ],
+    correctOption: 'A',
+    solutionExplanation: 'Xác suất thực nghiệm xuất hiện mặt Ngửa là tỉ số giữa số lần xuất hiện mặt Ngửa và tổng số lần tung: $\\frac{12}{20} = \\frac{3}{5} = 0,6$.',
+    learningObjective: 'Thông hiểu và tính xác suất thực nghiệm trong các trò chơi đơn giản.',
+  },
+  {
+    subject: 'Toán',
+    grade: '6',
+    topicKeywords: ['thống kê', 'biểu đồ cột', 'xác suất', 'kttx tự luận'],
+    section: 'part4_essay',
+    type: 'essay',
+    cognitiveLevel: 'thongHieu',
+    prompt: `Bảng thống kê số điểm tốt đạt được trong tuần của $4$ tổ lớp 6A như sau:
+- Tổ 1: $15$ điểm tốt.
+- Tổ 2: $20$ điểm tốt.
+- Tổ 3: $18$ điểm tốt.
+- Tổ 4: $22$ điểm tốt.
+a) Tổng số điểm tốt của cả lớp 6A trong tuần là bao nhiêu? (1.0 điểm)
+b) Tổ nào đạt nhiều điểm tốt nhất và chiếm bao nhiêu phần trăm tổng số điểm tốt cả lớp? (1.5 điểm)
+c) Chọn ngẫu nhiên một điểm tốt trong tuần để trao quà. Tính xác suất thực nghiệm điểm tốt đó thuộc về Tổ 2. (1.0 điểm)`,
+    essayGradingSteps: [
+      { step: 'a) Tổng số điểm tốt cả lớp: $15 + 20 + 18 + 22 = 75$ (điểm tốt).', point: 1.0 },
+      { step: 'b) Tổ 4 đạt nhiều điểm tốt nhất ($22$ điểm tốt). Tỉ lệ phần trăm: $\\frac{22}{75} \\times 100\\% \\approx 29{,}33\\%$.', point: 1.5 },
+      { step: 'c) Xác suất thực nghiệm điểm tốt thuộc về Tổ 2 là: $\\frac{20}{75} = \\frac{4}{15} \\approx 0{,}267$.', point: 1.0 },
+    ],
+    solutionExplanation: 'Thực hiện phép tính tổng, tính tỉ số phần trăm và áp dụng công thức xác suất thực nghiệm.',
+    learningObjective: 'Thông hiểu và vận dụng bảng số liệu thống kê để tính tỉ số phần trăm và xác suất thực nghiệm.',
+  },
 ];
 
 export const GRADE_7_QUESTIONS: BankQuestionTemplate[] = [
@@ -387,6 +447,62 @@ b) Chứng minh $AM \\perp BC$. (1.0 điểm)`,
     ],
     solutionExplanation: 'Sử dụng trường hợp bằng nhau thứ nhất (cạnh - cạnh - cạnh) và tính chất hai góc kề bù bằng nhau.',
     learningObjective: 'Chứng minh hai tam giác bằng nhau và suy ra các hệ quả hình học cơ bản.',
+  },
+  // --- THỐNG KÊ & XÁC SUẤT KHỐI 7 ---
+  {
+    subject: 'Toán',
+    grade: '7',
+    topicKeywords: ['thống kê', 'biểu đồ hình quạt tròn', 'tỉ lệ phần trăm'],
+    section: 'part1_mcq',
+    type: 'multiple_choice',
+    cognitiveLevel: 'nhanBiet',
+    prompt: 'Biểu đồ hình quạt tròn thường được dùng để:',
+    options: [
+      { key: 'A', text: 'So sánh các phần trong toàn bộ tổng thể (tính theo phần trăm)' },
+      { key: 'B', text: 'Biểu diễn sự thay đổi của một đại lượng theo thời gian' },
+      { key: 'C', text: 'Đo lường độ dài của các cạnh hình tam giác' },
+      { key: 'D', text: 'Tìm giá trị lớn nhất và nhỏ nhất của hàm số' },
+    ],
+    correctOption: 'A',
+    solutionExplanation: 'Biểu đồ hình quạt tròn dùng để so sánh các phần với toàn thể, mỗi hình quạt biểu diễn tỉ số phần trăm của từng phần.',
+    learningObjective: 'Nhận biết ý nghĩa và ứng dụng của biểu đồ hình quạt tròn trong thống kê.',
+  },
+  {
+    subject: 'Toán',
+    grade: '7',
+    topicKeywords: ['xác suất', 'biến cố ngẫu nhiên', 'hộp thẻ'],
+    section: 'part1_mcq',
+    type: 'multiple_choice',
+    cognitiveLevel: 'thongHieu',
+    prompt: 'Một hộp có $10$ tấm thẻ cùng kích thước được đánh số từ $1$ đến $10$. Rút ngẫu nhiên một thẻ, xác suất của biến cố "Rút được tấm thẻ ghi số nguyên tố" là:',
+    options: [
+      { key: 'A', text: '$\\frac{2}{5}$' },
+      { key: 'B', text: '$\\frac{1}{2}$' },
+      { key: 'C', text: '$\\frac{3}{10}$' },
+      { key: 'D', text: '$\\frac{1}{5}$' },
+    ],
+    correctOption: 'A',
+    solutionExplanation: 'Các số nguyên tố từ $1$ đến $10$ là $\\{2, 3, 5, 7\\}$ (gồm $4$ số). Xác suất là $\\frac{4}{10} = \\frac{2}{5} = 0,4$.',
+    learningObjective: 'Thông hiểu và tính xác suất của biến cố ngẫu nhiên trong mô hình rút thẻ.',
+  },
+  {
+    subject: 'Toán',
+    grade: '7',
+    topicKeywords: ['kttx tự luận', 'số hữu tỉ', 'hình học tam giác', 'thống kê'],
+    section: 'part4_essay',
+    type: 'essay',
+    cognitiveLevel: 'thongHieu',
+    prompt: `Bài kiểm tra thường xuyên tự luận:
+Bài 1: Thực hiện phép tính hợp lý: $A = \\frac{-3}{7} \\cdot \\frac{5}{11} + \\frac{-3}{7} \\cdot \\frac{6}{11} + 1\\frac{3}{7}$. (3.5 điểm)
+Bài 2: Cho tam giác $ABC$ cân tại $A$. Kẻ $AH \\perp BC$ ($H \\in BC$). Chứng minh $HB = HC$ và $\\widehat{BAH} = \\widehat{CAH}$. (3.5 điểm)
+Bài 3: Một cuộc khảo sát về thể loại phim yêu thích của $120$ học sinh khối 7 cho kết quả: Hoạt hình $50\\%$, Khoa học viễn tưởng $25\\%$, Hành động $15\\%$, Ca nhạc $10\\%$. Tính số học sinh yêu thích phim Hoạt hình và Khoa học viễn tưởng. (3.0 điểm)`,
+    essayGradingSteps: [
+      { step: 'Bài 1: Đặt nhân tử chung $\\frac{-3}{7} \\cdot \\left(\\frac{5}{11} + \\frac{6}{11}\\right) + \\frac{10}{7} = \\frac{-3}{7} \\cdot 1 + \\frac{10}{7} = \\frac{7}{7} = 1$.', point: 3.5 },
+      { step: 'Bài 2: Xét $\\triangle ABH$ và $\\triangle ACH$ vuông tại $H$ có $AB = AC$ (tam giác cân), $AH$ cạnh chung. Do đó $\\triangle ABH = \\triangle ACH$ (cạnh huyền - cạnh góc vuông) $\\Rightarrow HB = HC$ và $\\widehat{BAH} = \\widehat{CAH}$.', point: 3.5 },
+      { step: 'Bài 3: Số HS thích Hoạt hình: $120 \\times 50\\% = 60$ HS. Số HS thích Khoa học: $120 \\times 25\\% = 30$ HS. Tổng số HS của hai thể loại là $60 + 30 = 90$ HS.', point: 3.0 },
+    ],
+    solutionExplanation: 'Trình bày chuẩn mẫu lời giải 3 bài toán tự luận đại số, hình học và thống kê.',
+    learningObjective: 'Vận dụng tổng hợp số hữu tỉ, tam giác cân và phân tích tỉ lệ phần trăm từ dữ liệu thống kê.',
   },
 ];
 
@@ -569,6 +685,62 @@ b) Tìm giá trị của $x$ để $A = 1$. (1.0 điểm)`,
     ],
     solutionExplanation: 'Quy đồng mẫu thức phân thức đại số, rút gọn triệt để và kết luận nghiệm đối chiếu ĐKXĐ.',
     learningObjective: 'Vận dụng thành thạo các phép tính cộng, trừ, nhân, chia phân thức đại số.',
+  },
+  // --- THỐNG KÊ & XÁC SUẤT KHỐI 8 ---
+  {
+    subject: 'Toán',
+    grade: '8',
+    topicKeywords: ['thống kê', 'bảng tần số', 'tần số', 'dữ liệu'],
+    section: 'part1_mcq',
+    type: 'multiple_choice',
+    cognitiveLevel: 'nhanBiet',
+    prompt: 'Số lần xuất hiện của một giá trị trong dãy dữ liệu thống kê được gọi là:',
+    options: [
+      { key: 'A', text: 'Tần số của giá trị đó' },
+      { key: 'B', text: 'Tần số tương đối của giá trị đó' },
+      { key: 'C', text: 'Số trung bình cộng' },
+      { key: 'D', text: 'Mốt của dấu hiệu' },
+    ],
+    correctOption: 'A',
+    solutionExplanation: 'Định nghĩa: Tần số của một giá trị là số lần xuất hiện của giá trị đó trong tập dữ liệu.',
+    learningObjective: 'Nhận biết khái niệm tần số và bảng tần số trong thống kê.',
+  },
+  {
+    subject: 'Toán',
+    grade: '8',
+    topicKeywords: ['xác suất', 'xác suất thực nghiệm', 'biến cố ngẫu nhiên'],
+    section: 'part1_mcq',
+    type: 'multiple_choice',
+    cognitiveLevel: 'thongHieu',
+    prompt: 'Gieo một con xúc xắc cân đối và đồng chất $50$ lần, quan sát thấy có $15$ lần xuất hiện mặt $6$ chấm. Xác suất thực nghiệm của biến cố "Mặt xuất hiện là mặt $6$ chấm" bằng:',
+    options: [
+      { key: 'A', text: '$0{,}3$' },
+      { key: 'B', text: '$0{,}25$' },
+      { key: 'C', text: '$\\frac{1}{6}$' },
+      { key: 'D', text: '$0{,}6$' },
+    ],
+    correctOption: 'A',
+    solutionExplanation: 'Xác suất thực nghiệm bằng tỉ số $\\frac{15}{50} = \\frac{3}{10} = 0{,}3$.',
+    learningObjective: 'Thông hiểu cách tính xác suất thực nghiệm của biến cố sau nhiều lần thử lặp lại.',
+  },
+  {
+    subject: 'Toán',
+    grade: '8',
+    topicKeywords: ['kttx tự luận', 'phân thức', 'định lý thales', 'tam giác đồng dạng', 'thống kê'],
+    section: 'part4_essay',
+    type: 'essay',
+    cognitiveLevel: 'thongHieu',
+    prompt: `Bài kiểm tra thường xuyên tự luận Toán 8:
+Bài 1: Cho biểu thức $P = \\frac{x^2 - 9}{x - 3}$. Rút gọn biểu thức $P$ và tính giá trị của $P$ khi $x = 7$. (3.5 điểm)
+Bài 2: Cho tam giác $ABC$ có $AB = 6\\text{ cm}, AC = 9\\text{ cm}$. Trên cạnh $AB$ lấy điểm $M$ sao cho $AM = 2\\text{ cm}$, qua $M$ kẻ đường thẳng song song với $BC$ cắt $AC$ tại $N$. Tính độ dài đoạn thẳng $AN$. (3.5 điểm)
+Bài 3: Điều tra về số giờ tự học mỗi ngày của $40$ học sinh lớp 8A: có $8$ bạn học $1$ giờ, $16$ bạn học $2$ giờ, $12$ bạn học $3$ giờ, còn lại học $4$ giờ. Lập bảng tần số và tính tỉ lệ phần trăm học sinh tự học từ $2$ giờ trở lên. (3.0 điểm)`,
+    essayGradingSteps: [
+      { step: 'Bài 1: Phân tích tử: $x^2 - 9 = (x - 3)(x + 3)$. Rút gọn $P = x + 3$ ($x \\ne 3$). Với $x = 7$, $P = 7 + 3 = 10$.', point: 3.5 },
+      { step: 'Bài 2: Vì $MN \\parallel BC$, áp dụng định lý Thalès trong tam giác $ABC$: $\\frac{AM}{AB} = \\frac{AN}{AC} \\Leftrightarrow \\frac{2}{6} = \\frac{AN}{9} \\Rightarrow AN = \\frac{2 \\times 9}{6} = 3\\text{ cm}$.', point: 3.5 },
+      { step: 'Bài 3: Số bạn học 4 giờ: $40 - (8 + 16 + 12) = 4$ bạn. Số bạn học từ 2 giờ trở lên: $16 + 12 + 4 = 32$ bạn. Tỉ lệ: $\\frac{32}{40} \\times 100\\% = 80\\%$.', point: 3.0 },
+    ],
+    solutionExplanation: 'Trình bày mẫu giải toán tự luận Toán 8 bao gồm đại số rút gọn phân thức, hình học Thalès và thống kê tần số.',
+    learningObjective: 'Vận dụng tổng hợp kiến thức Toán 8 để hoàn thành bài kiểm tra thường xuyên tự luận đạt điểm tối đa.',
   },
 ];
 
@@ -823,6 +995,67 @@ b) Kẻ đường kính $BD$ của đường tròn $(O)$. Đoạn thẳng $AD$ c
 1. Ý a: Sử dụng dấu hiệu nhận biết tứ giác nội tiếp: tứ giác có tổng hai góc đối bằng $180^\\circ$.
 2. Ý b: Sử dụng tính chất tiếp tuyến cắt nhau suy ra $OA$ là đường trung trực của $BC$, dùng hệ thức lượng $AB^2 = AH \\cdot AO$ trong tam giác vuông $ABO$. Chứng minh tam giác đồng dạng $\\triangle ABE \\sim \\triangle ADB$ để suy ra $AB^2 = AE \\cdot AD$.`,
     learningObjective: 'Vận dụng cao chứng minh tứ giác nội tiếp, tam giác đồng dạng và hệ thức lượng trong đường tròn.',
+  },
+  // --- THỐNG KÊ & XÁC SUẤT KHỐI 9 ---
+  {
+    subject: 'Toán',
+    grade: '9',
+    topicKeywords: ['thống kê', 'tần số tương đối', 'bảng tần số'],
+    section: 'part1_mcq',
+    type: 'multiple_choice',
+    cognitiveLevel: 'nhanBiet',
+    prompt: 'Tần số tương đối $f_i$ của một giá trị $x_i$ có tần số $m_i$ trong mẫu dữ liệu gồm $N$ phần tử được tính theo công thức:',
+    options: [
+      { key: 'A', text: '$f_i = \\frac{m_i}{N} \\times 100\\%$' },
+      { key: 'B', text: '$f_i = \\frac{N}{m_i} \\times 100\\%$' },
+      { key: 'C', text: '$f_i = m_i \\times N$' },
+      { key: 'D', text: '$f_i = \\frac{m_i + N}{2}$' },
+    ],
+    correctOption: 'A',
+    solutionExplanation: 'Tần số tương đối $f_i$ là tỉ số phần trăm giữa tần số $m_i$ của giá trị đó và quy mô mẫu $N$: $f_i = \\frac{m_i}{N} \\times 100\\%$.',
+    learningObjective: 'Nhận biết công thức tính tần số tương đối trong thống kê lớp 9.',
+  },
+  {
+    subject: 'Toán',
+    grade: '9',
+    topicKeywords: ['xác suất', 'không gian mẫu', 'biến cố ngẫu nhiên'],
+    section: 'part1_mcq',
+    type: 'multiple_choice',
+    cognitiveLevel: 'thongHieu',
+    prompt: 'Một hộp đựng $5$ viên bi xanh, $3$ viên bi đỏ và $2$ viên bi vàng có cùng kích thước. Lấy ngẫu nhiên $1$ viên bi. Xác suất để lấy được viên bi màu xanh là:',
+    options: [
+      { key: 'A', text: '$\\frac{1}{2}$' },
+      { key: 'B', text: '$\\frac{3}{10}$' },
+      { key: 'C', text: '$\\frac{1}{5}$' },
+      { key: 'D', text: '$\\frac{5}{8}$' },
+    ],
+    correctOption: 'A',
+    solutionExplanation: 'Tổng số viên bi là $5 + 3 + 2 = 10$. Số kết quả thuận lợi cho việc lấy được bi xanh là $5$. Xác suất là $\\frac{5}{10} = \\frac{1}{2} = 0,5$.',
+    learningObjective: 'Thông hiểu và tính xác suất cổ điển của biến cố trong mô hình chọn bi ngẫu nhiên.',
+  },
+  {
+    subject: 'Toán',
+    grade: '9',
+    topicKeywords: ['kttx tự luận', 'căn bậc hai', 'hệ thức lượng', 'thống kê', 'xác suất'],
+    section: 'part4_essay',
+    type: 'essay',
+    cognitiveLevel: 'thongHieu',
+    prompt: `BÀI KIỂM TRA THƯỜNG XUYÊN 100% TỰ LUẬN (THANG ĐIỂM 10.0):
+Bài 1: Rút gọn biểu thức $A = \\sqrt{18} - 2\\sqrt{50} + \\sqrt{(3 - \\sqrt{2})^2}$. (3.5 điểm)
+Bài 2: Cho tam giác $ABC$ vuông tại $A$ có đường cao $AH$. Biết $BH = 4\\text{ cm}, CH = 9\\text{ cm}$. Tính độ dài đường cao $AH$ và cạnh $AB$. (3.5 điểm)
+Bài 3: Trong một hộp có chứa $20$ tấm thẻ cùng loại được đánh số từ $1$ đến $20$. Rút ngẫu nhiên một tấm thẻ. Tính xác suất của biến cố: "Số ghi trên thẻ rút ra là số chia hết cho 5". (3.0 điểm)`,
+    essayGradingSteps: [
+      { step: 'Bài 1: Biến đổi căn thức: $\\sqrt{18} = 3\\sqrt{2}$; $2\\sqrt{50} = 2 \\times 5\\sqrt{2} = 10\\sqrt{2}$.', point: 1.5 },
+      { step: 'Khai phương hằng đẳng thức: $\\sqrt{(3 - \\sqrt{2})^2} = |3 - \\sqrt{2}| = 3 - \\sqrt{2}$ (do $3 > \\sqrt{2}$). Thu gọn: $A = 3\\sqrt{2} - 10\\sqrt{2} + 3 - \\sqrt{2} = 3 - 8\\sqrt{2}$.', point: 2.0 },
+      { step: 'Bài 2: Áp dụng hệ thức lượng: $AH^2 = BH \\cdot CH = 4 \\times 9 = 36 \\Rightarrow AH = 6\\text{ cm}$.', point: 2.0 },
+      { step: 'Tính cạnh $BC = BH + CH = 4 + 9 = 13\\text{ cm}$. Ta có $AB^2 = BH \\cdot BC = 4 \\times 13 = 52 \\Rightarrow AB = 2\\sqrt{13}\\text{ cm}$.', point: 1.5 },
+      { step: 'Bài 3: Các số chia hết cho 5 từ 1 đến 20 là $\\{5, 10, 15, 20\\}$ (gồm 4 số). Tổng số kết quả có thể là 20. Xác suất cần tìm là: $P = \\frac{4}{20} = \\frac{1}{5} = 0{,}2$.', point: 3.0 },
+    ],
+    solutionExplanation: `THỰC HIỆN BÀI GIẢI CHI TIẾT ĐẦY ĐỦ:
+1. Bài 1: Khai phương tích số $\\sqrt{a^2b} = |a|\\sqrt{b}$ và hằng đẳng thức $\\sqrt{A^2} = |A|$ để thu gọn các căn thức đồng dạng.
+2. Bài 2: Vận dụng hệ thức lượng $AH^2 = BH \\cdot CH$ và $AB^2 = BH \\cdot BC$ trong tam giác vuông.
+3. Bài 3: Liệt kê các phần tử thuận lợi cho biến cố và tính tỉ số xác suất cổ điển.`,
+    learningObjective: 'Đánh giá toàn diện năng lực học sinh trong bài kiểm tra thường xuyên 100% tự luận theo chuẩn GDPT 2018.',
   },
 ];
 

@@ -45,8 +45,13 @@ export const ExamConfigModal: React.FC<ExamConfigModalProps> = ({
   const [format, setFormat] = useState<ExamStructureFormat>(initialConfig.format || 'moet_2025_new');
   
   const [title, setTitle] = useState<string>(initialConfig.title);
-  const [schoolName, setSchoolName] = useState<string>(initialConfig.schoolName);
-  const [department, setDepartment] = useState<string>(initialConfig.department);
+  const [schoolName, setSchoolName] = useState<string>(
+    initialConfig.schoolName && initialConfig.schoolName !== 'TRƯỜNG THCS NGUYỄN DU'
+      ? initialConfig.schoolName
+      : 'TRƯỜNG THCS VÀ THPT PHÚ THÀNH'
+  );
+  const [department, setDepartment] = useState<string>(initialConfig.department || 'TỔ TOÁN - TIN HỌC');
+  const [academicYear, setAcademicYear] = useState<string>(initialConfig.academicYear || '2026 - 2027');
   const [durationMinutes, setDurationMinutes] = useState<number>(initialConfig.durationMinutes);
   const [examCode, setExamCode] = useState<string>(initialConfig.examCode || '101');
   
@@ -202,6 +207,7 @@ export const ExamConfigModal: React.FC<ExamConfigModalProps> = ({
       title,
       schoolName,
       department,
+      academicYear,
       durationMinutes,
       examCode,
       mode: isCustomMode ? 'custom' : 'matrix_aligned',
@@ -508,6 +514,23 @@ export const ExamConfigModal: React.FC<ExamConfigModalProps> = ({
 
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">
+                  Năm học
+                </label>
+                <select
+                  value={academicYear}
+                  onChange={(e) => setAcademicYear(e.target.value)}
+                  className="w-full border border-slate-300 rounded-lg px-3 py-1.5 text-xs text-slate-800 font-semibold bg-white cursor-pointer"
+                >
+                  <option value="2026 - 2027">2026 - 2027 (Năm nay)</option>
+                  <option value="2025 - 2026">2025 - 2026</option>
+                  <option value="2024 - 2025">2024 - 2025</option>
+                  <option value="2027 - 2028">2027 - 2028</option>
+                  <option value="2028 - 2029">2028 - 2029</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">
                   Tổ chuyên môn
                 </label>
                 <input
@@ -602,6 +625,31 @@ export const ExamConfigModal: React.FC<ExamConfigModalProps> = ({
                   </div>
                 </button>
               </div>
+
+              {/* Thông tin hỗ trợ chuẩn hóa KTTX theo yêu cầu */}
+              {format === 'tn_only' && (
+                <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-blue-900 text-xs flex items-start gap-2.5">
+                  <div className="p-1 bg-blue-600 text-white rounded font-bold text-[10px] mt-0.5 shrink-0">
+                    70/30
+                  </div>
+                  <div>
+                    <span className="font-bold">Chuẩn mức độ KTTX 100% Trắc nghiệm:</span> Toàn bộ câu hỏi được phân bổ tự động{' '}
+                    <strong>70% Nhận biết</strong> và <strong>30% Thông hiểu</strong>. Hệ thống tự động phân loại và phủ đều các mạch kiến thức{' '}
+                    <strong>Đại số</strong>, <strong>Hình học</strong> và <strong>Xác suất & Thống kê</strong> (nếu có trong nội dung ôn tập).
+                  </div>
+                </div>
+              )}
+
+              {format === 'tl_only' && (
+                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-900 text-xs flex items-start gap-2.5">
+                  <div className="p-1 bg-emerald-600 text-white rounded font-bold text-[10px] mt-0.5 shrink-0">
+                    100% TL
+                  </div>
+                  <div>
+                    <span className="font-bold">Chuẩn KTTX 100% Tự luận:</span> Đề kiểm tra gồm các câu hỏi tự luận tính toán đa bước bám sát nội dung chương trình, thang điểm 10.0 đi kèm barem hướng dẫn chấm chi tiết từng bước giải.
+                  </div>
+                </div>
+              )}
 
               {/* Bảng chỉnh số câu và điểm số */}
               <div className="bg-slate-50 rounded-xl p-4 border border-slate-200 space-y-3">

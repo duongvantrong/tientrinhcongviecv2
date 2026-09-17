@@ -164,7 +164,7 @@ export async function exportExamPaperToDocx(
     elements.push(headerTable);
     elements.push(makeParagraph('', { spacingAfter: 120 }));
 
-    // Khung thông tin học sinh & Điểm số
+    // Khung thông tin học sinh & Điểm số (Bảng ghi tên lớp và điểm, không có nhận xét của giáo viên)
     const studentInfoTable = new Table({
       width: { size: 100, type: WidthType.PERCENTAGE },
       borders,
@@ -172,7 +172,7 @@ export async function exportExamPaperToDocx(
         new TableRow({
           children: [
             new TableCell({
-              width: { size: 65, type: WidthType.PERCENTAGE },
+              width: { size: 68, type: WidthType.PERCENTAGE },
               borders,
               children: [
                 makeParagraph('Họ và tên học sinh: .................................................................................', { fontSize: 11 }),
@@ -181,19 +181,13 @@ export async function exportExamPaperToDocx(
               ],
             }),
             new TableCell({
-              width: { size: 15, type: WidthType.PERCENTAGE },
+              width: { size: 32, type: WidthType.PERCENTAGE },
               borders,
               children: [
-                makeParagraph('ĐIỂM SỐ', { bold: true, align: AlignmentType.CENTER, fontSize: 10 }),
+                makeParagraph('ĐIỂM SỐ', { bold: true, align: AlignmentType.CENTER, fontSize: 11 }),
+                makeParagraph('(Bằng số: ..........  Bằng chữ: ....................)', { align: AlignmentType.CENTER, fontSize: 9 }),
                 makeParagraph('', { spacingBefore: 120, spacingAfter: 120 }),
-              ],
-            }),
-            new TableCell({
-              width: { size: 20, type: WidthType.PERCENTAGE },
-              borders,
-              children: [
-                makeParagraph('LỜI PHÊ CỦA THẦY/CÔ', { bold: true, align: AlignmentType.CENTER, fontSize: 10 }),
-                makeParagraph('', { spacingBefore: 120, spacingAfter: 120 }),
+                makeParagraph('Chữ ký Giám khảo: ...................................', { align: AlignmentType.CENTER, fontSize: 9 }),
               ],
             }),
           ],

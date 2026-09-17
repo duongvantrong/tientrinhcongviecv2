@@ -26,11 +26,13 @@ import {
   Target,
   CheckCircle2,
   X,
+  Calculator,
 } from 'lucide-react';
 import { ExamPaper, ExamQuestion, MatrixConfig, MatrixRow, SpecificationRow } from '../../types';
 import { exportExamPaperToDocx } from '../../utils/examDocxExport';
 import { LatexRenderer, formatPaperLatex } from '../../utils/latexUtils';
 import { QuestionGuidanceTooltip } from './QuestionGuidanceTooltip';
+import { detectMathDomain } from '../../utils/mathVariationSync';
 
 interface ExamPaperViewProps {
   paper: ExamPaper;
@@ -48,6 +50,8 @@ interface ExamPaperViewProps {
   onChangeQuestionLevel?: (questionId: string, newLevel: 'nhanBiet' | 'thongHieu' | 'vanDung' | 'vanDungCao') => void;
   onAddQuestionsSameLevel?: (referenceQuestion: ExamQuestion, count: number) => void;
   onAddQuestionsToSection?: (section: 'part1_mcq' | 'part2_true_false' | 'part3_short_answer' | 'part4_essay', level: 'nhanBiet' | 'thongHieu' | 'vanDung' | 'vanDungCao', count: number) => void;
+  onNumericVariation?: (question: ExamQuestion) => void;
+  onNumericVariationAll?: () => void;
 }
 
 export const ExamPaperView: React.FC<ExamPaperViewProps> = ({
@@ -66,6 +70,8 @@ export const ExamPaperView: React.FC<ExamPaperViewProps> = ({
   onChangeQuestionLevel,
   onAddQuestionsSameLevel,
   onAddQuestionsToSection,
+  onNumericVariation,
+  onNumericVariationAll,
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<'exam' | 'solutions' | 'matrix_alignment'>('exam');
   const [isExportMenuOpen, setIsExportMenuOpen] = useState<boolean>(false);
@@ -482,6 +488,23 @@ export const ExamPaperView: React.FC<ExamPaperViewProps> = ({
             </button>
           )}
 
+          {/* Đổi số liệu toàn bộ đề thi và đồng bộ đáp án tự động */}
+          {onNumericVariationAll && (
+            <button
+              type="button"
+              onClick={() => {
+                if (window.confirm('Bạn có muốn đổi số liệu toán học toàn bộ các câu trong đề và tự động tính toán lại đáp án/hướng dẫn chấm tương ứng?')) {
+                  onNumericVariationAll();
+                }
+              }}
+              className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-indigo-800 bg-indigo-50 hover:bg-indigo-100 border border-indigo-300 rounded-xl shadow-2xs transition-colors cursor-pointer"
+              title="Đổi các hệ số, kích thước hình học, số liệu thống kê sang bộ số đẹp mới và tự động cập nhật đáp án"
+            >
+              <Calculator size={14} className="text-indigo-600" />
+              <span>Đổi số liệu toàn đề (Đồng bộ đáp án)</span>
+            </button>
+          )}
+
           {/* Chọn tất cả câu hỏi */}
           <button
             type="button"
@@ -566,33 +589,44 @@ export const ExamPaperView: React.FC<ExamPaperViewProps> = ({
             </div>
           </div>
 
-          {/* Student Info & Score Box */}
-          <div className="my-6 grid grid-cols-3 border border-slate-400 font-sans text-xs">
-            <div className="col-span-2 p-3 space-y-2 border-r border-slate-400">
-              <div className="flex">
-                <span className="font-semibold text-slate-700 w-32">Họ và tên thí sinh:</span>
-                <span className="flex-1 border-b border-dotted border-slate-400"></span>
+          {/* Bảng ghi tên lớp và điểm (Không cần nhận xét của giáo viên theo yêu cầu) */}
+          <div className="my-6 grid grid-cols-1 md:grid-cols-3 border-2 border-slate-700 font-sans text-xs">
+            <div className="md:col-span-2 p-3 space-y-2.5 border-b md:border-b-0 md:border-r border-slate-700">
+              <div className="flex items-center">
+                <span className="font-bold text-slate-800 w-36">Họ và tên học sinh:</span>
+                <span className="flex-1 border-b border-dotted border-slate-500"></span>
               </div>
-              <div className="flex gap-4">
-                <div className="flex flex-1">
-                  <span className="font-semibold text-slate-700 w-12">Lớp:</span>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="flex items-center">
+                  <span className="font-bold text-slate-800 w-12">Lớp:</span>
+                  <span className="flex-1 border-b border-dotted border-slate-500"></span>
+                </div>
+                <div className="flex items-center">
+                  <span className="font-bold text-slate-800 w-28">Số báo danh:</span>
+                  <span className="flex-1 border-b border-dotted border-slate-500"></span>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="flex items-center">
+                  <span className="font-medium text-slate-600 w-20">Phòng thi:</span>
                   <span className="flex-1 border-b border-dotted border-slate-400"></span>
                 </div>
-                <div className="flex flex-1">
-                  <span className="font-semibold text-slate-700 w-32">Số báo danh (SBD):</span>
+                <div className="flex items-center">
+                  <span className="font-medium text-slate-600 w-28">Giám thị coi thi:</span>
                   <span className="flex-1 border-b border-dotted border-slate-400"></span>
                 </div>
               </div>
             </div>
 
-            <div className="grid grid-cols-2 text-center">
-              <div className="border-r border-slate-400 p-2 flex flex-col justify-between">
-                <div className="font-bold text-[11px] uppercase">Điểm số</div>
-                <div className="h-10"></div>
+            <div className="p-3 text-center flex flex-col justify-between bg-slate-50/60">
+              <div className="font-bold text-xs uppercase tracking-wider text-slate-900 border-b border-slate-300 pb-1.5">
+                ĐIỂM SỐ
               </div>
-              <div className="p-2 flex flex-col justify-between">
-                <div className="font-bold text-[11px] uppercase">Lời phê giáo viên</div>
-                <div className="h-10"></div>
+              <div className="py-2.5 text-slate-600 italic text-[11px]">
+                (Bằng số: ............ / Bằng chữ: ....................)
+              </div>
+              <div className="text-[10px] text-slate-500 border-t border-dotted border-slate-300 pt-1.5">
+                Chữ ký giám khảo chấm thi
               </div>
             </div>
           </div>
@@ -709,6 +743,16 @@ export const ExamPaperView: React.FC<ExamPaperViewProps> = ({
                               <Sparkles size={12} />
                             </button>
                           )}
+                          {onNumericVariation && (
+                            <button
+                              type="button"
+                              onClick={() => onNumericVariation(q)}
+                              title="Đổi số liệu toán học câu này (Tự động tính & đồng bộ đáp án)"
+                              className="p-1 text-amber-700 hover:text-amber-900 bg-amber-50 hover:bg-amber-100 rounded border border-amber-300 shadow-2xs cursor-pointer"
+                            >
+                              <Calculator size={12} />
+                            </button>
+                          )}
                           <button
                             type="button"
                             onClick={() => onRegenerateEquivalent(q)}
@@ -738,6 +782,23 @@ export const ExamPaperView: React.FC<ExamPaperViewProps> = ({
                         />
                         <div className="flex-1 pr-28">
                           <div className="font-medium text-slate-900">
+                            {(() => {
+                              const d = detectMathDomain(q.prompt, q.chapter, q.lesson);
+                              const bCls =
+                                d.domain === 'geometry'
+                                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                  : d.domain === 'statistics_probability'
+                                  ? 'bg-purple-50 text-purple-700 border-purple-200'
+                                  : 'bg-sky-50 text-sky-700 border-sky-200';
+                              return (
+                                <span
+                                  className={`inline-block mr-1.5 px-1.5 py-0.5 rounded text-[10px] font-bold border print:hidden ${bCls}`}
+                                  title={`Phân môn: ${d.domainLabel}`}
+                                >
+                                  {d.domainLabel}
+                                </span>
+                              );
+                            })()}
                             <span className="font-bold">Câu {idx + 1}: </span>
                             <LatexRenderer text={q.prompt} showRawLatex={showRawLatex} />
                           </div>
@@ -1196,6 +1257,16 @@ export const ExamPaperView: React.FC<ExamPaperViewProps> = ({
                               <Sparkles size={12} />
                             </button>
                           )}
+                          {onNumericVariation && (
+                            <button
+                              type="button"
+                              onClick={() => onNumericVariation(q)}
+                              title="Đổi số liệu toán học bài này (Tự động tính & đồng bộ đáp án)"
+                              className="p-1 text-amber-700 hover:text-amber-900 bg-amber-50 hover:bg-amber-100 rounded border border-amber-300 shadow-2xs cursor-pointer"
+                            >
+                              <Calculator size={12} />
+                            </button>
+                          )}
                           <button
                             type="button"
                             onClick={() => onRegenerateEquivalent(q)}
@@ -1225,6 +1296,23 @@ export const ExamPaperView: React.FC<ExamPaperViewProps> = ({
                         />
                         <div className="flex-1 pr-28">
                           <div className="whitespace-pre-line leading-relaxed text-slate-900">
+                            {(() => {
+                              const d = detectMathDomain(q.prompt, q.chapter, q.lesson);
+                              const bCls =
+                                d.domain === 'geometry'
+                                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                  : d.domain === 'statistics_probability'
+                                  ? 'bg-purple-50 text-purple-700 border-purple-200'
+                                  : 'bg-sky-50 text-sky-700 border-sky-200';
+                              return (
+                                <span
+                                  className={`inline-block mr-1.5 px-1.5 py-0.5 rounded text-[10px] font-bold border print:hidden ${bCls}`}
+                                  title={`Phân môn: ${d.domainLabel}`}
+                                >
+                                  {d.domainLabel}
+                                </span>
+                              );
+                            })()}
                             <span className="font-bold">Bài {idx + 1} ({q.score || 1.0} điểm): </span>
                             <LatexRenderer text={q.prompt} showRawLatex={showRawLatex} />
                           </div>

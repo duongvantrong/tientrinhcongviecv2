@@ -13,6 +13,7 @@ import {
   CheckCircle2,
   Calendar,
   Zap,
+  Calculator,
 } from 'lucide-react';
 import {
   ExamPaper,
@@ -35,6 +36,7 @@ import {
   createNewQuestionWithLevel,
   calculateAlignmentSummary,
 } from '../../utils/examGenerator';
+import { generateQuestionNumericVariant } from '../../utils/mathVariationSync';
 import { ExamPaperView } from './ExamPaperView';
 import { ExamConfigModal } from './ExamConfigModal';
 import { ExamQuestionEditModal } from './ExamQuestionEditModal';
@@ -155,12 +157,15 @@ export const ExamBuilderTab: React.FC<ExamBuilderTabProps> = ({
   };
 
   // Handler for Quick Generator buttons
-  const handleQuickGenerate = (level: ExamLevelType) => {
-    if (level === 'kttx') {
+  const handleQuickGenerate = (level: ExamLevelType | 'kttx_tn' | 'kttx_tl') => {
+    if (level === 'kttx' || level === 'kttx_tn') {
       const newPaper = generateCustomExamPaper(
         {
           examLevel: 'kttx',
-          title: 'ĐỀ KIỂM TRA THƯỜNG XUYÊN 15 PHÚT',
+          title: 'ĐỀ KIỂM TRA THƯỜNG XUYÊN 15 PHÚT (100% TRẮC NGHIỆM)',
+          schoolName: 'TRƯỜNG THCS VÀ THPT PHÚ THÀNH',
+          department: 'TỔ TOÁN - TIN HỌC',
+          academicYear: '2026 - 2027',
           durationMinutes: 15,
           format: 'tn_only',
           countPart1Mcq: 10,
@@ -168,6 +173,8 @@ export const ExamBuilderTab: React.FC<ExamBuilderTabProps> = ({
           countPart2Tf: 0,
           countPart3Short: 0,
           countPart4Essay: 0,
+          ratioTn: 100,
+          ratioTl: 0,
           weekFrom: 1,
           weekTo: 4,
           subject: activePpct.subject || 'Toán',
@@ -177,6 +184,35 @@ export const ExamBuilderTab: React.FC<ExamBuilderTabProps> = ({
         sgkBooks
       );
       savePaper(newPaper);
+      setSyncToast('Đã tạo đề KTTX 100% Trắc nghiệm (70% Nhận biết, 30% Thông hiểu)!');
+      setTimeout(() => setSyncToast(null), 3500);
+    } else if (level === 'kttx_tl') {
+      const newPaper = generateCustomExamPaper(
+        {
+          examLevel: 'kttx',
+          title: 'ĐỀ KIỂM TRA THƯỜNG XUYÊN 15 PHÚT (100% TỰ LUẬN)',
+          schoolName: 'TRƯỜNG THCS VÀ THPT PHÚ THÀNH',
+          department: 'TỔ TOÁN - TIN HỌC',
+          academicYear: '2026 - 2027',
+          durationMinutes: 15,
+          format: 'tl_only',
+          countPart1Mcq: 0,
+          countPart2Tf: 0,
+          countPart3Short: 0,
+          countPart4Essay: 3,
+          ratioTn: 0,
+          ratioTl: 100,
+          weekFrom: 1,
+          weekTo: 4,
+          subject: activePpct.subject || 'Toán',
+          grade: activePpct.grade || '9',
+        },
+        activePpct,
+        sgkBooks
+      );
+      savePaper(newPaper);
+      setSyncToast('Đã tạo đề KTTX 100% Tự luận (Đầy đủ lời giải và thang điểm chi tiết)!');
+      setTimeout(() => setSyncToast(null), 3500);
     } else {
       // Giữa kì hoặc Cuối kì: Chuẩn Ma trận & YCCĐ
       const newPaper = generateExamPaperFromMatrix(
@@ -608,6 +644,31 @@ export const ExamBuilderTab: React.FC<ExamBuilderTabProps> = ({
     setSyncToast(`Đã đổi mới ${questionIds.length} câu hỏi và cập nhật đáp án tương ứng!`);
   };
 
+  // Đổi số liệu toán học một câu hỏi và tự động tính lại, đồng bộ đáp án
+  const handleNumericVariation = (question: ExamQuestion) => {
+    if (!examPaper) return;
+    const variant = generateQuestionNumericVariant(question);
+    const updatedQuestions = examPaper.questions.map((q) => (q.id === question.id ? variant : q));
+    savePaper({
+      ...examPaper,
+      questions: updatedQuestions,
+    });
+    setSyncToast(`Đã đổi số liệu ${question.code || 'câu hỏi'} và tự động cập nhật, đồng bộ đáp án chính xác!`);
+    setTimeout(() => setSyncToast(null), 3500);
+  };
+
+  // Đổi số liệu toán học toàn bộ đề thi và tự động tính toán, đồng bộ toàn bộ đáp án
+  const handleNumericVariationAll = () => {
+    if (!examPaper) return;
+    const updatedQuestions = examPaper.questions.map((q) => generateQuestionNumericVariant(q));
+    savePaper({
+      ...examPaper,
+      questions: updatedQuestions,
+    });
+    setSyncToast('Đã đổi số liệu toàn bộ đề thi và tự động đồng bộ tất cả đáp án/thang điểm!');
+    setTimeout(() => setSyncToast(null), 3500);
+  };
+
   return (
     <div className="space-y-6">
       {/* Sync Toast Notification */}
@@ -658,11 +719,22 @@ export const ExamBuilderTab: React.FC<ExamBuilderTabProps> = ({
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
-            onClick={() => handleQuickGenerate('kttx')}
+            onClick={() => handleQuickGenerate('kttx_tn')}
+            title="Kiểm tra thường xuyên 100% Trắc nghiệm (70% Nhận biết, 30% Thông hiểu)"
             className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-slate-50 hover:bg-slate-100 border border-slate-300 rounded-xl transition-colors"
           >
             <Zap size={14} className="text-amber-500" />
-            KTTX 15 phút (10 TN)
+            KTTX 100% Trắc nghiệm
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleQuickGenerate('kttx_tl')}
+            title="Kiểm tra thường xuyên 100% Tự luận (Đầy đủ đáp án và thang điểm)"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-300 rounded-xl transition-colors"
+          >
+            <FileText size={14} className="text-amber-600" />
+            KTTX 100% Tự luận
           </button>
 
           <button
@@ -803,6 +875,8 @@ export const ExamBuilderTab: React.FC<ExamBuilderTabProps> = ({
           onChangeQuestionLevel={handleChangeQuestionLevel}
           onAddQuestionsSameLevel={handleAddQuestionsSameLevel}
           onAddQuestionsToSection={handleAddQuestionsToSection}
+          onNumericVariation={handleNumericVariation}
+          onNumericVariationAll={handleNumericVariationAll}
         />
       ) : (
         <div className="bg-white rounded-2xl p-12 text-center border border-slate-200 shadow-xs">
@@ -813,9 +887,9 @@ export const ExamBuilderTab: React.FC<ExamBuilderTabProps> = ({
             Chưa có đề thi nào được khởi tạo
           </h3>
           <p className="text-xs text-slate-500 max-w-md mx-auto mt-1 mb-6">
-            Thầy/Cô có thể tạo đề tự động theo Ma trận & Yêu cầu cần đạt, hoặc tùy chỉnh số lượng câu hỏi và thời lượng làm bài theo nhu cầu.
+            Thầy/Cô có thể tạo đề tự động theo Ma trận & Yêu cầu cần đạt, hoặc tạo nhanh đề kiểm tra thường xuyên 100% trắc nghiệm (70% NB, 30% TH) hoặc 100% tự luận.
           </p>
-          <div className="flex justify-center gap-3">
+          <div className="flex flex-wrap justify-center gap-3">
             <button
               type="button"
               onClick={() => handleQuickGenerate('giua_ky')}
@@ -825,10 +899,17 @@ export const ExamBuilderTab: React.FC<ExamBuilderTabProps> = ({
             </button>
             <button
               type="button"
-              onClick={() => handleQuickGenerate('kttx')}
+              onClick={() => handleQuickGenerate('kttx_tn')}
               className="px-4 py-2 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl"
             >
-              Tạo đề kiểm tra thường xuyên
+              KTTX 100% Trắc nghiệm (70% NB - 30% TH)
+            </button>
+            <button
+              type="button"
+              onClick={() => handleQuickGenerate('kttx_tl')}
+              className="px-4 py-2 text-xs font-bold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-300 rounded-xl"
+            >
+              KTTX 100% Tự luận (Có barem)
             </button>
           </div>
         </div>

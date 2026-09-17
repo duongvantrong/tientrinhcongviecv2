@@ -1140,11 +1140,11 @@ export function generateExamPaperFromMatrix(
     examLevel,
     title: defaultTitle,
     subTitle: `Năm học ${academicYear} — Môn ${subject} ${grade}`,
-    schoolName: matrixConfig.schoolName || 'TRƯỜNG THCS NGUYỄN DU',
-    department: matrixConfig.department || 'TỔ KHOA HỌC TỰ NHIÊN',
+    schoolName: matrixConfig.schoolName || 'TRƯỜNG THCS VÀ THPT PHÚ THÀNH',
+    department: matrixConfig.department || 'TỔ TOÁN - TIN HỌC',
     subject,
     grade,
-    academicYear,
+    academicYear: matrixConfig.academicYear || '2026 - 2027',
     durationMinutes,
     examCode,
     semester: (matrixConfig.limitWeekFrom || 1) >= 19 ? 2 : 1,
@@ -1235,14 +1235,14 @@ export function generateCustomExamPaper(
     countMcq = 0;
     countTf = 0;
     countShort = 0;
-    if (countEssay === 0) countEssay = 4;
+    if (countEssay === 0) countEssay = 3;
   }
 
   // Phân bổ điểm để tổng tròn 10.0
   let scorePerMcq = config.scorePerMcq || (countMcq > 0 ? (format === 'tn_only' ? 10 / countMcq : 0.25) : 0);
   let scorePerTf = config.scorePerTf || (countTf > 0 ? 1.0 : 0);
   let scorePerShort = config.scorePerShort || (countShort > 0 ? 0.5 : 0);
-  let scorePerEssay = config.scorePerEssay || 1.0;
+  let scorePerEssay = config.scorePerEssay || (format === 'tl_only' ? +(10 / (countEssay || 3)).toFixed(2) : 1.0);
 
   // Cân đối lại điểm tự luận nếu còn dư
   const rawTnScore = countMcq * scorePerMcq + countTf * scorePerTf + countShort * scorePerShort;
@@ -1258,12 +1258,20 @@ export function generateCustomExamPaper(
   // 1. Phần I: Trắc nghiệm 4 lựa chọn
   for (let i = 0; i < countMcq; i++) {
     const topic = topicsToUse[i % topicsToUse.length];
-    const cogLevel: 'nhanBiet' | 'thongHieu' | 'vanDung' =
-      i < Math.floor(countMcq * 0.5)
-        ? 'nhanBiet'
-        : i < Math.floor(countMcq * 0.8)
-        ? 'thongHieu'
-        : 'vanDung';
+    
+    // Mức độ nhận thức: KTTX hoặc 100% TN mặc định 70% Nhận biết, 30% Thông hiểu
+    let cogLevel: 'nhanBiet' | 'thongHieu' | 'vanDung' | 'vanDungCao';
+    if (isKttx || format === 'tn_only') {
+      const threshold70 = Math.round(countMcq * 0.7);
+      cogLevel = i < threshold70 ? 'nhanBiet' : 'thongHieu';
+    } else {
+      cogLevel =
+        i < Math.floor(countMcq * 0.5)
+          ? 'nhanBiet'
+          : i < Math.floor(countMcq * 0.8)
+          ? 'thongHieu'
+          : 'vanDung';
+    }
 
     let qTemplate = findBestQuestionFromBank(subject, grade, topic, 'part1_mcq', cogLevel, usedPrompts);
     if (!qTemplate) {
@@ -1382,11 +1390,11 @@ export function generateCustomExamPaper(
     examLevel,
     title,
     subTitle: `Năm học ${academicYear} — Môn ${subject} ${grade}`,
-    schoolName: config.schoolName || 'TRƯỜNG THCS NGUYỄN DU',
-    department: config.department || 'TỔ KHOA HỌC TỰ NHIÊN',
+    schoolName: config.schoolName || 'TRƯỜNG THCS VÀ THPT PHÚ THÀNH',
+    department: config.department || 'TỔ TOÁN - TIN HỌC',
     subject,
     grade,
-    academicYear,
+    academicYear: config.academicYear || '2026 - 2027',
     durationMinutes,
     examCode,
     semester: weekFrom >= 19 ? 2 : 1,
