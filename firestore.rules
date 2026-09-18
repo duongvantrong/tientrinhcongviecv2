@@ -12,7 +12,9 @@ service cloud.firestore {
     function isSuperAdmin() {
       return isSignedIn() &&
         request.auth.token.email != null &&
-        request.auth.token.email.lower() == 'dvtrong.spdt09@gmail.com';
+        (request.auth.token.email.lower() == 'dvtrong.spdt09@gmail.com' ||
+         request.auth.token.email.lower() == 'dvtrong.c23hoabinh.dtp@moet.edu.vn' ||
+         request.auth.token.email.lower() == 'duongvantrong.dtp@gmail.com');
     }
 
     // Default deny

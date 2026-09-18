@@ -1,7 +1,8 @@
 import React from 'react';
-import { GraduationCap, Calendar, Clock, RotateCcw, Radio } from 'lucide-react';
+import { GraduationCap, Calendar, Clock, RotateCcw, Radio, Cloud, RefreshCw, Shield } from 'lucide-react';
 import { formatDateVN, formatTimeVN, getDayOfWeekVN, parseDate } from '../utils/dateCalculations';
 import { User } from 'firebase/auth';
+import { isSuperAdminEmail } from '../lib/firebase';
 
 interface HeaderProps {
   currentDateStr: string;
@@ -18,6 +19,7 @@ interface HeaderProps {
   isSyncing?: boolean;
   lastSyncTime?: string | null;
   onOpenCloudSync?: () => void;
+  onOpenWhitelist?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -31,12 +33,18 @@ export const Header: React.FC<HeaderProps> = ({
   onDateChange,
   onSyncRealTime,
   onResetDate,
+  user,
+  isSyncing,
+  lastSyncTime,
+  onOpenCloudSync,
+  onOpenWhitelist,
 }) => {
   const currentDate = parseDate(currentDateStr);
   const startDate = parseDate(startDateWeek1Str);
 
   const termText = term === 1 ? 'HK I' : 'HK II';
   const weekText = isBeforeTerm ? 'tuần 0' : `tuần ${currentWeek}`;
+  const isSuper = Boolean(user && isSuperAdminEmail(user.email));
 
   return (
     <header className="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-xs">
@@ -95,8 +103,51 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
         </div>
 
-        {/* Right side: Simulation Date Controls */}
+        {/* Right side: Cloud Sync & Date Simulation Controls */}
         <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap justify-between md:justify-end">
+          {/* Cloud Sync Button */}
+          {onOpenCloudSync && (
+            <button
+              type="button"
+              onClick={onOpenCloudSync}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer shadow-xs ${
+                user
+                  ? 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100/80'
+                  : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50 hover:text-slate-900'
+              }`}
+              title={
+                user
+                  ? `Đang kết nối: ${user.email}${lastSyncTime ? ` (Đồng bộ: ${lastSyncTime})` : ''}`
+                  : 'Đồng bộ Cloud Firestore: Lưu dữ liệu đa thiết bị'
+              }
+            >
+              {isSyncing ? (
+                <RefreshCw className="w-3.5 h-3.5 text-emerald-600 animate-spin" />
+              ) : (
+                <Cloud className={`w-3.5 h-3.5 ${user ? 'text-emerald-700' : 'text-slate-500'}`} />
+              )}
+              <span className="hidden sm:inline">
+                {isSyncing ? 'Đang đồng bộ...' : user ? 'Cloud đã kết nối' : 'Đồng bộ Cloud'}
+              </span>
+              {user && (
+                <span className="w-2 h-2 rounded-full bg-emerald-500 ring-2 ring-emerald-200" />
+              )}
+            </button>
+          )}
+
+          {/* Super Admin Whitelist shortcut */}
+          {isSuper && onOpenWhitelist && (
+            <button
+              type="button"
+              onClick={onOpenWhitelist}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100 transition-all cursor-pointer shadow-xs"
+              title="Quản lý danh sách cấp quyền GV (Whitelist)"
+            >
+              <Shield className="w-3.5 h-3.5 text-amber-700" />
+              <span className="hidden lg:inline">Phân quyền GV</span>
+            </button>
+          )}
+
           {/* Date Controls: Real-time vs Simulation */}
           <div className="flex items-center gap-2">
             {isRealTime ? (

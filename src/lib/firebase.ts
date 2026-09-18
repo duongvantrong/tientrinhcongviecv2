@@ -39,6 +39,16 @@ import {
 } from '../types';
 
 export const SUPER_ADMIN_EMAIL = 'dvtrong.spdt09@gmail.com';
+export const SUPER_ADMIN_EMAILS = [
+  'dvtrong.spdt09@gmail.com',
+  'dvtrong.c23hoabinh.dtp@moet.edu.vn',
+];
+
+export function isSuperAdminEmail(email?: string | null): boolean {
+  if (!email) return false;
+  const lower = email.toLowerCase().trim();
+  return SUPER_ADMIN_EMAILS.some((adm) => adm.toLowerCase() === lower);
+}
 
 export enum OperationType {
   CREATE = 'create',
@@ -256,7 +266,7 @@ export async function addEmailToWhitelist(
 // Remove an email from the whitelist
 export async function removeEmailFromWhitelist(email: string): Promise<void> {
   const cleanEmail = email.toLowerCase().trim();
-  if (cleanEmail === SUPER_ADMIN_EMAIL.toLowerCase()) {
+  if (isSuperAdminEmail(cleanEmail)) {
     throw new Error('Không thể xóa quyền của Quản trị viên trưởng!');
   }
   const docId = sanitizeEmailForDocId(cleanEmail);
@@ -272,7 +282,7 @@ export async function checkUserAuthorization(user: User | null): Promise<AuthAcc
   const userEmail = user.email.toLowerCase().trim();
 
   // 1. Check Super Admin email
-  if (userEmail === SUPER_ADMIN_EMAIL.toLowerCase()) {
+  if (isSuperAdminEmail(userEmail)) {
     return { isAllowed: true, isSuperAdmin: true, role: 'admin' };
   }
 

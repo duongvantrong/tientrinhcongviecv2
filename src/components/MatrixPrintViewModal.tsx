@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { X, Printer, Download } from 'lucide-react';
-import { MatrixConfig, MatrixRow } from '../types';
+import { MatrixConfig, MatrixRow, SgkBook } from '../types';
 import {
   generateSpecificationFromMatrix,
   calculateTopicPointSummary,
@@ -16,6 +16,7 @@ interface MatrixPrintViewModalProps {
   config: MatrixConfig;
   rows: MatrixRow[];
   onExportWord: () => void;
+  sgkBooks?: SgkBook[];
 }
 
 export const MatrixPrintViewModal: React.FC<MatrixPrintViewModalProps> = ({
@@ -24,6 +25,7 @@ export const MatrixPrintViewModal: React.FC<MatrixPrintViewModalProps> = ({
   config,
   rows,
   onExportWord,
+  sgkBooks = [],
 }) => {
   const [activeTab, setActiveTab] = useState<'both' | 'pl1' | 'pl2'>('both');
   const printRef = useRef<HTMLDivElement>(null);
@@ -34,7 +36,8 @@ export const MatrixPrintViewModal: React.FC<MatrixPrintViewModalProps> = ({
   const rowsWithQuestions = rows.filter((r) => getRowTotalQuestions(r) > 0);
   const targetRows = rowsWithQuestions.length > 0 ? rowsWithQuestions : rows;
 
-  const specRows = generateSpecificationFromMatrix(targetRows, config.grade, config.subject);
+  const activeVolume = (config.limitWeekFrom || 1) >= 19 ? 2 : ((config.limitWeekTo || 9) <= 18 ? 1 : 'all');
+  const specRows = generateSpecificationFromMatrix(targetRows, config.grade, config.subject, sgkBooks, activeVolume);
   const topicSummary = calculateTopicPointSummary(targetRows, true);
 
   // Group rows by chapter

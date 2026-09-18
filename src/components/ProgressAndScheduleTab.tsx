@@ -88,7 +88,13 @@ export const ProgressAndScheduleTab: React.FC<ProgressAndScheduleTabProps> = ({
   const [activeGradeState, setActiveGradeState] = useState<string>(activeDataset?.grade || '9');
 
   // Đảm bảo đồng bộ khi activeDataset thay đổi từ bên ngoài
-  const currentGrade = activeDataset?.grade || activeGradeState || '9';
+  React.useEffect(() => {
+    if (activeDataset?.grade) {
+      setActiveGradeState(activeDataset.grade);
+    }
+  }, [activeDataset?.id, activeDataset?.grade]);
+
+  const currentGrade = activeGradeState || activeDataset?.grade || '9';
 
   // Lọc danh sách PPCT chỉ thuộc đúng khối đang chọn (Không hiển thị tất cả các khối khác)
   const gradeDatasets = useMemo(() => {

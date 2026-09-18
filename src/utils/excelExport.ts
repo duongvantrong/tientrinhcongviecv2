@@ -138,14 +138,15 @@ export function exportPpctToExcel(ppct: PpctDataset, exams: ExamEvent[]) {
   const wb = XLSX.utils.book_new();
 
   // Sheet 1: PPCT
+  const lessons = ppct.lessons || [];
   const ppctData: (string | number)[][] = [
-    [`PHÂN PHỐI CHƯƠNG TRÌNH CHI TIẾT - ${ppct.subject.toUpperCase()} ${ppct.grade}`],
-    [`Trường: ${ppct.school} | Năm học: ${ppct.academicYear} | Tổng số: ${ppct.lessons.length} tiết`],
+    [`PHÂN PHỐI CHƯƠNG TRÌNH CHI TIẾT - ${(ppct.subject || 'TOÁN').toUpperCase()} ${ppct.grade || ''}`],
+    [`Trường: ${ppct.school || ''} | Năm học: ${ppct.academicYear || ''} | Tổng số: ${lessons.length} tiết`],
     [],
     ['Tiết', 'Tuần', 'Học kỳ', 'Chương/Chủ đề', 'Tên bài học/Nội dung'],
   ];
 
-  ppct.lessons.forEach((l) => {
+  lessons.forEach((l) => {
     ppctData.push([l.stt, l.tuan, `Học kỳ ${l.hocKy === 1 ? 'I' : 'II'}`, l.chuong, l.baiHoc]);
   });
 

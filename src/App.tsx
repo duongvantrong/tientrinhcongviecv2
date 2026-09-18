@@ -15,6 +15,14 @@ import { SgkManagerModal } from './components/SgkManagerModal';
 import { PpctFullViewerModal } from './components/PpctFullViewerModal';
 import { UploadPpctModal } from './components/UploadPpctModal';
 import { QuestionBankManagerModal } from './components/QuestionBankManagerModal';
+import { CloudSyncModal } from './components/CloudSyncModal';
+import { useAuth } from './components/auth/AuthGate';
+import {
+  syncPpctDataToCloud,
+  fetchPpctDataFromCloud,
+  syncGvcnDataToCloud,
+  fetchGvcnDataFromCloud,
+} from './lib/firebase';
 import {
   defaultPpctDataset,
   defaultDatasets,
@@ -229,6 +237,188 @@ export default function App() {
 
   // Modal states
   const [isManualEditorOpen, setIsManualEditorOpen] = useState(false);
+  const [isCloudSyncOpen, setIsCloudSyncOpen] = useState(false);
+  const [isCloudSyncing, setIsCloudSyncing] = useState(false);
+  const [lastCloudSyncTime, setLastCloudSyncTime] = useState<string | null>(() => {
+    return localStorage.getItem('last_cloud_sync_time') || null;
+  });
+
+  // Auth context
+  const { user, isSuperAdmin, logout, openWhitelistModal } = useAuth();
+
+  // GVCN Class Name for Tab Badge
+  const [gvcnClassName, setGvcnClassName] = useState<string>(() => {
+    try {
+      const saved = localStorage.getItem('gvcn_class_info');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.className) return parsed.className;
+      }
+    } catch (e) {}
+    return '9A1';
+  });
+
+  // Listen for local storage updates from GVCN tab
+  useEffect(() => {
+    const handleStorageUpdate = () => {
+      try {
+        const saved = localStorage.getItem('gvcn_class_info');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (parsed.className) setGvcnClassName(parsed.className);
+        }
+      } catch (e) {}
+    };
+
+    window.addEventListener('gvcn_storage_updated', handleStorageUpdate);
+    window.addEventListener('storage', handleStorageUpdate);
+    return () => {
+      window.removeEventListener('gvcn_storage_updated', handleStorageUpdate);
+      window.removeEventListener('storage', handleStorageUpdate);
+    };
+  }, []);
+
+  // Stats for Cloud Sync Modal
+  const totalLessonsCount = useMemo(() => {
+    return datasets.reduce((sum, d) => sum + (d.lessons?.length || 0), 0);
+  }, [datasets]);
+
+  const gvcnStudentsCount = useMemo(() => {
+    try {
+      const saved = localStorage.getItem('gvcn_students');
+      if (saved) {
+        const list = JSON.parse(saved);
+        if (Array.isArray(list)) return list.length;
+      }
+    } catch (e) {}
+    return 0;
+  }, [isCloudSyncOpen]);
+
+  const hasSeatingChart = useMemo(() => {
+    try {
+      const saved = localStorage.getItem('gvcn_seating_chart');
+      return Boolean(saved && saved.length > 20);
+    } catch (e) {
+      return false;
+    }
+  }, [isCloudSyncOpen]);
+
+  // Push local data to Cloud
+  const handleForcePush = async () => {
+    if (!user) return;
+    setIsCloudSyncing(true);
+    try {
+      await syncPpctDataToCloud(user.uid, user.email || 'gv@moet.edu.vn', {
+        datasets,
+        activeDatasetId,
+        timeframeConfig,
+        matrixConfig,
+        matrixRows,
+        sgkBooks,
+      });
+
+      try {
+        const rawClass = localStorage.getItem('gvcn_class_info');
+        const rawStudents = localStorage.getItem('gvcn_students');
+        if (rawClass || rawStudents) {
+          const classInfo = rawClass ? JSON.parse(rawClass) : { className: gvcnClassName, academicYear: '2026 - 2027', homeroomTeacher: 'Dương Văn Trong', totalStudents: 0 };
+          const students = rawStudents ? JSON.parse(rawStudents) : [];
+          const rawRecords = localStorage.getItem('gvcn_weekly_records');
+          const weeklyRecords = rawRecords ? JSON.parse(rawRecords) : [];
+          const rawRules = localStorage.getItem('gvcn_class_rules');
+          const rules = rawRules ? JSON.parse(rawRules) : [];
+          const rawSeating = localStorage.getItem('gvcn_seating_chart');
+          const seatingChart = rawSeating ? JSON.parse(rawSeating) : undefined;
+          await syncGvcnDataToCloud(user.uid, user.email || 'gv@moet.edu.vn', {
+            classInfo,
+            students,
+            weeklyRecords,
+            rules,
+            seatingChart,
+          });
+        }
+      } catch (gvcnErr) {
+        console.warn('Push GVCN notice:', gvcnErr);
+      }
+
+      const timeStr = new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) + ' ' + new Date().toLocaleDateString('vi-VN');
+      setLastCloudSyncTime(timeStr);
+      localStorage.setItem('last_cloud_sync_time', timeStr);
+    } catch (err: any) {
+      console.error('Push error:', err);
+      throw err;
+    } finally {
+      setIsCloudSyncing(false);
+    }
+  };
+
+  // Pull data from Cloud into local state
+  const handleForcePull = async () => {
+    if (!user) return;
+    setIsCloudSyncing(true);
+    try {
+      const ppctCloud = await fetchPpctDataFromCloud(user.uid);
+      if (ppctCloud && Array.isArray(ppctCloud.datasets) && ppctCloud.datasets.length > 0) {
+        setDatasets(ppctCloud.datasets);
+        localStorage.setItem('ppct_datasets', JSON.stringify(ppctCloud.datasets));
+        if (ppctCloud.activeDatasetId) {
+          setActiveDatasetId(ppctCloud.activeDatasetId);
+        }
+        if (ppctCloud.timeframeConfig) {
+          setTimeframeConfig(ppctCloud.timeframeConfig);
+          localStorage.setItem('ppct_timeframe_config', JSON.stringify(ppctCloud.timeframeConfig));
+        }
+        if (ppctCloud.matrixConfig) {
+          setMatrixConfig(ppctCloud.matrixConfig);
+          localStorage.setItem('ppct_matrix_config', JSON.stringify(ppctCloud.matrixConfig));
+        }
+        if (ppctCloud.matrixRows) {
+          setMatrixRows(ppctCloud.matrixRows);
+          localStorage.setItem('ppct_matrix_rows', JSON.stringify(ppctCloud.matrixRows));
+        }
+        if (ppctCloud.sgkBooks && ppctCloud.sgkBooks.length > 0) {
+          setSgkBooks(ppctCloud.sgkBooks);
+          localStorage.setItem('ppct_sgk_books', JSON.stringify(ppctCloud.sgkBooks));
+        }
+      }
+
+      const gvcnCloud = await fetchGvcnDataFromCloud(user.uid);
+      if (gvcnCloud) {
+        if (gvcnCloud.classInfo) {
+          localStorage.setItem('gvcn_class_info', JSON.stringify(gvcnCloud.classInfo));
+          if (gvcnCloud.classInfo.className) {
+            setGvcnClassName(gvcnCloud.classInfo.className);
+          }
+        }
+        if (gvcnCloud.students) {
+          localStorage.setItem('gvcn_students', JSON.stringify(gvcnCloud.students));
+        }
+        if (gvcnCloud.weeklyRecords) {
+          localStorage.setItem('gvcn_weekly_records', JSON.stringify(gvcnCloud.weeklyRecords));
+        }
+        if (gvcnCloud.rules) {
+          localStorage.setItem('gvcn_class_rules', JSON.stringify(gvcnCloud.rules));
+        }
+        if (gvcnCloud.seatingChart) {
+          localStorage.setItem('gvcn_seating_chart', JSON.stringify(gvcnCloud.seatingChart));
+        }
+        window.dispatchEvent(new Event('gvcn_storage_updated'));
+      }
+
+      const timeStr = new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) + ' ' + new Date().toLocaleDateString('vi-VN');
+      setLastCloudSyncTime(timeStr);
+      localStorage.setItem('last_cloud_sync_time', timeStr);
+    } catch (err: any) {
+      console.error('Pull error:', err);
+      throw err;
+    } finally {
+      setIsCloudSyncing(false);
+    }
+  };
+
+  const handleForceSync = async () => {
+    await handleForcePush();
+  };
 
   // Active dataset reference
   const activeDataset = useMemo(() => {
@@ -505,6 +695,11 @@ export default function App() {
         onDateChange={handleDateChange}
         onSyncRealTime={handleSyncRealTime}
         onResetDate={handleSyncRealTime}
+        user={user}
+        isSyncing={isCloudSyncing}
+        lastSyncTime={lastCloudSyncTime}
+        onOpenCloudSync={() => setIsCloudSyncOpen(true)}
+        onOpenWhitelist={openWhitelistModal}
       />
 
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6">
@@ -520,6 +715,7 @@ export default function App() {
           onOpenSgkManager={() => setIsSgkManagerOpen(true)}
           onOpenFullPpct={() => setIsFullPpctViewerOpen(true)}
           onOpenQuestionBank={() => setIsQuestionBankModalOpen(true)}
+          gvcnClassName={gvcnClassName}
         />
 
         {activeTab === 'progress' ? (
@@ -641,6 +837,26 @@ export default function App() {
           // Trigger a re-sync or timestamp refresh if needed
           setExamSyncTimestamp(Date.now());
         }}
+      />
+
+      {/* Cloud Sync Modal: Đồng bộ dữ liệu Firebase Firestore */}
+      <CloudSyncModal
+        isOpen={isCloudSyncOpen}
+        onClose={() => setIsCloudSyncOpen(false)}
+        user={user}
+        isSuperAdmin={isSuperAdmin}
+        isSyncing={isCloudSyncing}
+        lastSyncTime={lastCloudSyncTime}
+        datasetsCount={datasets.length}
+        totalLessonsCount={totalLessonsCount}
+        matrixRowsCount={matrixRows.length}
+        studentsCount={gvcnStudentsCount}
+        hasSeatingChart={hasSeatingChart}
+        onForceSync={handleForceSync}
+        onForcePull={handleForcePull}
+        onForcePush={handleForcePush}
+        onOpenWhitelist={openWhitelistModal}
+        onLogout={logout}
       />
     </div>
   );

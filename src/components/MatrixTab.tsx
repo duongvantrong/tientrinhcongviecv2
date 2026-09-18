@@ -492,6 +492,7 @@ export const MatrixTab: React.FC<MatrixTabProps> = ({
         config={config}
         rows={rows}
         onExportWord={handleExportFullWord}
+        sgkBooks={sgkBooks}
       />
     </div>
   );
