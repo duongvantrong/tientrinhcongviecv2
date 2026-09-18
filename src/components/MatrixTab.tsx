@@ -461,6 +461,7 @@ export const MatrixTab: React.FC<MatrixTabProps> = ({
         <MatrixTable
           config={config}
           rows={rows}
+          sgkBooks={sgkBooks}
           onUpdateRow={handleUpdateRow}
           onUpdateNestedRow={handleUpdateNestedRow}
           onBulkUpdateRows={onUpdateRows}
@@ -479,6 +480,8 @@ export const MatrixTab: React.FC<MatrixTabProps> = ({
           matrixRows={rows}
           specRows={specRows}
           onUpdateSpecRows={setSpecRows}
+          onUpdateMatrixRows={onUpdateRows}
+          sgkBooks={sgkBooks}
           onSyncFromMatrix={handleSyncSpecFromMatrix}
           onExportSpecWord={handleExportWordSpec}
           onExportFullWord={handleExportFullWord}

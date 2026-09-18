@@ -10,15 +10,20 @@ import {
   Sparkles,
   Info,
   X,
+  BookOpen,
+  CheckCircle2,
 } from 'lucide-react';
-import { MatrixConfig, MatrixRow, SpecificationRow, SpecificationItem } from '../types';
-import { cleanContentWithoutNls } from '../utils/dateCalculations';
+import { MatrixConfig, MatrixRow, SpecificationRow, SpecificationItem, SgkBook, SgkLesson } from '../types';
+import { cleanContentWithoutNls, standardizeRowsToCurrentSgk } from '../utils/dateCalculations';
+import { SgkTopicSelectorModal } from './SgkTopicSelectorModal';
 
 interface SpecificationTableProps {
   config: MatrixConfig;
   matrixRows: MatrixRow[];
   specRows: SpecificationRow[];
   onUpdateSpecRows: (rows: SpecificationRow[]) => void;
+  onUpdateMatrixRows?: (rows: MatrixRow[]) => void;
+  sgkBooks?: SgkBook[];
   onSyncFromMatrix: () => void;
   onExportSpecWord: () => void;
   onExportFullWord: () => void;
@@ -30,6 +35,8 @@ export const SpecificationTable: React.FC<SpecificationTableProps> = ({
   matrixRows,
   specRows,
   onUpdateSpecRows,
+  onUpdateMatrixRows,
+  sgkBooks = [],
   onSyncFromMatrix,
   onExportSpecWord,
   onExportFullWord,
@@ -37,6 +44,17 @@ export const SpecificationTable: React.FC<SpecificationTableProps> = ({
 }) => {
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [editingRowId, setEditingRowId] = useState<string | null>(null);
+
+  // SGK Modal state
+  const [isSgkModalOpen, setIsSgkModalOpen] = useState<boolean>(false);
+  const [selectedRowForSgk, setSelectedRowForSgk] = useState<SpecificationRow | null>(null);
+  const [noticeMessage, setNoticeMessage] = useState<string | null>(null);
+
+  // Inline chapter & topic editing state
+  const [editingChapterRowId, setEditingChapterRowId] = useState<string | null>(null);
+  const [tempChapterText, setTempChapterText] = useState<string>('');
+  const [editingTopicRowId, setEditingTopicRowId] = useState<string | null>(null);
+  const [tempTopicText, setTempTopicText] = useState<string>('');
 
   // Form edit states
   const [tempYCCDat, setTempYCCDat] = useState<string>('');
@@ -52,6 +70,126 @@ export const SpecificationTable: React.FC<SpecificationTableProps> = ({
   const [tempTlBiet, setTempTlBiet] = useState<string>('');
   const [tempTlHieu, setTempTlHieu] = useState<string>('');
   const [tempTlVd, setTempTlVd] = useState<string>('');
+
+  const handleOpenSgkPicker = (row: SpecificationRow) => {
+    setSelectedRowForSgk(row);
+    setIsSgkModalOpen(true);
+  };
+
+  const handleApplySgkSelection = (selection: {
+    chapter: string;
+    topic: string;
+    lesson?: SgkLesson;
+    applyYccd?: boolean;
+    rowId?: string;
+  }) => {
+    const targetId = selection.rowId || selectedRowForSgk?.id;
+    if (!targetId) return;
+
+    // Update specRows
+    const updatedSpec = specRows.map((r) => {
+      if (r.id === targetId) {
+        let newItems = [...r.items];
+        if (selection.applyYccd && selection.lesson) {
+          const l = selection.lesson;
+          newItems = newItems.map((item) => {
+            let yccd = item.yeuCauCanDat;
+            if (item.mucDo === 'nhanBiet' && l.objectives.nhanBiet) {
+              yccd = l.objectives.nhanBiet;
+            } else if (item.mucDo === 'thongHieu' && l.objectives.thongHieu) {
+              yccd = l.objectives.thongHieu;
+            } else if (item.mucDo === 'vanDung' && l.objectives.vanDung) {
+              yccd = l.objectives.vanDung;
+            }
+            return { ...item, yeuCauCanDat: yccd };
+          });
+        }
+        return {
+          ...r,
+          chuong: selection.chapter,
+          noiDung: selection.topic,
+          items: newItems,
+        };
+      }
+      return r;
+    });
+    onUpdateSpecRows(updatedSpec);
+
+    // Synchronize to matrixRows if callback provided
+    if (onUpdateMatrixRows) {
+      const updatedMatrix = matrixRows.map((mr) => {
+        if (mr.id === targetId) {
+          return {
+            ...mr,
+            chuong: selection.chapter,
+            noiDung: selection.topic,
+          };
+        }
+        return mr;
+      });
+      onUpdateMatrixRows(updatedMatrix);
+    }
+
+    setNoticeMessage(`Đã cập nhật bài học: "${selection.topic}" (${selection.chapter})`);
+    setTimeout(() => setNoticeMessage(null), 3500);
+  };
+
+  const handleStandardizeAllSgk = () => {
+    const stdMatrix = standardizeRowsToCurrentSgk(matrixRows, config.grade, sgkBooks);
+    if (onUpdateMatrixRows) {
+      onUpdateMatrixRows(stdMatrix.rows);
+    }
+    const updatedSpec = specRows.map((r) => {
+      const matched = stdMatrix.rows.find((mr) => mr.id === r.id);
+      if (matched) {
+        return {
+          ...r,
+          chuong: matched.chuong,
+          noiDung: matched.noiDung,
+        };
+      }
+      return r;
+    });
+    onUpdateSpecRows(updatedSpec);
+    setNoticeMessage(`Đã chuẩn hóa ${stdMatrix.changedCount} chủ đề/bài học bám sát SGK Toán ${config.grade} hiện nay!`);
+    setTimeout(() => setNoticeMessage(null), 4000);
+  };
+
+  const handleStartEditChapter = (row: SpecificationRow) => {
+    setEditingChapterRowId(row.id);
+    setTempChapterText(cleanContentWithoutNls(row.chuong));
+  };
+
+  const handleSaveChapter = (rowId: string) => {
+    const newName = tempChapterText.trim();
+    if (newName) {
+      const updatedSpec = specRows.map((r) => (r.id === rowId ? { ...r, chuong: newName } : r));
+      onUpdateSpecRows(updatedSpec);
+      if (onUpdateMatrixRows) {
+        const updatedMatrix = matrixRows.map((mr) => (mr.id === rowId ? { ...mr, chuong: newName } : mr));
+        onUpdateMatrixRows(updatedMatrix);
+      }
+    }
+    setEditingChapterRowId(null);
+  };
+
+  const handleStartEditTopic = (row: SpecificationRow) => {
+    setEditingTopicRowId(row.id);
+    setTempTopicText(cleanContentWithoutNls(row.noiDung));
+  };
+
+  const handleSaveTopic = (rowId: string) => {
+    const newName = tempTopicText.trim();
+    if (newName) {
+      const updatedSpec = specRows.map((r) => (r.id === rowId ? { ...r, noiDung: newName } : r));
+      onUpdateSpecRows(updatedSpec);
+      if (onUpdateMatrixRows) {
+        const updatedMatrix = matrixRows.map((mr) => (mr.id === rowId ? { ...mr, noiDung: newName } : mr));
+        onUpdateMatrixRows(updatedMatrix);
+      }
+    }
+    setEditingTopicRowId(null);
+  };
 
   const startEditItem = (rowId: string, item: SpecificationItem) => {
     setEditingRowId(rowId);
@@ -166,6 +304,15 @@ export const SpecificationTable: React.FC<SpecificationTableProps> = ({
 
         <div className="flex flex-wrap items-center gap-2">
           <button
+            onClick={handleStandardizeAllSgk}
+            className="px-3 py-1.5 bg-teal-700 hover:bg-teal-800 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all shadow-xs"
+            title="Tự động chuẩn hóa toàn bộ tên Chương và Bài học theo đúng SGK Toán GDPT 2018 hiện hành"
+          >
+            <BookOpen className="w-3.5 h-3.5 text-amber-300" />
+            <span>Chuẩn hóa tên theo SGK</span>
+          </button>
+
+          <button
             onClick={onSyncFromMatrix}
             className="px-3 py-1.5 bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors shadow-2xs"
             title="Đồng bộ tự động các mức độ và số câu hỏi từ Khung Ma trận"
@@ -217,13 +364,22 @@ export const SpecificationTable: React.FC<SpecificationTableProps> = ({
         )}
       </div>
 
-      {/* Guidance Alert */}
-      <div className="bg-amber-50/80 border-b border-amber-200/80 px-4 py-2.5 flex items-center gap-2 text-xs text-amber-800">
-        <Info className="w-4 h-4 text-amber-600 shrink-0" />
-        <span>
-          Cấu trúc bảng đặc tả 16 cột gồm: <strong>Nhiều lựa chọn</strong> (Biết, Hiểu, Vận dụng), <strong>“Đúng - sai”</strong> (Biết, Hiểu, Vận dụng), <strong>Trả lời ngắn</strong> (Biết, Hiểu, Vận dụng), và <strong>Tự luận</strong> (Biết, Hiểu, Vận dụng). Thầy/Cô có thể bấm vào <Edit3 className="w-3 h-3 inline text-slate-600" /> để sửa yêu cầu cần đạt hoặc số câu trực tiếp.
-        </span>
+      {/* Guidance Alert & Notice */}
+      <div className="bg-amber-50/80 border-b border-amber-200/80 px-4 py-2.5 flex items-center justify-between gap-2 text-xs text-amber-800">
+        <div className="flex items-center gap-2">
+          <Info className="w-4 h-4 text-amber-600 shrink-0" />
+          <span>
+            Cấu trúc bảng đặc tả 16 cột gồm: <strong>Nhiều lựa chọn</strong> (Biết, Hiểu, Vận dụng), <strong>“Đúng - sai”</strong> (Biết, Hiểu, Vận dụng), <strong>Trả lời ngắn</strong> (Biết, Hiểu, Vận dụng), và <strong>Tự luận</strong> (Biết, Hiểu, Vận dụng). Thầy/Cô có thể bấm vào <Edit3 className="w-3 h-3 inline text-slate-600" /> hoặc <strong>"Chọn từ SGK"</strong> để sửa trực tiếp tên bài và yêu cầu cần đạt.
+          </span>
+        </div>
       </div>
+
+      {noticeMessage && (
+        <div className="bg-emerald-50 border-b border-emerald-300 px-4 py-2 flex items-center gap-2 text-xs font-semibold text-emerald-900 animate-in fade-in">
+          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+          <span>{noticeMessage}</span>
+        </div>
+      )}
 
       {/* 16-Column Specification Table */}
       <div className="overflow-x-auto">
@@ -333,9 +489,47 @@ export const SpecificationTable: React.FC<SpecificationTableProps> = ({
                       {isFirstItemOfRow && (
                         <td
                           rowSpan={totalItems}
-                          className="py-2.5 px-3 font-semibold text-slate-900 border border-slate-300 align-top bg-white whitespace-pre-line"
+                          className="py-2.5 px-3 font-semibold text-slate-900 border border-slate-300 align-top bg-white whitespace-pre-line group"
                         >
-                          {cleanContentWithoutNls(row.chuong)}
+                          {editingChapterRowId === row.id ? (
+                            <div className="space-y-1.5">
+                              <textarea
+                                value={tempChapterText}
+                                onChange={(e) => setTempChapterText(e.target.value)}
+                                className="w-full text-xs p-1.5 border border-blue-400 rounded focus:ring-1 focus:ring-blue-500 font-semibold"
+                                rows={2}
+                                autoFocus
+                              />
+                              <div className="flex items-center gap-1">
+                                <button
+                                  onClick={() => handleSaveChapter(row.id)}
+                                  className="px-2 py-0.5 bg-blue-600 hover:bg-blue-700 text-white rounded text-[10px] font-semibold"
+                                >
+                                  Lưu
+                                </button>
+                                <button
+                                  onClick={() => setEditingChapterRowId(null)}
+                                  className="px-2 py-0.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded text-[10px]"
+                                >
+                                  Hủy
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div>
+                              <div className="text-slate-900 leading-snug">{cleanContentWithoutNls(row.chuong)}</div>
+                              <div className="mt-1.5 flex items-center gap-1 opacity-70 hover:opacity-100 transition-opacity">
+                                <button
+                                  onClick={() => handleStartEditChapter(row)}
+                                  className="text-[10px] text-blue-700 hover:text-blue-900 flex items-center gap-0.5"
+                                  title="Đổi tên chương này"
+                                >
+                                  <Edit3 className="w-2.5 h-2.5 inline" />
+                                  <span>Sửa tên</span>
+                                </button>
+                              </div>
+                            </div>
+                          )}
                         </td>
                       )}
 
@@ -343,10 +537,57 @@ export const SpecificationTable: React.FC<SpecificationTableProps> = ({
                       {isFirstItemOfRow && (
                         <td
                           rowSpan={totalItems}
-                          className="py-2.5 px-3 font-medium text-slate-800 border border-slate-300 align-top bg-white whitespace-pre-line"
+                          className="py-2.5 px-3 font-medium text-slate-800 border border-slate-300 align-top bg-white whitespace-pre-line group"
                         >
-                          <div>{cleanContentWithoutNls(row.noiDung)}</div>
-                          <div className="flex gap-1 mt-2.5">
+                          {editingTopicRowId === row.id ? (
+                            <div className="space-y-1.5">
+                              <textarea
+                                value={tempTopicText}
+                                onChange={(e) => setTempTopicText(e.target.value)}
+                                className="w-full text-xs p-1.5 border border-blue-400 rounded focus:ring-1 focus:ring-blue-500 font-medium"
+                                rows={2}
+                                autoFocus
+                              />
+                              <div className="flex items-center gap-1">
+                                <button
+                                  onClick={() => handleSaveTopic(row.id)}
+                                  className="px-2 py-0.5 bg-blue-600 hover:bg-blue-700 text-white rounded text-[10px] font-semibold"
+                                >
+                                  Lưu
+                                </button>
+                                <button
+                                  onClick={() => setEditingTopicRowId(null)}
+                                  className="px-2 py-0.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded text-[10px]"
+                                >
+                                  Hủy
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div>
+                              <div className="text-slate-800 leading-snug">{cleanContentWithoutNls(row.noiDung)}</div>
+                              <div className="mt-2 flex items-center gap-1.5 flex-wrap">
+                                <button
+                                  onClick={() => handleStartEditTopic(row)}
+                                  className="text-[10px] text-blue-700 hover:text-blue-900 flex items-center gap-0.5"
+                                  title="Đổi tên bài học này"
+                                >
+                                  <Edit3 className="w-2.5 h-2.5 inline" />
+                                  <span>Sửa tên</span>
+                                </button>
+                                <button
+                                  onClick={() => handleOpenSgkPicker(row)}
+                                  className="text-[10px] text-teal-800 bg-teal-50 hover:bg-teal-100 border border-teal-200 px-1.5 py-0.5 rounded font-semibold flex items-center gap-1 transition-colors shadow-2xs"
+                                  title="Chọn tên chương, bài học và yêu cầu cần đạt chính xác từ SGK Toán GDPT 2018"
+                                >
+                                  <BookOpen className="w-3 h-3 text-teal-600" />
+                                  <span>Chọn từ SGK</span>
+                                </button>
+                              </div>
+                            </div>
+                          )}
+
+                          <div className="flex gap-1 mt-3 pt-2 border-t border-slate-100">
                             <button
                               onClick={() => handleAddItem(row.id, 'nhanBiet')}
                               className="text-[10px] text-slate-600 bg-slate-100 hover:bg-slate-200 px-1.5 py-0.5 rounded border border-slate-300"
@@ -598,6 +839,30 @@ export const SpecificationTable: React.FC<SpecificationTableProps> = ({
           </button>
         </div>
       </div>
+      {/* Sgk Topic Selector Modal */}
+      {isSgkModalOpen && (
+        <SgkTopicSelectorModal
+          isOpen={isSgkModalOpen}
+          onClose={() => setIsSgkModalOpen(false)}
+          config={config}
+          targetRow={
+            selectedRowForSgk
+              ? {
+                  id: selectedRowForSgk.id,
+                  chuong: selectedRowForSgk.chuong,
+                  noiDung: selectedRowForSgk.noiDung,
+                  nhanBiet: { tn: 0, tl: 0 },
+                  thongHieu: { tn: 0, tl: 0 },
+                  vanDung: { tn: 0, tl: 0 },
+                  vanDungCao: { tn: 0, tl: 0 },
+                }
+              : null
+          }
+          allRows={matrixRows}
+          sgkBooks={sgkBooks}
+          onSelectTopic={handleApplySgkSelection}
+        />
+      )}
     </div>
   );
 };

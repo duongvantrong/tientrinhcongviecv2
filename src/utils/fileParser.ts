@@ -1,5 +1,6 @@
 import * as XLSX from 'xlsx';
 import { PpctDataset, PpctLesson, PpctValidationResult, PpctIssue } from '../types';
+import { cleanContentWithoutNls, isTechCompetenceText, getOfficialSgkTopicAndChapter } from './dateCalculations';
 
 /**
  * Extracts table rows and text from a Word document (.docx) using mammoth
@@ -304,9 +305,12 @@ export async function parsePpctFile(
         tempTiet = colIdx;
         score += 3;
       } else if (
-        /^(bai hoc|ten bai|ten bai day|noi dung|chu de|ten chu de|bai day|noi dung bai day|ten chu de\/bai)$/i.test(text) ||
-        text.includes('ten bai') ||
-        text.includes('noi dung')
+        !/(nls|năng lực số|nang luc so|ung dung cntt|cntt|dia chi tich hop|chuyen doi so|thiet bi|mindmap|geogebra|canva|quizizz|yeu cau can dat|yccd)/i.test(
+          text
+        ) &&
+        (/^(bai hoc|ten bai|ten bai day|chu de|ten chu de|bai day|noi dung bai day|ten chu de\/bai)$/i.test(text) ||
+          text.includes('ten bai') ||
+          (text.includes('noi dung') && tempBaiHoc === -1))
       ) {
         tempBaiHoc = colIdx;
         score += 4;
@@ -333,21 +337,26 @@ export async function parsePpctFile(
 
   // Fallback: If header wasn't identified by keywords, analyze column data patterns
   if (colBaiHoc === -1 && rows.length > 0) {
-    // Find column with longest text (likely lesson name)
+    // Find column with longest text (likely lesson name), ignoring columns that contain digital competence text
     const colTextLengths: number[] = [];
     const maxCols = Math.max(...rows.slice(0, 20).map((r) => r?.length || 0));
 
     for (let c = 0; c < maxCols; c++) {
       let totalLen = 0;
       let count = 0;
+      let techHits = 0;
       for (let r = 0; r < Math.min(20, rows.length); r++) {
         const val = String(rows[r]?.[c] || '').trim();
         if (val) {
           totalLen += val.length;
           count++;
+          if (isTechCompetenceText(val)) {
+            techHits++;
+          }
         }
       }
-      colTextLengths[c] = count > 0 ? totalLen / count : 0;
+      // If column is dominated by tech competence notes, penalize it
+      colTextLengths[c] = count > 0 && techHits < 2 ? totalLen / count : 0;
     }
 
     // Longest average column is lesson name
@@ -431,9 +440,13 @@ export async function parsePpctFile(
     if (colBaiHoc !== -1 && cells[colBaiHoc]) {
       baiHoc = cells[colBaiHoc];
     } else {
-      // Find the cell with the most descriptive text
+      // Find the cell with the most descriptive text (ignoring tech competence and metadata)
       const candidates = cells.filter(
-        (c) => c.length > 3 && !/^\d+$/.test(c) && !/^(tuần|tiết|stt|ghi chú)/i.test(c)
+        (c) =>
+          c.length > 3 &&
+          !/^\d+$/.test(c) &&
+          !/^(tuần|tiết|stt|ghi chú|học kỳ)/i.test(c) &&
+          !isTechCompetenceText(c)
       );
       baiHoc = candidates[0] || cells[1] || cells[0] || '';
     }
@@ -446,7 +459,7 @@ export async function parsePpctFile(
       /^(chương|chuong|chủ đề|chu de)\s+[ivxlcdm\d]+/i.test(normText(baiHoc));
 
     if (isChapterOrTheme && (!periodRange || periodRange.count === 0)) {
-      currentChapter = baiHoc || cells[0] || currentChapter;
+      currentChapter = cleanContentWithoutNls(baiHoc || cells[0] || currentChapter);
       continue;
     }
 
@@ -501,13 +514,24 @@ export async function parsePpctFile(
     // Synchronize Semester with Week: Week 1..18 -> HK1, Week 19..35 -> HK2
     const hocKy: 1 | 2 = currentHocKy === 2 ? 2 : (tuan > 18 ? 2 : 1);
 
+    let finalBaiHoc = cleanContentWithoutNls(baiHoc.replace(/^[-–—\s]+/, '').trim());
+    let finalChapter = cleanContentWithoutNls(currentChapter);
+
+    if (isTechCompetenceText(finalBaiHoc) || isTechCompetenceText(finalChapter)) {
+      const match = getOfficialSgkTopicAndChapter(`${finalChapter} ${finalBaiHoc}`);
+      if (match) {
+        finalChapter = match.chapter;
+        finalBaiHoc = match.topic;
+      }
+    }
+
     rawItems.push({
       rawIndex: i,
       stt,
       tuan,
       hocKy,
-      chuong: currentChapter,
-      baiHoc: baiHoc.replace(/^[-–—\s]+/, '').trim(),
+      chuong: finalChapter,
+      baiHoc: finalBaiHoc,
       rawTietText,
       periodRange,
       explicitSoTiet,

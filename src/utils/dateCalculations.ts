@@ -9,7 +9,7 @@ import {
   CognitiveLevel,
   SgkBook,
 } from '../types';
-import { getLearningObjectiveForTopic } from './sgkParser';
+import { getLearningObjectiveForTopic, findMatchingSgkLesson } from './sgkParser';
 
 export function parseDate(dateStr: string): Date {
   const [year, month, day] = dateStr.split('-').map(Number);
@@ -357,25 +357,399 @@ export interface NonTestableCheckResult {
 }
 
 /**
- * Làm sạch chuỗi nội dung: loại bỏ hoàn toàn phần NLS (Năng lực số),
+ * Kiểm tra xem một chuỗi có chứa mã năng lực số (NLS) hoặc các mô tả công nghệ
+ * (như GeoGebra, MindMeister, Canva, Quizizz, Padlet, Kahoot, 3.1TC2a, 2.2.NC1a...) hay không.
+ */
+export function isTechCompetenceText(text: string): boolean {
+  if (!text) return false;
+  const t = text.trim();
+  // Khung năng lực số mã hiệu dạng: 3.1TC2a, 5.3TC2a, 2.2.NC1a, 1.2TC, 4.3NC...
+  if (/\b\d+\.\d+(?:\.\w+)?(?:TC|NC|tc|nc)\w*/i.test(t)) return true;
+  // Công cụ công nghệ / phần mềm số hóa trong trường học
+  if (/\b(geogebra|mindmeister|canva|padlet|quizizz|kahoot|mindmap)\b/i.test(t)) return true;
+  // Mô tả nhiệm vụ số hóa, kỹ năng số
+  if (
+    /sử dụng công cụ mindmap|hợp tác nhóm trên môi trường số|dùng máy tính cầm tay hoặc bảng tính để tính giá trị|kiểm chứng các hệ thức bằng geogebra|tham gia quizizz/i.test(
+      t
+    )
+  ) {
+    return true;
+  }
+  // Các tiền tố NLS / Năng lực số
+  if (/(?:NLS|Năng lực số)\s*:/i.test(t)) return true;
+  return false;
+}
+
+/**
+ * Làm sạch chuỗi nội dung: loại bỏ hoàn toàn phần NLS (Năng lực số), mã số hóa TC/NC,
+ * các mô tả công cụ GeoGebra, MindMeister, Canva, Padlet, Quizizz, Kahoot,
  * các ghi chú (NLS: ...), [NLS: ...], v.v., chỉ giữ lại nội dung bài học/yêu cầu cần đạt.
  */
 export function cleanContentWithoutNls(text: string): string {
   if (!text) return '';
-  return text
+  let cleaned = text
     // Bỏ các thẻ trong ngoặc đơn hoặc ngoặc vuông chứa NLS hoặc Năng lực số: (NLS...), [NLS...]
     .replace(/\s*[\(\[]\s*(?:NLS|Năng lực số)[\s\S]*?[\)\]]/gi, '')
     // Bỏ tiền tố/hậu tố dạng "- NLS: ..." hoặc "; NLS: ..." hoặc "NLS: ..."
     .replace(/(?:[-+*•–;,]\s*)?(?:NLS|Năng lực số)\s*:[^\n.;,]*(?:[.\n;,]|$)/gi, '')
     // Bỏ từ khoá NLS / Năng lực số đứng đơn lẻ kèm dấu gạch nối hoặc hai chấm
     .replace(/\b(?:NLS|Năng lực số)\b[:\s\-–]*/gi, '')
+    // Bỏ các mã khung năng lực số như: 3.1TC2a: ..., 2.2.NC1a: ..., 5.3TC2a: ...
+    .replace(/(?:[-+*•–;,]\s*)?\b\d+\.\d+(?:\.\w+)?(?:TC|NC|tc|nc)\w*\s*:[^.;\n]*(?:[.;\n]|$)/gi, '')
+    .replace(/\b\d+\.\d+(?:\.\w+)?(?:TC|NC|tc|nc)\w*\b/gi, '')
+    // Bỏ các câu văn thuần túy mô tả công cụ số (GeoGebra, MindMeister, Canva, Padlet, Quizizz, Kahoot)
+    .replace(
+      /(?:^|[.;\n])\s*(?:Sử dụng|Dùng|Ứng dụng)\s+(?:công cụ\s+)?(?:GeoGebra|MindMeister|Canva|Google Docs|Padlet|Quizizz|Kahoot|mindmap)[^.;\n]*(?:[.;\n]|$)/gi,
+      ''
+    )
+    .replace(/(?:^|[.;\n])\s*(?:Hợp tác nhóm trên môi trường số|Tham gia Quizizz\/Kahoot)[^.;\n]*(?:[.;\n]|$)/gi, '')
     // Bỏ các ngoặc rỗng sót lại
     .replace(/\(\s*\)/g, '')
     .replace(/\[\s*\]/g, '')
     // Chuẩn hóa khoảng trắng và dấu câu
     .replace(/\s{2,}/g, ' ')
     .replace(/\s+([.,;:])/g, '$1')
+    .replace(/^[.,;:\s]+|[.,;:\s]+$/g, '')
     .trim();
+
+  return cleaned;
+}
+
+/**
+ * Tự động đối chiếu văn bản (kể cả văn bản chứa mã NLS hay text công cụ) với
+ * chương trình SGK Toán hiện nay (GDPT 2018 - Kết nối tri thức / Cánh diều / Chân trời sáng tạo)
+ * để trả về Tên Chương và Tên Bài học chuẩn xác nhất theo SGK.
+ */
+export function getOfficialSgkTopicAndChapter(
+  text: string,
+  grade: string = '9',
+  sgkBooks?: SgkBook[]
+): { chapter: string; topic: string } | null {
+  if (!text) return null;
+  const lower = text.toLowerCase();
+  const normGrade = String(grade || '9').replace(/\D/g, '') || '9';
+
+  // 1. Thử đối chiếu với các cuốn sách SGK có trong hệ thống nếu có
+  if (sgkBooks && sgkBooks.length > 0) {
+    const match = findMatchingSgkLesson(text, text, sgkBooks, 'all', normGrade);
+    if (match.lesson && match.chapter && match.matchScore > 15) {
+      return {
+        chapter: match.chapter.title,
+        topic: match.lesson.title,
+      };
+    }
+  }
+
+  // 2. Tra cứu theo từ khóa cốt lõi chuẩn SGK Toán 9 hiện hành (GDPT 2018)
+  if (normGrade === '9') {
+    if (
+      lower.includes('tỉ số lượng giác') ||
+      lower.includes('ti so luong giac') ||
+      lower.includes('sin, cos, tan') ||
+      lower.includes('lượng giác') ||
+      lower.includes('tam giác vuông')
+    ) {
+      if (lower.includes('hệ thức về cạnh và góc') || lower.includes('giải tam giác vuông')) {
+        return {
+          chapter: 'Chương IV: Hệ thức lượng trong tam giác vuông',
+          topic: 'Bài 11: Một số hệ thức về cạnh và góc trong tam giác vuông',
+        };
+      }
+      return {
+        chapter: 'Chương IV: Hệ thức lượng trong tam giác vuông',
+        topic: 'Bài 10: Tỉ số lượng giác của góc nhọn',
+      };
+    }
+
+    if (
+      lower.includes('đường tròn') ||
+      lower.includes('tiếp tuyến') ||
+      lower.includes('dây cung') ||
+      lower.includes('cung và dây') ||
+      lower.includes('tứ giác nội tiếp')
+    ) {
+      if (lower.includes('tiếp tuyến')) {
+        return {
+          chapter: 'Chương V: Đường tròn',
+          topic: 'Bài 13: Tiếp tuyến của đường tròn',
+        };
+      }
+      if (lower.includes('tứ giác nội tiếp')) {
+        return {
+          chapter: 'Chương V: Đường tròn',
+          topic: 'Tứ giác nội tiếp đường tròn',
+        };
+      }
+      return {
+        chapter: 'Chương V: Đường tròn',
+        topic: 'Bài 12: Mở đầu về đường tròn. Cung và dây',
+      };
+    }
+
+    if (
+      lower.includes('hệ hai phương trình') ||
+      lower.includes('phương trình bậc nhất hai ẩn') ||
+      lower.includes('hệ phương trình') ||
+      lower.includes('phương pháp thế') ||
+      lower.includes('cộng đại số')
+    ) {
+      if (lower.includes('giải bài toán bằng cách lập hệ') || lower.includes('toán thực tế')) {
+        return {
+          chapter: 'Chương I: Phương trình và hệ hai phương trình bậc nhất hai ẩn',
+          topic: 'Bài 3: Giải bài toán bằng cách lập hệ phương trình',
+        };
+      }
+      if (lower.includes('giải hệ') || lower.includes('phương pháp')) {
+        return {
+          chapter: 'Chương I: Phương trình và hệ hai phương trình bậc nhất hai ẩn',
+          topic: 'Bài 2: Giải hệ hai phương trình bậc nhất hai ẩn',
+        };
+      }
+      return {
+        chapter: 'Chương I: Phương trình và hệ hai phương trình bậc nhất hai ẩn',
+        topic: 'Bài 1: Khái niệm phương trình và hệ hai phương trình bậc nhất hai ẩn',
+      };
+    }
+
+    if (
+      lower.includes('bất phương trình') ||
+      lower.includes('bất đẳng thức') ||
+      lower.includes('phương trình quy về')
+    ) {
+      if (lower.includes('bất đẳng thức') || lower.includes('bất phương trình')) {
+        return {
+          chapter: 'Chương II: Phương trình và bất phương trình bậc nhất một ẩn',
+          topic: 'Bài 5: Bất đẳng thức và bất phương trình bậc nhất một ẩn',
+        };
+      }
+      return {
+        chapter: 'Chương II: Phương trình và bất phương trình bậc nhất một ẩn',
+        topic: 'Bài 4: Phương trình quy về phương trình bậc nhất một ẩn',
+      };
+    }
+
+    if (lower.includes('căn bậc hai') || lower.includes('căn bậc ba') || lower.includes('căn thức')) {
+      return {
+        chapter: 'Chương III: Căn bậc hai và căn bậc ba',
+        topic: 'Bài 7: Căn bậc hai và căn thức bậc hai',
+      };
+    }
+
+    if (
+      lower.includes('hàm số y = ax²') ||
+      lower.includes('y = ax') ||
+      lower.includes('parabol') ||
+      lower.includes('phương trình bậc hai') ||
+      lower.includes('vi-ét') ||
+      lower.includes('viète') ||
+      lower.includes('công thức nghiệm')
+    ) {
+      if (lower.includes('vi-ét') || lower.includes('viète')) {
+        return {
+          chapter: 'Chương VI: Hàm số y = ax² (a ≠ 0). Phương trình bậc hai một ẩn',
+          topic: 'Bài 16: Định lí Viète và ứng dụng',
+        };
+      }
+      if (lower.includes('phương trình bậc hai') || lower.includes('công thức nghiệm')) {
+        return {
+          chapter: 'Chương VI: Hàm số y = ax² (a ≠ 0). Phương trình bậc hai một ẩn',
+          topic: 'Bài 15: Phương trình bậc hai một ẩn và công thức nghiệm',
+        };
+      }
+      return {
+        chapter: 'Chương VI: Hàm số y = ax² (a ≠ 0). Phương trình bậc hai một ẩn',
+        topic: 'Bài 14: Hàm số y = ax² (a ≠ 0) và đồ thị',
+      };
+    }
+
+    if (
+      lower.includes('tần số') ||
+      lower.includes('bảng tần số') ||
+      lower.includes('biểu đồ tần số') ||
+      lower.includes('thống kê')
+    ) {
+      return {
+        chapter: 'Chương VII: Một số yếu tố thống kê',
+        topic: 'Bài 18: Bảng tần số và biểu đồ tần số',
+      };
+    }
+
+    if (lower.includes('xác suất') || lower.includes('không gian mẫu') || lower.includes('biến cố')) {
+      return {
+        chapter: 'Chương VIII: Một số yếu tố xác suất',
+        topic: 'Bài 21: Phép thử ngẫu nhiên và không gian mẫu',
+      };
+    }
+
+    if (
+      lower.includes('hình trụ') ||
+      lower.includes('hình nón') ||
+      lower.includes('hình cầu') ||
+      lower.includes('hình khối')
+    ) {
+      return {
+        chapter: 'Chương IX: Một số hình khối trong thực tiễn',
+        topic: 'Bài 22: Hình trụ và hình nón',
+      };
+    }
+  }
+
+  // 3. Tra cứu cho Khối 8
+  if (normGrade === '8') {
+    if (lower.includes('đa thức') || lower.includes('hằng đẳng thức')) {
+      return {
+        chapter: 'Chương I: Đa thức',
+        topic: 'Bài 1: Đơn thức và đa thức nhiều biến',
+      };
+    }
+    if (lower.includes('phân thức')) {
+      return {
+        chapter: 'Chương II: Phân thức đại số',
+        topic: 'Bài 6: Phân thức đại số',
+      };
+    }
+    if (lower.includes('hàm số bậc nhất') || lower.includes('hệ số góc')) {
+      return {
+        chapter: 'Chương V: Hàm số bậc nhất',
+        topic: 'Bài 18: Hàm số bậc nhất y = ax + b (a ≠ 0)',
+      };
+    }
+    if (lower.includes('tam giác đồng dạng')) {
+      return {
+        chapter: 'Chương IX: Tam giác đồng dạng',
+        topic: 'Bài 33: Hai tam giác đồng dạng',
+      };
+    }
+    if (lower.includes('định lí pythagore') || lower.includes('tứ giác')) {
+      return {
+        chapter: 'Chương III: Tứ giác',
+        topic: 'Bài 10: Tứ giác và hình thang cân',
+      };
+    }
+  }
+
+  // 4. Tra cứu cho Khối 7
+  if (normGrade === '7') {
+    if (lower.includes('số hữu tỉ') || lower.includes('hữu tỉ')) {
+      return {
+        chapter: 'Chương I: Số hữu tỉ',
+        topic: 'Bài 1: Tập hợp các số hữu tỉ',
+      };
+    }
+    if (lower.includes('số thực') || lower.includes('căn bậc hai số học')) {
+      return {
+        chapter: 'Chương II: Số thực',
+        topic: 'Bài 6: Số vô tỉ. Căn bậc hai số học',
+      };
+    }
+    if (lower.includes('tam giác bằng nhau')) {
+      return {
+        chapter: 'Chương IV: Tam giác bằng nhau',
+        topic: 'Bài 14: Hai tam giác bằng nhau',
+      };
+    }
+    if (lower.includes('tỉ lệ thức') || lower.includes('đại lượng tỉ lệ')) {
+      return {
+        chapter: 'Chương VI: Tỉ lệ thức và đại lượng tỉ lệ',
+        topic: 'Bài 21: Tỉ lệ thức',
+      };
+    }
+    if (lower.includes('biểu thức đại số') || lower.includes('đa thức một biến')) {
+      return {
+        chapter: 'Chương VII: Biểu thức đại số và đa thức một biến',
+        topic: 'Bài 26: Đa thức một biến',
+      };
+    }
+  }
+
+  // 5. Tra cứu cho Khối 6
+  if (normGrade === '6') {
+    if (lower.includes('số tự nhiên') || lower.includes('tập hợp')) {
+      return {
+        chapter: 'Chương I: Tập hợp các số tự nhiên',
+        topic: 'Bài 1: Tập hợp và phần tử của tập hợp',
+      };
+    }
+    if (lower.includes('số nguyên')) {
+      return {
+        chapter: 'Chương III: Số nguyên',
+        topic: 'Bài 14: Tập hợp các số nguyên',
+      };
+    }
+    if (lower.includes('phân số')) {
+      return {
+        chapter: 'Chương V: Phân số',
+        topic: 'Bài 23: Mở rộng phân số. Phân số bằng nhau',
+      };
+    }
+    if (lower.includes('số thập phân')) {
+      return {
+        chapter: 'Chương VI: Số thập phân',
+        topic: 'Bài 28: Số thập phân',
+      };
+    }
+    if (lower.includes('hình học trực quan') || lower.includes('tam giác đều') || lower.includes('hình vuông')) {
+      return {
+        chapter: 'Chương IV: Một số hình phẳng trong thực tiễn',
+        topic: 'Bài 20: Tam giác đều. Hình vuông. Lục giác đều',
+      };
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Rà soát và chuẩn hóa toàn bộ các dòng Ma trận / Bảng đặc tả bám sát chuẩn SGK hiện hành (GDPT 2018),
+ * tự động loại bỏ triệt để các mã năng lực số (3.1TC2a, 2.2.NC1a...) và công cụ số (GeoGebra, Canva, MindMeister, Padlet, Quizizz).
+ */
+export function standardizeRowsToCurrentSgk(
+  rows: MatrixRow[],
+  grade: string = '9',
+  sgkBooks?: SgkBook[]
+): { rows: MatrixRow[]; changedCount: number } {
+  let changedCount = 0;
+  const newRows = rows.map((row) => {
+    let newChapter = row.chuong;
+    let newTopic = row.noiDung;
+    let modified = false;
+
+    // 1. Kiểm tra nếu chứa mã năng lực số hoặc text công cụ số
+    if (isTechCompetenceText(row.chuong) || isTechCompetenceText(row.noiDung)) {
+      const combined = `${row.chuong} ${row.noiDung}`;
+      const sgkMatch = getOfficialSgkTopicAndChapter(combined, grade, sgkBooks);
+      if (sgkMatch) {
+        newChapter = sgkMatch.chapter;
+        newTopic = sgkMatch.topic;
+        modified = true;
+      } else {
+        newChapter = cleanContentWithoutNls(row.chuong) || 'Hệ thức lượng trong tam giác vuông';
+        newTopic = cleanContentWithoutNls(row.noiDung) || 'Tỉ số lượng giác của góc nhọn';
+        modified = true;
+      }
+    } else {
+      // Làm sạch thông thường
+      const cleanedCh = cleanContentWithoutNls(row.chuong);
+      const cleanedTopic = cleanContentWithoutNls(row.noiDung);
+      if (cleanedCh !== row.chuong || cleanedTopic !== row.noiDung) {
+        newChapter = cleanedCh;
+        newTopic = cleanedTopic;
+        modified = true;
+      }
+    }
+
+    if (modified) {
+      changedCount++;
+      return {
+        ...row,
+        chuong: newChapter,
+        noiDung: newTopic,
+      };
+    }
+    return row;
+  });
+
+  return { rows: newRows, changedCount };
 }
 
 /**
@@ -584,17 +958,34 @@ export function generateMatrixFromPpct(
       return;
     }
 
-    const cleanedTopic = check.cleanedTopic || l.baiHoc.replace(/\(t\d+\)/g, '').trim();
+    let cleanedTopic = check.cleanedTopic || l.baiHoc.replace(/\(t\d+\)/g, '').trim();
+    let cleanedChapter = l.chuong || 'Chủ đề chung';
+
+    // Nếu bài học hoặc chương bị nhiễm mã năng lực số / text công cụ, tự động chuẩn hóa theo SGK
+    if (isTechCompetenceText(cleanedTopic) || isTechCompetenceText(cleanedChapter)) {
+      const match = getOfficialSgkTopicAndChapter(`${cleanedChapter} ${cleanedTopic}`, ppct.grade || '9');
+      if (match) {
+        cleanedChapter = match.chapter;
+        cleanedTopic = match.topic;
+      } else {
+        cleanedChapter = cleanContentWithoutNls(cleanedChapter) || 'Hệ thức lượng trong tam giác vuông';
+        cleanedTopic = cleanContentWithoutNls(cleanedTopic) || 'Tỉ số lượng giác của góc nhọn';
+      }
+    } else {
+      cleanedChapter = cleanContentWithoutNls(cleanedChapter);
+      cleanedTopic = cleanContentWithoutNls(cleanedTopic);
+    }
+
     if (!cleanedTopic) return;
 
-    const key = `${l.chuong}:::${cleanedTopic}`;
+    const key = `${cleanedChapter}:::${cleanedTopic}`;
     const existing = unitMap.get(key);
     const lessonPeriods = l.soTiet || 1;
     if (existing) {
       existing.periods += lessonPeriods;
     } else {
       unitMap.set(key, {
-        chapter: l.chuong.replace(/^Chương [IVXLCDM\d]+\.\s*/i, '').replace(/^Chủ đề \d+\.\s*/i, ''),
+        chapter: cleanedChapter,
         topic: cleanedTopic,
         periods: lessonPeriods,
       });
