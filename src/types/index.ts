@@ -225,6 +225,15 @@ export interface MatrixConfig {
   limitPeriodTo?: number; // e.g. tiết 35
   selectedLessonKeys?: string[]; // Danh sách bài học/chủ đề cụ thể được chọn trong phạm vi
   
+  // Quy tắc tuần kiểm tra: Khi kiểm tra ở tuần 9 (hoặc đợt kiểm tra), nội dung lấy theo PPCT đến tuần 8
+  cutOffExamWeek?: boolean; // Mặc định true khi kiểm tra Giữa HK1 (tuần 9 -> lấy bài đến tuần 8)
+  
+  // Xử lý bài học dở dang vắt qua tuần kiểm tra (ví dụ bài 3 tiết nhưng tuần 8 chỉ có 1 tiết):
+  // 'exclude': Không lấy nội dung bài dở dang đó
+  // 'partial_only': Chỉ lấy đúng phần nội dung/số tiết đã học trong tuần 8
+  // 'include_all': Lấy cả bài học
+  incompleteLessonPolicy?: 'exclude' | 'partial_only' | 'include_all';
+
   // Tùy chỉnh loại trừ nội dung không cần thiết ra đề (kiểm tra, trả bài, trải nghiệm, phần mềm...)
   excludeNonTestable?: boolean; // Mặc định true
   
@@ -254,6 +263,9 @@ export interface MatrixConfig {
   officialDocumentRef?: string; // e.g. "Công văn số .../SGDĐT-GDTrH&TX"
   activeSgkBookId?: string; // ID của bộ SGK đang sử dụng để đối chiếu YCCĐ
   activeSgkVolume?: 1 | 2 | 'all'; // Tập 1 (HK1), Tập 2 (HK2) hoặc Cả hai tập
+  
+  // Cấp độ hiển thị ma trận: 'chapter' (Chuẩn khung BGD&ĐT: mỗi dòng là 1 Chủ đề/Chương lớn, liệt kê rõ các bài bên trong) hoặc 'lesson' (Chi tiết từng bài học)
+  matrixGroupBy?: 'chapter' | 'lesson';
 }
 
 export type CognitiveLevel = 'nhanBiet' | 'thongHieu' | 'vanDung' | 'vanDungCao';
@@ -292,6 +304,27 @@ export interface TopicPointCalc {
   periods: number;
   rawScore: number;
   roundedScore: number;
+  lessonsCount?: number;
+  lessonsList?: string[];
+  lessonsSummary?: string;
+  pctThoiLuong?: number;
+  weeksSpan?: string;
+}
+
+export interface PpctReferenceItem {
+  topicIndex: number;
+  chapterName: string;
+  totalPeriods: number;
+  lessonsCount: number;
+  pctThoiLuong: number;
+  rawScore: number;
+  roundedScore: number;
+  weeksSpan: string;
+  lessons: {
+    name: string;
+    periods: number;
+    week: number;
+  }[];
 }
 
 // ==========================================

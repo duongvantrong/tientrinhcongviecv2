@@ -6,8 +6,6 @@ import { StatCards } from './StatCards';
 import { ProgressCharts } from './ProgressCharts';
 import { UpcomingExams } from './UpcomingExams';
 import { ExamScheduleTable } from './ExamScheduleTable';
-import { LessonPlanSection } from './lessonPlan/LessonPlanSection';
-import { GradeSgkReferenceSection } from './GradeSgkReferenceSection';
 import { WeeklyTimetableSection } from './timetable/WeeklyTimetableSection';
 import { BookOpen, Layers, Upload, CheckCircle2 } from 'lucide-react';
 import { TeacherTimetableConfig } from '../types';
@@ -330,22 +328,6 @@ export const ProgressAndScheduleTab: React.FC<ProgressAndScheduleTabProps> = ({
               />
             </>
           )}
-
-          {/* SÁCH GIÁO KHOA (SGK) KHỐI HIỆN TẠI: NGUỒN THAM KHẢO MA TRẬN & ĐỀ */}
-          <GradeSgkReferenceSection
-            selectedGrade={currentGrade}
-            sgkBooks={sgkBooks}
-            activePpct={activeDataset}
-            onUpdateSgkBooks={onUpdateSgkBooks || (() => {})}
-            onLinkSgkToPpct={onLinkSgkToPpct}
-            onApplySgkToMatrix={onApplySgkToMatrix}
-          />
-
-          {/* KẾ HOẠCH BÀI DẠY (KHBD) KHỐI HIỆN TẠI (Chỉ hiển thị bài của khối này) */}
-          <LessonPlanSection
-            activeDataset={activeDataset}
-            currentWeek={currentWeek}
-          />
 
           <UpcomingExams
             exams={exams}

@@ -6,6 +6,7 @@ import {
   SpecificationRow,
   SpecificationItem,
   TopicPointCalc,
+  PpctReferenceItem,
   CognitiveLevel,
   SgkBook,
 } from '../types';
@@ -700,8 +701,106 @@ export function getOfficialSgkTopicAndChapter(
 }
 
 /**
+ * Trả về Tên chương chuẩn theo SGK GDPT 2018 dựa vào khối lớp, từ khóa bài học hoặc tuần học
+ * Đảm bảo KHÔNG BAO GIỜ ĐỂ TRỐNG tên chương hay chủ đề
+ */
+export function getDefaultSgkChapter(grade: string = '9', topicText: string = '', week: number = 1): string {
+  const normGrade = String(grade || '9').replace(/\D/g, '') || '9';
+  const lower = (topicText || '').toLowerCase();
+
+  if (normGrade === '9') {
+    if (lower.includes('lượng giác') || lower.includes('tam giác vuông') || lower.includes('hệ thức') || lower.includes('sin') || lower.includes('cos')) {
+      return 'Chương IV: Hệ thức lượng trong tam giác vuông';
+    }
+    if (lower.includes('đường tròn') || lower.includes('tiếp tuyến') || lower.includes('dây cung') || lower.includes('tứ giác nội tiếp')) {
+      return 'Chương V: Đường tròn';
+    }
+    if (lower.includes('bất đẳng thức') || lower.includes('bất phương trình')) {
+      return 'Chương II: Phương trình và bất phương trình bậc nhất một ẩn';
+    }
+    if (lower.includes('căn bậc hai') || lower.includes('căn bậc ba') || lower.includes('căn thức')) {
+      return 'Chương III: Căn bậc hai và căn bậc ba';
+    }
+    if (lower.includes('hàm số') || lower.includes('parabol') || lower.includes('phương trình bậc hai') || lower.includes('vi-ét')) {
+      return 'Chương VI: Hàm số y = ax² (a ≠ 0). Phương trình bậc hai một ẩn';
+    }
+    if (lower.includes('thống kê') || lower.includes('tần số') || lower.includes('bảng tần số')) {
+      return 'Chương VII: Một số yếu tố thống kê';
+    }
+    if (lower.includes('xác suất') || lower.includes('biến cố') || lower.includes('không gian mẫu')) {
+      return 'Chương VIII: Một số yếu tố xác suất';
+    }
+    if (lower.includes('hình trụ') || lower.includes('hình nón') || lower.includes('hình cầu')) {
+      return 'Chương IX: Một số hình khối trong thực tiễn';
+    }
+    // Mặc định HK1 (tuần <= 18)
+    if (week <= 9) {
+      return 'Chương I: Phương trình và hệ hai phương trình bậc nhất hai ẩn';
+    }
+    if (week <= 18) {
+      return 'Chương IV: Hệ thức lượng trong tam giác vuông';
+    }
+    return 'Chương VI: Hàm số y = ax² (a ≠ 0). Phương trình bậc hai một ẩn';
+  }
+
+  if (normGrade === '8') {
+    if (lower.includes('hằng đẳng thức') || lower.includes('đa thức') || lower.includes('đơn thức')) {
+      return 'Chương I: Đa thức';
+    }
+    if (lower.includes('phân thức')) {
+      return 'Chương II: Phân thức đại số';
+    }
+    if (lower.includes('hàm số') || lower.includes('đồ thị')) {
+      return 'Chương V: Hàm số bậc nhất';
+    }
+    if (lower.includes('tứ giác') || lower.includes('hình thang') || lower.includes('hình bình hành') || lower.includes('hình chữ nhật')) {
+      return 'Chương III: Tứ giác';
+    }
+    if (lower.includes('tam giác đồng dạng') || lower.includes('định lí thales')) {
+      return 'Chương IX: Tam giác đồng dạng';
+    }
+    return week <= 9 ? 'Chương I: Đa thức' : 'Chương III: Tứ giác';
+  }
+
+  if (normGrade === '7') {
+    if (lower.includes('số hữu tỉ') || lower.includes('hữu tỉ')) {
+      return 'Chương I: Số hữu tỉ';
+    }
+    if (lower.includes('số thực') || lower.includes('căn bậc hai')) {
+      return 'Chương II: Số thực';
+    }
+    if (lower.includes('góc') || lower.includes('đường thẳng song song')) {
+      return 'Chương III: Góc và hai đường thẳng song song';
+    }
+    if (lower.includes('tam giác bằng nhau')) {
+      return 'Chương IV: Tam giác bằng nhau';
+    }
+    if (lower.includes('tỉ lệ thức')) {
+      return 'Chương VI: Tỉ lệ thức và đại lượng tỉ lệ';
+    }
+    return week <= 9 ? 'Chương I: Số hữu tỉ' : 'Chương III: Góc và hai đường thẳng song song';
+  }
+
+  // Khối 6
+  if (lower.includes('tập hợp') || lower.includes('số tự nhiên') || lower.includes('ước') || lower.includes('bội')) {
+    return 'Chương I: Tập hợp các số tự nhiên';
+  }
+  if (lower.includes('số nguyên') || lower.includes('nguyên âm') || lower.includes('nguyên dương')) {
+    return 'Chương III: Số nguyên';
+  }
+  if (lower.includes('hình phẳng') || lower.includes('tam giác đều') || lower.includes('hình vuông')) {
+    return 'Chương IV: Một số hình phẳng trong thực tiễn';
+  }
+  if (lower.includes('phân số')) {
+    return 'Chương V: Phân số';
+  }
+  return week <= 9 ? 'Chương I: Tập hợp các số tự nhiên' : 'Chương IV: Một số hình phẳng trong thực tiễn';
+}
+
+/**
  * Rà soát và chuẩn hóa toàn bộ các dòng Ma trận / Bảng đặc tả bám sát chuẩn SGK hiện hành (GDPT 2018),
- * tự động loại bỏ triệt để các mã năng lực số (3.1TC2a, 2.2.NC1a...) và công cụ số (GeoGebra, Canva, MindMeister, Padlet, Quizizz).
+ * tự động loại bỏ triệt để các mã năng lực số (3.1TC2a, 2.2.NC1a...) và công cụ số (GeoGebra, Canva, MindMeister, Padlet, Quizizz),
+ * đảm bảo tên chủ đề / chương và tên bài học không bao giờ bị để trống.
  */
 export function standardizeRowsToCurrentSgk(
   rows: MatrixRow[],
@@ -723,8 +822,8 @@ export function standardizeRowsToCurrentSgk(
         newTopic = sgkMatch.topic;
         modified = true;
       } else {
-        newChapter = cleanContentWithoutNls(row.chuong) || 'Hệ thức lượng trong tam giác vuông';
-        newTopic = cleanContentWithoutNls(row.noiDung) || 'Tỉ số lượng giác của góc nhọn';
+        newChapter = cleanContentWithoutNls(row.chuong) || getDefaultSgkChapter(grade, row.noiDung);
+        newTopic = cleanContentWithoutNls(row.noiDung) || 'Nội dung kiến thức theo SGK';
         modified = true;
       }
     } else {
@@ -736,6 +835,20 @@ export function standardizeRowsToCurrentSgk(
         newTopic = cleanedTopic;
         modified = true;
       }
+    }
+
+    // 2. Tuyệt đối không để trống tên chương / chủ đề, tuân thủ SGK hiện hành
+    if (!newChapter || newChapter.trim() === '' || newChapter === 'Chủ đề chung' || newChapter.toLowerCase() === 'chủ đề khác') {
+      const sgkMatch = getOfficialSgkTopicAndChapter(`${newChapter} ${newTopic}`, grade, sgkBooks);
+      newChapter = sgkMatch?.chapter || getDefaultSgkChapter(grade, newTopic);
+      modified = true;
+    }
+
+    // 3. Tuyệt đối không để trống tên bài học / nội dung
+    if (!newTopic || newTopic.trim() === '') {
+      const sgkMatch = getOfficialSgkTopicAndChapter(newChapter, grade, sgkBooks);
+      newTopic = sgkMatch?.topic || 'Nội dung kiến thức theo SGK';
+      modified = true;
     }
 
     if (modified) {
@@ -754,16 +867,25 @@ export function standardizeRowsToCurrentSgk(
 
 /**
  * Làm sạch tên bài học để lấy phần nội dung kiến thức cốt lõi (bỏ ghi chú tiết, KTTX đi kèm, bỏ NLS)
+ * Gom các tiết phụ của cùng một bài học (ví dụ tiết 1-2 pp thế, tiết 3-4 pp cộng đại số) về cùng tên bài học chuẩn
  */
 export function cleanLessonTopic(rawTopic: string): string {
   const withoutNls = cleanContentWithoutNls(rawTopic || '');
-  return withoutNls
+  let cleaned = withoutNls
     .replace(/\(t\d+.*?\)/gi, '')
     .replace(/\(tiết\s*\d+.*?\)/gi, '')
     .replace(/\s*&?\s*kiểm tra thường xuyên\s*\d*.*$/i, '')
     .replace(/\s*&?\s*kttx\s*\d*.*$/i, '')
     .replace(/\s*&?\s*kt\s*15\s*phút.*$/i, '')
     .trim();
+
+  // Nếu là bài học có số thứ tự "Bài X...", chuẩn hóa lấy phần tên bài chính (bỏ phần phân nhánh sau dấu gạch ngang)
+  const matchLesson = cleaned.match(/^(\s*bài\s+\d+[\.\:\s]+[^(–\-\n]+)/i);
+  if (matchLesson) {
+    return matchLesson[1].trim();
+  }
+
+  return cleaned;
 }
 
 /**
@@ -876,10 +998,13 @@ export function generateMatrixFromPpct(
     limitWeekTo?: number;
     limitPeriodTo?: number;
     selectedLessonKeys?: string[];
+    cutOffExamWeek?: boolean;
+    incompleteLessonPolicy?: 'exclude' | 'partial_only' | 'include_all';
     excludeNonTestable?: boolean;
     ratioTn?: number;
     ratioTl?: number;
     structureType?: 'moet_2025_new' | 'standard_2018';
+    matrixGroupBy?: 'chapter' | 'lesson';
     scorePerTn?: number;
     scorePerTn1?: number;
     scorePerTn2?: number;
@@ -898,10 +1023,13 @@ export function generateMatrixFromPpct(
     limitWeekTo: options,
     limitPeriodTo: undefined as number | undefined,
     selectedLessonKeys: undefined as string[] | undefined,
+    cutOffExamWeek: true,
+    incompleteLessonPolicy: 'exclude' as const,
     excludeNonTestable: true,
     ratioTn: 70,
     ratioTl: 30,
     structureType: 'moet_2025_new' as const,
+    matrixGroupBy: 'chapter' as const,
     scorePerTn: legacyScorePerTn,
     scorePerTn1: 0.25,
     scorePerTn2: 1.0,
@@ -914,10 +1042,13 @@ export function generateMatrixFromPpct(
     limitWeekTo: Math.max(options.limitWeekFrom ?? 1, options.limitWeekTo ?? options.targetWeek ?? 9),
     limitPeriodTo: options.limitPeriodTo,
     selectedLessonKeys: options.selectedLessonKeys,
+    cutOffExamWeek: options.cutOffExamWeek !== false,
+    incompleteLessonPolicy: options.incompleteLessonPolicy ?? 'exclude',
     excludeNonTestable: options.excludeNonTestable !== false,
     ratioTn: options.ratioTn ?? 70,
     ratioTl: options.ratioTl ?? 30,
     structureType: options.structureType ?? 'moet_2025_new',
+    matrixGroupBy: options.matrixGroupBy ?? 'chapter',
     scorePerTn: options.scorePerTn ?? 0.25,
     scorePerTn1: options.scorePerTn1 ?? 0.25,
     scorePerTn2: options.scorePerTn2 ?? 1.0,
@@ -927,10 +1058,42 @@ export function generateMatrixFromPpct(
     cognitiveRatios: options.cognitiveRatios ?? { nhanBiet: 30, thongHieu: 40, vanDung: 20, vanDungCao: 10 },
   };
 
-  // 1. Filter lessons strictly within the specified week range [limitWeekFrom, limitWeekTo]
-  // and optionally limitPeriodTo
+  // 1. Quy tắc tuần kiểm tra: Khi kiểm tra ở tuần 9 (hoặc limitWeekTo = 9),
+  // nội dung lấy theo PPCT đến tuần 8 (tuần 9 là tuần ôn tập & thi)
+  const shouldCutOffWeek9 = config.cutOffExamWeek && config.limitWeekTo === 9;
+  const effectiveWeekTo = shouldCutOffWeek9 ? 8 : config.limitWeekTo;
+
+  // 2. Nhận diện các bài học dở dang vắt qua tuần kiểm tra (ví dụ học 1 tiết ở tuần 8, 2 tiết ở tuần 9)
+  // Xây dựng bản đồ tiết dạy theo từng bài học
+  const lessonTaughtSpanMap = new Map<string, {
+    beforeOrAtCutoffPeriods: number;
+    afterCutoffPeriods: number;
+    totalPpctPeriods: number;
+    firstLessonRef: (typeof ppct.lessons)[0];
+  }>();
+
+  ppct.lessons.forEach((l) => {
+    const coreKey = cleanLessonTopic(l.baiHoc).toLowerCase();
+    if (!coreKey) return;
+    const existing = lessonTaughtSpanMap.get(coreKey) || {
+      beforeOrAtCutoffPeriods: 0,
+      afterCutoffPeriods: 0,
+      totalPpctPeriods: 0,
+      firstLessonRef: l,
+    };
+    const p = l.soTiet || 1;
+    existing.totalPpctPeriods += p;
+    if (l.tuan >= config.limitWeekFrom && l.tuan <= effectiveWeekTo) {
+      existing.beforeOrAtCutoffPeriods += p;
+    } else if (l.tuan > effectiveWeekTo && l.tuan <= config.limitWeekTo) {
+      existing.afterCutoffPeriods += p;
+    }
+    lessonTaughtSpanMap.set(coreKey, existing);
+  });
+
+  // 3. Lọc danh sách bài học nằm trong phạm vi tuần [config.limitWeekFrom, effectiveWeekTo]
   let lessons = ppct.lessons.filter((l) => {
-    if (l.tuan < config.limitWeekFrom || l.tuan > config.limitWeekTo) return false;
+    if (l.tuan < config.limitWeekFrom || l.tuan > effectiveWeekTo) return false;
     if (config.limitPeriodTo && l.tietPPCT && l.tietPPCT > config.limitPeriodTo) return false;
     return true;
   });
@@ -947,8 +1110,16 @@ export function generateMatrixFromPpct(
 
   if (lessons.length === 0) return [];
 
-  // 2. Group by chapter & unique lesson / subtopics, automatically excluding non-testable content if configured
-  const unitMap = new Map<string, { chapter: string; topic: string; periods: number }>();
+  // 4. Nhóm theo chương & bài học chuẩn SGK, áp dụng chính sách bài dở dang vắt qua tuần 8 & 9
+  interface ChapterAccumulator {
+    chapter: string;
+    totalPeriods: number;
+    lessonMap: Map<string, { name: string; periods: number; minWeek: number }>;
+    minWeek: number;
+    maxWeek: number;
+  }
+  const chapterMap = new Map<string, ChapterAccumulator>();
+  const lessonUnitMap = new Map<string, { chapter: string; topic: string; periods: number }>();
 
   lessons.forEach((l) => {
     const check = checkNonTestableContent(l.baiHoc, l.chuong);
@@ -958,33 +1129,89 @@ export function generateMatrixFromPpct(
       return;
     }
 
-    let cleanedTopic = check.cleanedTopic || l.baiHoc.replace(/\(t\d+\)/g, '').trim();
-    let cleanedChapter = l.chuong || 'Chủ đề chung';
+    const coreKey = cleanLessonTopic(l.baiHoc).toLowerCase();
+    const spanInfo = lessonTaughtSpanMap.get(coreKey);
 
-    // Nếu bài học hoặc chương bị nhiễm mã năng lực số / text công cụ, tự động chuẩn hóa theo SGK
-    if (isTechCompetenceText(cleanedTopic) || isTechCompetenceText(cleanedChapter)) {
-      const match = getOfficialSgkTopicAndChapter(`${cleanedChapter} ${cleanedTopic}`, ppct.grade || '9');
-      if (match) {
-        cleanedChapter = match.chapter;
+    // Kiểm tra xem bài học này có liên tục vắt qua tuần kiểm tra không
+    // (ví dụ bài có 3 tiết, tuần 8 mới học 1 tiết, tuần 9 học tiếp các tiết còn lại)
+    const isSpanningIncomplete =
+      spanInfo &&
+      spanInfo.beforeOrAtCutoffPeriods > 0 &&
+      spanInfo.afterCutoffPeriods > 0;
+
+    if (isSpanningIncomplete) {
+      if (config.incompleteLessonPolicy === 'exclude') {
+        // "nếu tuần 8 và 9 có nội dung liên tục, bài học có 3 tiết, tuần 8 chỉ có 1 tiết thì có thể không cần lấy nội dung đó"
+        return;
+      }
+    }
+
+    let cleanedTopic = check.cleanedTopic || l.baiHoc.replace(/\(t\d+\)/g, '').trim();
+    let cleanedChapter = l.chuong || '';
+
+    // Chuẩn hóa tên chương và bài học theo SGK hiện hành (GDPT 2018)
+    const match = getOfficialSgkTopicAndChapter(`${cleanedChapter} ${cleanedTopic}`, ppct.grade || '9');
+    if (match) {
+      cleanedChapter = match.chapter;
+      if (!cleanedTopic || isTechCompetenceText(cleanedTopic)) {
         cleanedTopic = match.topic;
-      } else {
-        cleanedChapter = cleanContentWithoutNls(cleanedChapter) || 'Hệ thức lượng trong tam giác vuông';
-        cleanedTopic = cleanContentWithoutNls(cleanedTopic) || 'Tỉ số lượng giác của góc nhọn';
       }
     } else {
       cleanedChapter = cleanContentWithoutNls(cleanedChapter);
       cleanedTopic = cleanContentWithoutNls(cleanedTopic);
     }
 
-    if (!cleanedTopic) return;
+    // Tên chủ đề / chương thực hiện theo SGK, tuyệt đối không để trống
+    if (!cleanedChapter || cleanedChapter.trim() === '' || cleanedChapter === 'Chủ đề chung' || cleanedChapter.toLowerCase() === 'chủ đề khác') {
+      cleanedChapter = getDefaultSgkChapter(ppct.grade || '9', cleanedTopic, l.tuan);
+    }
+    if (!cleanedTopic || cleanedTopic.trim() === '') {
+      cleanedTopic = match?.topic || 'Nội dung kiến thức theo SGK';
+    }
 
-    const key = `${cleanedChapter}:::${cleanedTopic}`;
-    const existing = unitMap.get(key);
-    const lessonPeriods = l.soTiet || 1;
-    if (existing) {
-      existing.periods += lessonPeriods;
+    // "nếu lấy nội dung có liên quan trong tuần 8 thì chỉ lấy đúng nội dung được học"
+    let lessonPeriods = l.soTiet || 1;
+    if (isSpanningIncomplete && config.incompleteLessonPolicy === 'partial_only' && spanInfo) {
+      // Chỉ lấy đúng số tiết đã học trong tuần 8
+      lessonPeriods = Math.min(lessonPeriods, spanInfo.beforeOrAtCutoffPeriods);
+    }
+
+    // Accumulate for Chapter Group Mode
+    let chAcc = chapterMap.get(cleanedChapter);
+    if (!chAcc) {
+      chAcc = {
+        chapter: cleanedChapter,
+        totalPeriods: 0,
+        lessonMap: new Map(),
+        minWeek: l.tuan,
+        maxWeek: l.tuan,
+      };
+      chapterMap.set(cleanedChapter, chAcc);
+    }
+    chAcc.totalPeriods += lessonPeriods;
+    chAcc.minWeek = Math.min(chAcc.minWeek, l.tuan);
+    chAcc.maxWeek = Math.max(chAcc.maxWeek, l.tuan);
+
+    const lKey = cleanLessonTopic(cleanedTopic);
+    const existingL = chAcc.lessonMap.get(lKey);
+    if (existingL) {
+      existingL.periods += lessonPeriods;
+      existingL.minWeek = Math.min(existingL.minWeek, l.tuan);
     } else {
-      unitMap.set(key, {
+      chAcc.lessonMap.set(lKey, {
+        name: cleanedTopic,
+        periods: lessonPeriods,
+        minWeek: l.tuan,
+      });
+    }
+
+    // Accumulate for Lesson Group Mode
+    const key = `${cleanedChapter}:::${cleanedTopic}`;
+    const existingUnit = lessonUnitMap.get(key);
+    if (existingUnit) {
+      existingUnit.periods += lessonPeriods;
+    } else {
+      lessonUnitMap.set(key, {
         chapter: cleanedChapter,
         topic: cleanedTopic,
         periods: lessonPeriods,
@@ -992,7 +1219,33 @@ export function generateMatrixFromPpct(
     }
   });
 
-  const units = Array.from(unitMap.values());
+  let units: { chapter: string; topic: string; periods: number }[] = [];
+
+  if (config.matrixGroupBy === 'lesson') {
+    units = Array.from(lessonUnitMap.values());
+  } else {
+    // Group by Chapter / Chủ đề lớn (Chuẩn Phụ lục 1 khung ma trận Bộ GD&ĐT)
+    // Tự động phân rõ số lượng bài học và tổng số tiết chính xác bám sát PPCT
+    units = Array.from(chapterMap.values()).map((ch) => {
+      const distinctLessons = Array.from(ch.lessonMap.values()).sort((a, b) => a.minWeek - b.minWeek);
+      // Đếm các bài học chính (bắt đầu bằng Bài X hoặc có cấu trúc bài)
+      const mainLessons = distinctLessons.filter((ls) => /\bbài\s+\d+/i.test(ls.name));
+      const lessonCount = mainLessons.length > 0 ? mainLessons.length : distinctLessons.length;
+      
+      const lessonSummary = distinctLessons
+        .map((ls) => `${ls.name} (${ls.periods} tiết)`)
+        .join('; ');
+
+      const formattedTopic = `Gồm ${lessonCount} bài học: ${lessonSummary}`;
+
+      return {
+        chapter: ch.chapter,
+        topic: formattedTopic,
+        periods: ch.totalPeriods,
+      };
+    });
+  }
+
   if (units.length === 0) return [];
 
   const totalPeriods = units.reduce((sum, u) => sum + u.periods, 0) || 1;
@@ -1350,6 +1603,7 @@ export function getRowTotalQuestions(r: MatrixRow): number {
 
 /**
  * Tính bảng điểm theo từng chủ đề dựa trên số tiết thực tế (Theo đúng Phụ lục I trong công văn)
+ * Tự động phân rõ số lượng bài học và tỉ lệ thời lượng % bám sát PPCT
  */
 export function calculateTopicPointSummary(
   rows: MatrixRow[],
@@ -1360,11 +1614,22 @@ export function calculateTopicPointSummary(
   totalScore: number;
 } {
   // Group by chapter
-  const chapterMap = new Map<string, { periods: number }>();
+  const chapterMap = new Map<string, { periods: number; lessonsSummary?: string; lessonsCount?: number }>();
   rows.forEach((r) => {
     const chuong = r.chuong || 'Chủ đề khác';
     const cur = chapterMap.get(chuong) || { periods: 0 };
     cur.periods += r.soTiet || 1;
+
+    // Trích xuất số bài học và tóm tắt nếu có trong r.noiDung
+    if (r.noiDung) {
+      const matchGom = r.noiDung.match(/^gồm\s+(\d+)\s+bài\s+học[:\s]*(.*)/i);
+      if (matchGom) {
+        cur.lessonsCount = parseInt(matchGom[1], 10);
+        cur.lessonsSummary = matchGom[2];
+      } else if (!cur.lessonsSummary) {
+        cur.lessonsSummary = r.noiDung;
+      }
+    }
     chapterMap.set(chuong, cur);
   });
 
@@ -1384,12 +1649,17 @@ export function calculateTopicPointSummary(
       accumulatedScore += roundedScore;
     }
 
+    const pctThoiLuong = Math.round((data.periods / totalPeriods) * 100);
+
     return {
       topicIndex: idx + 1,
       topicName: name,
       periods: data.periods,
       rawScore: Number(rawScore.toFixed(2)),
       roundedScore,
+      lessonsCount: data.lessonsCount,
+      lessonsSummary: data.lessonsSummary,
+      pctThoiLuong,
     };
   });
 
@@ -1400,6 +1670,134 @@ export function calculateTopicPointSummary(
     totalPeriods,
     totalScore: Number(totalScore.toFixed(1)),
   };
+}
+
+/**
+ * Trích xuất bảng tham chiếu chi tiết đối chiếu PPCT bám sát từng tuần
+ * Phân rõ từng Chủ đề/Chương có bao nhiêu bài, từng bài bao nhiêu tiết, làm căn cứ chuẩn xác
+ */
+export function getPpctReferenceBreakdown(
+  ppct: PpctDataset,
+  options: {
+    limitWeekFrom?: number;
+    limitWeekTo?: number;
+    cutOffExamWeek?: boolean;
+    incompleteLessonPolicy?: 'exclude' | 'partial_only' | 'include_all';
+    excludeNonTestable?: boolean;
+    selectedLessonKeys?: string[];
+  }
+): PpctReferenceItem[] {
+  const weekFrom = Math.max(1, options.limitWeekFrom ?? 1);
+  const weekTo = Math.max(weekFrom, options.limitWeekTo ?? 9);
+  const cutOffExamWeek = options.cutOffExamWeek !== false;
+  const effectiveWeekTo = (cutOffExamWeek && weekTo === 9) ? 8 : weekTo;
+
+  let lessons = ppct.lessons.filter((l) => l.tuan >= weekFrom && l.tuan <= effectiveWeekTo);
+
+  if (options.selectedLessonKeys && options.selectedLessonKeys.length > 0) {
+    const selectedSet = new Set(options.selectedLessonKeys);
+    lessons = lessons.filter((l) => {
+      const cleaned = cleanLessonTopic(l.baiHoc);
+      const key = `${l.chuong}:::${cleaned}`;
+      return selectedSet.has(key);
+    });
+  }
+
+  // Tích lũy theo chương
+  const chMap = new Map<string, {
+    totalPeriods: number;
+    lessonMap: Map<string, { name: string; periods: number; week: number }>;
+    minWeek: number;
+    maxWeek: number;
+  }>();
+
+  lessons.forEach((l) => {
+    if (options.excludeNonTestable) {
+      const check = checkNonTestableContent(l.baiHoc, l.chuong);
+      if (check.isNonTestable) return;
+    }
+
+    let cleanedTopic = l.baiHoc.replace(/\(t\d+\)/g, '').trim();
+    let cleanedChapter = l.chuong || '';
+    const match = getOfficialSgkTopicAndChapter(`${cleanedChapter} ${cleanedTopic}`, ppct.grade || '9');
+    if (match) {
+      cleanedChapter = match.chapter;
+      if (!cleanedTopic || isTechCompetenceText(cleanedTopic)) {
+        cleanedTopic = match.topic;
+      }
+    } else {
+      cleanedChapter = cleanContentWithoutNls(cleanedChapter);
+      cleanedTopic = cleanContentWithoutNls(cleanedTopic);
+    }
+    if (!cleanedChapter || cleanedChapter.trim() === '' || cleanedChapter === 'Chủ đề chung') {
+      cleanedChapter = getDefaultSgkChapter(ppct.grade || '9', cleanedTopic, l.tuan);
+    }
+
+    let p = l.soTiet || 1;
+
+    let chEntry = chMap.get(cleanedChapter);
+    if (!chEntry) {
+      chEntry = {
+        totalPeriods: 0,
+        lessonMap: new Map(),
+        minWeek: l.tuan,
+        maxWeek: l.tuan,
+      };
+      chMap.set(cleanedChapter, chEntry);
+    }
+    chEntry.totalPeriods += p;
+    chEntry.minWeek = Math.min(chEntry.minWeek, l.tuan);
+    chEntry.maxWeek = Math.max(chEntry.maxWeek, l.tuan);
+
+    const lKey = cleanLessonTopic(cleanedTopic);
+    const existingL = chEntry.lessonMap.get(lKey);
+    if (existingL) {
+      existingL.periods += p;
+      existingL.week = Math.min(existingL.week, l.tuan);
+    } else {
+      chEntry.lessonMap.set(lKey, {
+        name: cleanedTopic,
+        periods: p,
+        week: l.tuan,
+      });
+    }
+  });
+
+  const grandTotalPeriods = Array.from(chMap.values()).reduce((s, c) => s + c.totalPeriods, 0) || 1;
+  const entries = Array.from(chMap.entries());
+
+  let accumulatedScore = 0;
+  return entries.map(([chapterName, data], idx) => {
+    const isLast = idx === entries.length - 1;
+    const rawScore = (data.totalPeriods * 10) / grandTotalPeriods;
+    let roundedScore = Math.round(rawScore * 2) / 2;
+    if (isLast) {
+      roundedScore = Math.max(0.5, Number((10 - accumulatedScore).toFixed(1)));
+    } else {
+      accumulatedScore += roundedScore;
+    }
+
+    const lessonsList = Array.from(data.lessonMap.values()).sort((a, b) => a.week - b.week);
+    const mainLessons = lessonsList.filter((ls) => /\bbài\s+\d+/i.test(ls.name));
+    const lessonsCount = mainLessons.length > 0 ? mainLessons.length : lessonsList.length;
+    const pctThoiLuong = Math.round((data.totalPeriods / grandTotalPeriods) * 100);
+
+    const weeksSpan = data.minWeek === data.maxWeek 
+      ? `Tuần ${data.minWeek}` 
+      : `Tuần ${data.minWeek} – ${data.maxWeek}`;
+
+    return {
+      topicIndex: idx + 1,
+      chapterName,
+      totalPeriods: data.totalPeriods,
+      lessonsCount,
+      pctThoiLuong,
+      rawScore: Number(rawScore.toFixed(2)),
+      roundedScore,
+      weeksSpan,
+      lessons: lessonsList,
+    };
+  });
 }
 
 /**
@@ -1438,9 +1836,17 @@ export function generateSpecificationFromMatrix(
   // Group matrix rows by chapter/topic
   const chapterGroups = new Map<string, MatrixRow[]>();
   targetRows.forEach((r) => {
-    const ch = cleanContentWithoutNls(r.chuong || 'Chủ đề chung');
+    let ch = cleanContentWithoutNls(r.chuong || '');
+    if (!ch || ch === 'Chủ đề chung' || ch.toLowerCase() === 'chủ đề khác') {
+      const match = getOfficialSgkTopicAndChapter(`${r.noiDung}`, grade, sgkBooks);
+      ch = match?.chapter || getDefaultSgkChapter(grade, r.noiDung);
+    }
     const list = chapterGroups.get(ch) || [];
-    list.push(r);
+    list.push({
+      ...r,
+      chuong: ch,
+      noiDung: cleanContentWithoutNls(r.noiDung || '') || 'Nội dung kiến thức theo SGK',
+    });
     chapterGroups.set(ch, list);
   });
 

@@ -664,7 +664,13 @@ export async function parseUploadedQuestionFile(
   // 2. FILE EXCEL (.xlsx, .xls, .csv)
   if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls') || fileName.endsWith('.csv')) {
     const arrayBuffer = await file.arrayBuffer();
-    const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+    const workbook = XLSX.read(arrayBuffer, {
+      type: 'array',
+      dense: true,
+      cellFormula: false,
+      cellHTML: false,
+      cellStyles: false,
+    });
     const sheetName = workbook.SheetNames[0];
     const worksheet = workbook.Sheets[sheetName];
     const rows = XLSX.utils.sheet_to_json<any>(worksheet, { defval: '' });

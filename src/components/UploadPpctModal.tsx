@@ -17,6 +17,7 @@ import {
   RefreshCw,
   Link as LinkIcon,
   Globe,
+  Trash2,
 } from 'lucide-react';
 import { PpctDataset, PpctIssue } from '../types';
 import { parsePpctFile, autoStandardizePpct } from '../utils/fileParser';
@@ -32,6 +33,8 @@ interface UploadPpctModalProps {
   onClose: () => void;
   onAddDataset: (dataset: PpctDataset) => void;
   initialGrade?: string;
+  datasets?: PpctDataset[];
+  onDeleteDataset?: (id: string) => void;
 }
 
 export const UploadPpctModal: React.FC<UploadPpctModalProps> = ({
@@ -39,9 +42,11 @@ export const UploadPpctModal: React.FC<UploadPpctModalProps> = ({
   onClose,
   onAddDataset,
   initialGrade = '9',
+  datasets = [],
+  onDeleteDataset,
 }) => {
   const [selectedGrade, setSelectedGrade] = useState<string>(initialGrade);
-  const [sourceTab, setSourceTab] = useState<'upload' | 'link'>('upload');
+  const [sourceTab, setSourceTab] = useState<'upload' | 'link' | 'manage'>('upload');
   const [linkUrl, setLinkUrl] = useState<string>('');
   const [className, setClassName] = useState<string>('');
   const [academicYear, setAcademicYear] = useState<string>('2026 - 2027');
@@ -136,6 +141,9 @@ export const UploadPpctModal: React.FC<UploadPpctModalProps> = ({
     setErrorMessage(null);
     setSuccessNotice(null);
     setIsParsingPreview(true);
+
+    // Yield execution to allow UI to paint loading state immediately
+    await new Promise((resolve) => setTimeout(resolve, 30));
 
     try {
       const parsed = await parsePpctFile(file, {
@@ -426,6 +434,21 @@ export const UploadPpctModal: React.FC<UploadPpctModalProps> = ({
                   <LinkIcon className="w-3.5 h-3.5" />
                   <span>Nhập Link Online</span>
                 </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSourceTab('manage');
+                    setErrorMessage(null);
+                  }}
+                  className={`px-3 py-1 rounded-md font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
+                    sourceTab === 'manage'
+                      ? 'bg-rose-50 text-rose-900 border border-rose-200 shadow-2xs'
+                      : 'text-slate-600 hover:text-rose-700'
+                  }`}
+                >
+                  <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                  <span>Xóa / Quản lý PPCT ({datasets.length})</span>
+                </button>
               </div>
             </div>
 
@@ -476,6 +499,68 @@ export const UploadPpctModal: React.FC<UploadPpctModalProps> = ({
                   )}
                 </div>
               </>
+            ) : sourceTab === 'manage' ? (
+              <div className="border border-rose-200 bg-rose-50/20 rounded-xl p-3.5 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-rose-900 font-bold text-xs">
+                    <Trash2 className="w-4 h-4 text-rose-600" />
+                    <span>Danh sách các PPCT đã nạp vào ứng dụng ({datasets.length})</span>
+                  </div>
+                  <span className="text-[11px] text-slate-500">
+                    Bấm nút Xóa để gỡ bỏ PPCT không dùng
+                  </span>
+                </div>
+
+                {datasets.length === 0 ? (
+                  <div className="text-center py-6 text-slate-500 text-xs bg-white rounded-lg border border-slate-200">
+                    Chưa có PPCT nào được lưu trong hệ thống.
+                  </div>
+                ) : (
+                  <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                    {datasets.map((d) => (
+                      <div
+                        key={d.id}
+                        className="flex items-center justify-between p-2.5 bg-white border border-slate-200 hover:border-rose-300 rounded-lg shadow-2xs transition-colors"
+                      >
+                        <div className="min-w-0 pr-2">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-semibold text-xs text-slate-800 truncate">
+                              {d.name}
+                            </span>
+                            <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.5 rounded">
+                              Khối {d.grade}
+                            </span>
+                            {d.className && (
+                              <span className="text-[10px] bg-blue-100 text-blue-800 font-medium px-1.5 py-0.5 rounded">
+                                Lớp {d.className}
+                              </span>
+                            )}
+                            <span className="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded">
+                              {d.totalLessons || d.lessons?.length || 140} tiết
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-400 mt-0.5">
+                            {d.school || 'Trường THCS & THPT'} • Năm học: {d.academicYear || '2025 - 2026'}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (window.confirm(`Xác nhận xóa hoàn toàn PPCT "${d.name}" khỏi hệ thống?`)) {
+                              onDeleteDataset?.(d.id);
+                            }
+                          }}
+                          className="px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 hover:text-rose-800 border border-rose-200 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors shrink-0 cursor-pointer"
+                          title="Xóa PPCT này khỏi hệ thống"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span>Xóa PPCT</span>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             ) : (
               <div className="border border-emerald-200 bg-emerald-50/30 rounded-xl p-3.5 space-y-3">
                 <div>

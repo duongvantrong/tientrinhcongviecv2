@@ -18,7 +18,7 @@ import {
   defaultPpctDataset9,
 } from '../data/defaultData';
 import * as XLSX from 'xlsx';
-import { Table as TableIcon, FileText, Layers, Sparkles, BookMarked, AlertTriangle, Upload } from 'lucide-react';
+import { Table as TableIcon, FileText, Layers, Sparkles, BookMarked, AlertTriangle, Upload, Loader2, Database } from 'lucide-react';
 
 interface MatrixTabProps {
   config: MatrixConfig;
@@ -35,6 +35,7 @@ interface MatrixTabProps {
   onOpenSgkManager?: () => void;
   onOpenFullPpct?: () => void;
   onOpenExamBuilder?: () => void;
+  onOpenQuestionBank?: () => void;
 }
 
 export const MatrixTab: React.FC<MatrixTabProps> = ({
@@ -52,9 +53,11 @@ export const MatrixTab: React.FC<MatrixTabProps> = ({
   onOpenSgkManager,
   onOpenFullPpct,
   onOpenExamBuilder,
+  onOpenQuestionBank,
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<'matrix' | 'spec' | 'all'>('matrix');
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
+  const [exportingType, setExportingType] = useState<'word-matrix' | 'word-spec' | 'full-word' | 'excel' | null>(null);
 
   // Normalize grade string (e.g., "Khối 9", "9", "K9" -> "9")
   const currentGradeNorm = String(config.grade || '').replace(/\D/g, '') || String(config.grade || '').trim();
@@ -142,7 +145,10 @@ export const MatrixTab: React.FC<MatrixTabProps> = ({
         targetWeek: weekTo,
         limitPeriodTo: config.limitPeriodTo,
         selectedLessonKeys: undefined,
+        cutOffExamWeek: config.cutOffExamWeek !== false,
+        incompleteLessonPolicy: config.incompleteLessonPolicy || 'exclude',
         excludeNonTestable: config.excludeNonTestable !== false,
+        matrixGroupBy: config.matrixGroupBy || 'chapter',
         ratioTn: config.ratioTn || 70,
         ratioTl: config.ratioTl || 30,
         structureType: config.structureType || 'moet_2025_new',
@@ -255,7 +261,10 @@ export const MatrixTab: React.FC<MatrixTabProps> = ({
       targetWeek: weekTo,
       limitPeriodTo: config.limitPeriodTo,
       selectedLessonKeys: config.selectedLessonKeys,
+      cutOffExamWeek: config.cutOffExamWeek !== false,
+      incompleteLessonPolicy: config.incompleteLessonPolicy || 'exclude',
       excludeNonTestable: config.excludeNonTestable !== false,
+      matrixGroupBy: config.matrixGroupBy || 'chapter',
       ratioTn: config.ratioTn || 70,
       ratioTl: config.ratioTl || 30,
       structureType: config.structureType || 'moet_2025_new',
@@ -270,8 +279,9 @@ export const MatrixTab: React.FC<MatrixTabProps> = ({
     if (generated.length > 0) {
       onUpdateRows(generated);
       setSpecRows(generateSpecificationFromMatrix(generated, config.grade, config.subject, sgkBooks, activeVolume));
+      const totalPer = generated.reduce((s, r) => s + (r.soTiet || 1), 0);
       onUpdateConfig({
-        sampleLoadedName: `Đã cân bằng ma trận PPCT ${activePpct.subject} K${activePpct.grade} (Tuần ${weekFrom}–${weekTo}${config.limitPeriodTo ? `, đến Tiết ${config.limitPeriodTo}` : ''}) — ${generated.length} bài học bám sát SGK Tập ${activeVolume === 2 ? 2 : 1}.`,
+        sampleLoadedName: `Đã cân bằng ma trận PPCT ${activePpct.subject} K${activePpct.grade} (Tuần ${weekFrom}–${weekTo}) — ${generated.length} chủ đề/bài (${totalPer} tiết) bám sát SGK.`,
       });
     }
   };
@@ -342,19 +352,47 @@ export const MatrixTab: React.FC<MatrixTabProps> = ({
   };
 
   const handleExportWordMatrix = async () => {
-    await exportMatrixToDocx(config, rows);
+    if (exportingType) return;
+    setExportingType('word-matrix');
+    try {
+      await new Promise((r) => setTimeout(r, 40));
+      await exportMatrixToDocx(config, rows);
+    } finally {
+      setExportingType(null);
+    }
   };
 
   const handleExportWordSpec = async () => {
-    await exportSpecificationToDocx(config, specRows);
+    if (exportingType) return;
+    setExportingType('word-spec');
+    try {
+      await new Promise((r) => setTimeout(r, 40));
+      await exportSpecificationToDocx(config, specRows);
+    } finally {
+      setExportingType(null);
+    }
   };
 
   const handleExportFullWord = async () => {
-    await exportFullExamPackageToDocx(config, rows, specRows);
+    if (exportingType) return;
+    setExportingType('full-word');
+    try {
+      await new Promise((r) => setTimeout(r, 40));
+      await exportFullExamPackageToDocx(config, rows, specRows);
+    } finally {
+      setExportingType(null);
+    }
   };
 
-  const handleExportExcel = () => {
-    exportMatrixToExcel(config, rows);
+  const handleExportExcel = async () => {
+    if (exportingType) return;
+    setExportingType('excel');
+    try {
+      await new Promise((r) => setTimeout(r, 40));
+      exportMatrixToExcel(config, rows);
+    } finally {
+      setExportingType(null);
+    }
   };
 
   const handleSyncSpecFromMatrix = () => {
@@ -423,14 +461,14 @@ export const MatrixTab: React.FC<MatrixTabProps> = ({
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
-          {onOpenSgkManager && (
+          {onOpenQuestionBank && (
             <button
-              onClick={onOpenSgkManager}
-              className="px-3 py-1.5 bg-teal-50 hover:bg-teal-100 text-teal-900 border border-teal-300 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all shadow-2xs"
-              title="Quản lý Sách giáo khoa Toán Tập 1, Tập 2 và chỉnh sửa Yêu cầu cần đạt"
+              onClick={onOpenQuestionBank}
+              className="px-3.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-900 border border-rose-300 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all shadow-2xs"
+              title="Quản lý Ngân hàng câu hỏi: Tải tệp lên, Tạo câu hỏi Online hoặc Dán trực tiếp từ màn hình chụp (Ctrl+V)"
             >
-              <BookMarked className="w-3.5 h-3.5 text-teal-700" />
-              <span>Quản lý SGK (Tập 1 & 2)</span>
+              <Database className="w-3.5 h-3.5 text-rose-600" />
+              <span>Ngân Hàng Câu Hỏi (File / Online / Chụp màn hình)</span>
             </button>
           )}
 
@@ -447,11 +485,21 @@ export const MatrixTab: React.FC<MatrixTabProps> = ({
 
           <button
             onClick={handleExportFullWord}
-            className="px-3.5 py-1.5 bg-emerald-800 hover:bg-emerald-900 text-white rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all shadow-xs"
+            disabled={Boolean(exportingType)}
+            className="px-3.5 py-1.5 bg-emerald-800 hover:bg-emerald-900 text-white rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all shadow-xs disabled:opacity-60 cursor-pointer"
             title="Xuất trọn bộ file Word gồm Khung Ma trận và Bảng đặc tả đề kiểm tra"
           >
-            <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-            <span>Xuất Trọn bộ Word (PL I + PL II)</span>
+            {exportingType === 'full-word' ? (
+              <>
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-300" />
+                <span>Đang tạo Word...</span>
+              </>
+            ) : (
+              <>
+                <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                <span>Xuất Trọn bộ Word (PL I + PL II)</span>
+              </>
+            )}
           </button>
         </div>
       </div>
@@ -462,6 +510,9 @@ export const MatrixTab: React.FC<MatrixTabProps> = ({
           config={config}
           rows={rows}
           sgkBooks={sgkBooks}
+          activePpct={activePpct}
+          onRegenerateMatrix={handleGenerateFromPpct}
+          onUpdateConfig={onUpdateConfig}
           onUpdateRow={handleUpdateRow}
           onUpdateNestedRow={handleUpdateNestedRow}
           onBulkUpdateRows={onUpdateRows}

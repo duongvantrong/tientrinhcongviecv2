@@ -597,6 +597,7 @@ export const defaultMatrixConfig: MatrixConfig = {
   },
   sampleLoadedName: 'Ma trận & Bảng đặc tả chuẩn Bộ GD&ĐT (19 cột PL1 & 16 cột PL2)',
   officialDocumentRef: '',
+  matrixGroupBy: 'chapter',
 };
 
 export const defaultMatrixRows: MatrixRow[] = [

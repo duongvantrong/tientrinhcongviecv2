@@ -22,6 +22,7 @@ import {
   ShieldCheck,
   AlertTriangle,
   XCircle,
+  Trash2,
 } from 'lucide-react';
 import { MatrixConfig, ExamEvent, PpctDataset, PpctLesson, SgkBook } from '../types';
 import { checkNonTestableContent, cleanLessonTopic } from '../utils/dateCalculations';
@@ -221,11 +222,13 @@ export const MatrixConfigSection: React.FC<MatrixConfigProps> = ({
   // Practical presets matching Vietnamese school terms
   const practicalScopePresets = [
     {
-      label: '🎯 Giữa HK1 (Tuần 1 – 9)',
+      label: '🎯 Giữa HK1 (Tuần 1 – 9: Lấy đến T8)',
       from: 1,
       to: 9,
       periodName: 'Kiểm tra giữa học kỳ I',
-      desc: 'Khoảng tuần 1 đến tuần 9',
+      desc: 'Nội dung PPCT lấy đến Tuần 8, Tuần 9 ôn tập & kiểm tra, tự động lọc bài vắt tuần',
+      cutOffExamWeek: true,
+      incompletePolicy: 'exclude' as const,
     },
     {
       label: '🎯 Cuối HK1: Cả HK1 (Tuần 1 – 18)',
@@ -327,6 +330,18 @@ export const MatrixConfigSection: React.FC<MatrixConfigProps> = ({
             >
               <ListOrdered className="w-3.5 h-3.5 text-emerald-700 group-hover:scale-110 transition-transform" />
               <span>Xem toàn bộ PPCT</span>
+            </button>
+          )}
+
+          {onOpenUploadModal && (
+            <button
+              type="button"
+              onClick={() => onOpenUploadModal(config.grade)}
+              className="flex items-center gap-1.5 bg-rose-50 hover:bg-rose-100/90 border border-rose-300 rounded-lg px-3 py-1.5 text-xs text-rose-950 font-medium transition-colors shadow-2xs group"
+              title="Mở danh sách các PPCT đã nạp, có thể xóa bỏ PPCT không dùng"
+            >
+              <Trash2 className="w-3.5 h-3.5 text-rose-700 group-hover:scale-110 transition-transform" />
+              <span>Xóa / Quản lý PPCT ({datasets.length})</span>
             </button>
           )}
 
@@ -684,6 +699,8 @@ export const MatrixConfigSection: React.FC<MatrixConfigProps> = ({
                           examPeriod: p.periodName,
                           limitPeriodTo: undefined,
                           selectedLessonKeys: undefined,
+                          cutOffExamWeek: (p as any).cutOffExamWeek ?? (p.to === 9),
+                          incompleteLessonPolicy: (p as any).incompletePolicy ?? config.incompleteLessonPolicy ?? 'exclude',
                         });
                       }}
                       title={p.desc}
@@ -697,6 +714,123 @@ export const MatrixConfigSection: React.FC<MatrixConfigProps> = ({
                     </button>
                   );
                 })}
+              </div>
+            </div>
+
+            {/* Exam Week 9 Cutoff & Incomplete Lesson Policy (Đặc thù kiểm tra giữa kỳ 1) */}
+            {(weekTo === 9 || config.cutOffExamWeek) && (
+              <div className="mb-2 p-2.5 bg-amber-50/90 border border-amber-300 rounded-lg text-[11px] text-amber-950 space-y-2">
+                <div className="flex items-start gap-2">
+                  <input
+                    type="checkbox"
+                    id="cutoff-exam-week-cb"
+                    checked={config.cutOffExamWeek !== false}
+                    onChange={(e) => onChange({ cutOffExamWeek: e.target.checked, selectedLessonKeys: undefined })}
+                    className="mt-0.5 accent-amber-700 w-3.5 h-3.5 cursor-pointer rounded"
+                  />
+                  <label htmlFor="cutoff-exam-week-cb" className="cursor-pointer font-medium leading-snug">
+                    <strong className="text-amber-950 font-bold">Kỳ thi Tuần 9 (Giữa HK1):</strong> Lấy nội dung PPCT đến <span className="font-bold text-emerald-800 underline">Tuần 8</span> (Tuần 9 dành cho ôn tập & kiểm tra).
+                  </label>
+                </div>
+
+                <div className="pt-1.5 border-t border-amber-200/80">
+                  <span className="font-semibold block mb-1 text-slate-800">
+                    Xử lý bài học dở dang vắt qua Tuần 8 & 9 (Ví dụ bài 3 tiết: Tuần 8 học 1 tiết, Tuần 9 học 2 tiết):
+                  </span>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-1 text-[10.5px]">
+                    <label className={`flex items-center gap-1.5 p-1.5 rounded border cursor-pointer transition-colors ${
+                      (config.incompleteLessonPolicy ?? 'exclude') === 'exclude'
+                        ? 'bg-amber-100/90 border-amber-400 font-bold text-amber-950'
+                        : 'bg-white border-amber-200 text-slate-700 hover:bg-amber-50'
+                    }`}>
+                      <input
+                        type="radio"
+                        name="incomplete-lesson-policy"
+                        value="exclude"
+                        checked={(config.incompleteLessonPolicy ?? 'exclude') === 'exclude'}
+                        onChange={() => onChange({ incompleteLessonPolicy: 'exclude', selectedLessonKeys: undefined })}
+                        className="accent-amber-700"
+                      />
+                      <span>Bỏ qua bài dở dang</span>
+                    </label>
+
+                    <label className={`flex items-center gap-1.5 p-1.5 rounded border cursor-pointer transition-colors ${
+                      config.incompleteLessonPolicy === 'partial_only'
+                        ? 'bg-amber-100/90 border-amber-400 font-bold text-amber-950'
+                        : 'bg-white border-amber-200 text-slate-700 hover:bg-amber-50'
+                    }`}>
+                      <input
+                        type="radio"
+                        name="incomplete-lesson-policy"
+                        value="partial_only"
+                        checked={config.incompleteLessonPolicy === 'partial_only'}
+                        onChange={() => onChange({ incompleteLessonPolicy: 'partial_only', selectedLessonKeys: undefined })}
+                        className="accent-amber-700"
+                      />
+                      <span>Chỉ lấy tiết Tuần 8</span>
+                    </label>
+
+                    <label className={`flex items-center gap-1.5 p-1.5 rounded border cursor-pointer transition-colors ${
+                      config.incompleteLessonPolicy === 'include_all'
+                        ? 'bg-amber-100/90 border-amber-400 font-bold text-amber-950'
+                        : 'bg-white border-amber-200 text-slate-700 hover:bg-amber-50'
+                    }`}>
+                      <input
+                        type="radio"
+                        name="incomplete-lesson-policy"
+                        value="include_all"
+                        checked={config.incompleteLessonPolicy === 'include_all'}
+                        onChange={() => onChange({ incompleteLessonPolicy: 'include_all', selectedLessonKeys: undefined })}
+                        className="accent-amber-700"
+                      />
+                      <span>Lấy đủ cả bài</span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Grouping Mode */}
+            <div className="pt-2 border-t border-slate-200/80 mb-2">
+              <span className="font-semibold block mb-1 text-slate-800 text-[11px]">
+                Quy cách dòng Ma trận (Phụ lục 1):
+              </span>
+              <div className="grid grid-cols-2 gap-1.5 text-[10.5px]">
+                <button
+                  type="button"
+                  onClick={() => onChange({ matrixGroupBy: 'chapter' })}
+                  className={`p-1.5 rounded border text-left transition-colors ${
+                    (config.matrixGroupBy || 'chapter') === 'chapter'
+                      ? 'bg-emerald-100/90 border-emerald-500 font-bold text-emerald-950'
+                      : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                  }`}
+                >
+                  <div className="flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full bg-emerald-700"></span>
+                    <span>Gom theo Chủ đề lớn (Chuẩn BGD)</span>
+                  </div>
+                  <div className="text-[9.5px] text-slate-500 mt-0.5 font-normal">
+                    Phân rõ số bài và tiết từng chương
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => onChange({ matrixGroupBy: 'lesson' })}
+                  className={`p-1.5 rounded border text-left transition-colors ${
+                    config.matrixGroupBy === 'lesson'
+                      ? 'bg-emerald-100/90 border-emerald-500 font-bold text-emerald-950'
+                      : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                  }`}
+                >
+                  <div className="flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full bg-blue-700"></span>
+                    <span>Chi tiết từng Bài học</span>
+                  </div>
+                  <div className="text-[9.5px] text-slate-500 mt-0.5 font-normal">
+                    Mỗi bài học là 1 dòng ma trận
+                  </div>
+                </button>
               </div>
             </div>
           </div>
@@ -997,6 +1131,13 @@ export const MatrixConfigSection: React.FC<MatrixConfigProps> = ({
                         const isChecked = activeSelectedKeys.includes(topicItem.key);
                         const weekNumbers = Array.from(new Set(topicItem.lessonList.map((l) => l.tuan))).join(', ');
                         const isExcludedType = topicItem.check.isNonTestable;
+                        const hasSpanWeek8And9 =
+                          (weekTo === 9 || config.cutOffExamWeek) &&
+                          topicItem.lessonList.some((l) => l.tuan <= 8) &&
+                          topicItem.lessonList.some((l) => l.tuan >= 9);
+                        const periodsInWeek8 = topicItem.lessonList
+                          .filter((l) => l.tuan <= 8)
+                          .reduce((sum, l) => sum + (l.soTiet || 1), 0);
 
                         return (
                           <label
@@ -1030,11 +1171,21 @@ export const MatrixConfigSection: React.FC<MatrixConfigProps> = ({
                                     🎯 Trọng tâm ra đề
                                   </span>
                                 )}
+                                {hasSpanWeek8And9 && (
+                                  <span className="inline-flex items-center px-1.5 py-0.2 bg-orange-100 text-orange-900 border border-orange-300 rounded text-[9.5px] font-semibold">
+                                    ⚠️ Vắt qua T8–9 (T8: {periodsInWeek8}/{topicItem.periods}t)
+                                  </span>
+                                )}
                               </div>
-                              <div className="flex items-center gap-2 text-[10px] text-slate-500">
+                              <div className="flex items-center gap-2 text-[10px] text-slate-500 flex-wrap">
                                 <span>Tuần: {weekNumbers}</span>
                                 <span>•</span>
                                 <span>Thời lượng: {topicItem.periods} tiết</span>
+                                {hasSpanWeek8And9 && (
+                                  <span className="text-orange-700 font-medium">
+                                    • Xử lý: {(config.incompleteLessonPolicy ?? 'exclude') === 'exclude' ? 'Bỏ qua' : config.incompleteLessonPolicy === 'partial_only' ? `Chỉ tính ${periodsInWeek8}t T8` : 'Tính cả bài'}
+                                  </span>
+                                )}
                               </div>
                             </div>
                           </label>

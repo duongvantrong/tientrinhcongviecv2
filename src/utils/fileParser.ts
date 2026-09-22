@@ -1,94 +1,109 @@
 import * as XLSX from 'xlsx';
+import mammoth from 'mammoth';
 import { PpctDataset, PpctLesson, PpctValidationResult, PpctIssue } from '../types';
 import { cleanContentWithoutNls, isTechCompetenceText, getOfficialSgkTopicAndChapter } from './dateCalculations';
 
 /**
  * Extracts table rows and text from a Word document (.docx) using mammoth
  * with full 2D grid matrix parsing for rowspan and colspan expansion.
+ * Optimized for high performance and zero image decoding overhead.
  */
 async function extractRowsFromDocx(data: ArrayBuffer): Promise<{ rows: (string | number)[][]; rawText: string }> {
   const rows: (string | number)[][] = [];
   let rawText = '';
 
   try {
-    const mammoth = await import('mammoth');
+    // 1. Fast HTML extraction: bypass image base64 conversions completely to avoid massive UI freezes & CPU delay
+    const htmlResult = await mammoth.convertToHtml(
+      { arrayBuffer: data },
+      {
+        ignoreEmptyParagraphs: true,
+        convertImage: mammoth.images.imgElement(() => Promise.resolve({ src: '' })),
+      }
+    );
+    const html = htmlResult.value || '';
 
-    // 1. Extract HTML to parse Word tables with rowspan/colspan preservation
-    try {
-      const htmlResult = await mammoth.convertToHtml({ arrayBuffer: data });
-      const html = htmlResult.value || '';
+    if (html.includes('<table')) {
+      const tableMatches = html.match(/<table[^>]*>[\s\S]*?<\/table>/gi) || [];
 
-      if (html.includes('<table')) {
-        const tableMatches = html.match(/<table[^>]*>[\s\S]*?<\/table>/gi) || [];
+      for (const tableHtml of tableMatches) {
+        const trMatches = tableHtml.match(/<tr[^>]*>[\s\S]*?<\/tr>/gi) || [];
+        const grid: string[][] = [];
 
-        for (const tableHtml of tableMatches) {
-          const trMatches = tableHtml.match(/<tr[^>]*>[\s\S]*?<\/tr>/gi) || [];
-          const grid: string[][] = [];
+        trMatches.forEach((trHtml, rIdx) => {
+          if (!grid[rIdx]) grid[rIdx] = [];
+          let colIdx = 0;
 
-          trMatches.forEach((trHtml, rIdx) => {
-            if (!grid[rIdx]) grid[rIdx] = [];
-            let colIdx = 0;
+          const cellRegex = /<t([dh])([^>]*)>([\s\S]*?)<\/t\1>/gi;
+          let cellMatch: RegExpExecArray | null;
 
-            const cellRegex = /<t([dh])([^>]*)>([\s\S]*?)<\/t\1>/gi;
-            let cellMatch: RegExpExecArray | null;
+          while ((cellMatch = cellRegex.exec(trHtml)) !== null) {
+            const attrs = cellMatch[2] || '';
+            const rawContent = cellMatch[3] || '';
 
-            while ((cellMatch = cellRegex.exec(trHtml)) !== null) {
-              const attrs = cellMatch[2] || '';
-              const rawContent = cellMatch[3] || '';
+            const rowspanMatch = attrs.match(/rowspan=["']?(\d+)["']?/i);
+            const colspanMatch = attrs.match(/colspan=["']?(\d+)["']?/i);
+            const rowspan = rowspanMatch ? parseInt(rowspanMatch[1], 10) : 1;
+            const colspan = colspanMatch ? parseInt(colspanMatch[1], 10) : 1;
 
-              const rowspanMatch = attrs.match(/rowspan=["']?(\d+)["']?/i);
-              const colspanMatch = attrs.match(/colspan=["']?(\d+)["']?/i);
-              const rowspan = rowspanMatch ? parseInt(rowspanMatch[1], 10) : 1;
-              const colspan = colspanMatch ? parseInt(colspanMatch[1], 10) : 1;
+            const cellText = rawContent
+              .replace(/<[^>]+>/g, ' ')
+              .replace(/&nbsp;/g, ' ')
+              .replace(/&amp;/g, '&')
+              .replace(/&lt;/g, '<')
+              .replace(/&gt;/g, '>')
+              .replace(/\s+/g, ' ')
+              .trim();
 
-              const cellText = rawContent
-                .replace(/<[^>]+>/g, ' ')
-                .replace(/&nbsp;/g, ' ')
-                .replace(/&amp;/g, '&')
-                .replace(/&lt;/g, '<')
-                .replace(/&gt;/g, '>')
-                .replace(/\s+/g, ' ')
-                .trim();
-
-              // Advance colIdx past any already filled cells (from earlier rowspans)
-              while (grid[rIdx][colIdx] !== undefined) {
-                colIdx++;
-              }
-
-              // Fill grid cells for both rowspan and colspan
-              for (let r = 0; r < rowspan; r++) {
-                const targetR = rIdx + r;
-                if (!grid[targetR]) grid[targetR] = [];
-                for (let c = 0; c < colspan; c++) {
-                  grid[targetR][colIdx + c] = cellText;
-                }
-              }
-
-              colIdx += colspan;
+            // Advance colIdx past any already filled cells (from earlier rowspans)
+            while (grid[rIdx][colIdx] !== undefined) {
+              colIdx++;
             }
-          });
 
-          // Push valid expanded rows
-          for (const r of grid) {
-            if (r && r.some((c) => c && c.trim().length > 0)) {
-              rows.push(r.map((c) => c || ''));
+            // Fill grid cells for both rowspan and colspan
+            for (let r = 0; r < rowspan; r++) {
+              const targetR = rIdx + r;
+              if (!grid[targetR]) grid[targetR] = [];
+              for (let c = 0; c < colspan; c++) {
+                grid[targetR][colIdx + c] = cellText;
+              }
             }
+
+            colIdx += colspan;
+          }
+        });
+
+        // Push valid expanded rows
+        for (const r of grid) {
+          if (r && r.some((c) => c && c.trim().length > 0)) {
+            rows.push(r.map((c) => c || ''));
           }
         }
       }
-    } catch (e) {
-      console.warn('[PPCT Parser] Mammoth HTML table extract error, using text fallback:', e);
     }
 
-    // 2. Extract raw text for fallback or line-by-line parsing
+    // Fast raw text derivation from HTML (avoids re-unzipping and re-parsing the entire docx document.xml)
+    if (html.trim().length > 0) {
+      rawText = html
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/&nbsp;/g, ' ')
+        .replace(/&amp;/g, '&')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/\s+/g, ' ')
+        .trim();
+    } else {
+      const textResult = await mammoth.extractRawText({ arrayBuffer: data });
+      rawText = textResult.value || '';
+    }
+  } catch (e) {
+    console.warn('[PPCT Parser] Mammoth fast HTML extract error, attempting text fallback:', e);
     try {
       const textResult = await mammoth.extractRawText({ arrayBuffer: data });
       rawText = textResult.value || '';
-    } catch (e) {
-      console.warn('[PPCT Parser] Mammoth text extract notice:', e);
+    } catch (err) {
+      console.warn('[PPCT Parser] Mammoth raw text fallback error:', err);
     }
-  } catch (err) {
-    console.warn('[PPCT Parser] Mammoth import or extract notice:', err);
   }
 
   // If no table rows were extracted from HTML, parse raw text lines
@@ -243,9 +258,15 @@ export async function parsePpctFile(
     rows = docxResult.rows;
     fileRawText = docxResult.rawText;
   } else {
-    // 2. Otherwise attempt Excel/CSV parsing via SheetJS
+    // 2. Otherwise attempt Excel/CSV parsing via SheetJS (high-speed options)
     try {
-      const workbook = XLSX.read(data, { type: 'array' });
+      const workbook = XLSX.read(data, {
+        type: 'array',
+        dense: true,
+        cellFormula: false,
+        cellHTML: false,
+        cellStyles: false,
+      });
       const firstSheetName = workbook.SheetNames[0];
       const sheet = workbook.Sheets[firstSheetName];
       rows = XLSX.utils.sheet_to_json<(string | number)[]>(sheet, { header: 1 });
@@ -451,16 +472,31 @@ export async function parsePpctFile(
       baiHoc = candidates[0] || cells[1] || cells[0] || '';
     }
 
-    // Detect Chapter Header (e.g. Chương VI, Chủ đề 2, Hoạt động trải nghiệm)
+    // Detect Chapter Header (e.g. Chương VI, Chủ đề 1, Hoạt động trải nghiệm)
     const isChapterOrTheme =
       /^(chương|chuong|chủ đề|chu de|phần|phan|hoạt động thực hành|hoat dong thuc hanh)\s*([ivxlcdm\d]+|[:\.\s])/i.test(normRow) ||
       /^(chương|chuong|chủ đề|chu de)\s+[ivxlcdm\d]+/i.test(normText(cells[0])) ||
       /^(chương|chuong|chủ đề|chu de)\s+[ivxlcdm\d]+/i.test(normText(cells[1] || '')) ||
       /^(chương|chuong|chủ đề|chu de)\s+[ivxlcdm\d]+/i.test(normText(baiHoc));
 
-    if (isChapterOrTheme && (!periodRange || periodRange.count === 0)) {
-      currentChapter = cleanContentWithoutNls(baiHoc || cells[0] || currentChapter);
-      continue;
+    // Check if the candidate text is purely a Chapter/Theme header without a specific lesson
+    const hasSpecificLessonMarker = /\bbài\s+\d+/i.test(baiHoc) || /\bbài\s+học\s+\d+/i.test(baiHoc);
+    if (isChapterOrTheme) {
+      if (!hasSpecificLessonMarker) {
+        // Pure Chapter Header row: e.g. "Chủ đề 1: Phương trình và hệ hai phương trình bậc nhất hai ẩn"
+        currentChapter = cleanContentWithoutNls(baiHoc || cells[0] || cells[1] || currentChapter);
+        continue;
+      } else {
+        // Row contains both Chapter and Lesson: e.g. "Chủ đề 1: Phương trình - Bài 1: Khái niệm..."
+        const parts = baiHoc.split(/(?=\bbài\s+\d+)/i);
+        if (parts.length >= 2) {
+          const chCandidate = parts[0].replace(/[-–—:\s]+$/, '').trim();
+          if (chCandidate.length > 3) {
+            currentChapter = cleanContentWithoutNls(chCandidate);
+          }
+          baiHoc = parts.slice(1).join(' ').trim();
+        }
+      }
     }
 
     // If lesson name is too short or is a header repetition, skip

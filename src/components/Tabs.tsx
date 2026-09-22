@@ -20,7 +20,7 @@ interface TabsProps {
   gvcnClassName?: string;
 }
 
-export const Tabs: React.FC<TabsProps> = ({
+export const Tabs: React.FC<TabsProps> = React.memo(({
   activeTab,
   onTabChange,
   matrixRowCount = 0,
@@ -127,17 +127,6 @@ export const Tabs: React.FC<TabsProps> = ({
           </button>
         )}
 
-        {onOpenSgkManager && (
-          <button
-            onClick={onOpenSgkManager}
-            className="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-50 hover:bg-emerald-100/80 text-emerald-900 border border-emerald-300/80 rounded-xl text-xs font-semibold transition-all shadow-2xs"
-            title="Quản lý & Tải lên Sách Giáo Khoa Toán Tập 1, Tập 2 (PDF, Excel) để bám sát Yêu cầu cần đạt"
-          >
-            <BookMarked className="w-4 h-4 text-emerald-700" />
-            <span>Sách Giáo Khoa (Tập 1, 2)</span>
-          </button>
-        )}
-
         {onOpenQuestionBank && (
           <button
             onClick={onOpenQuestionBank}
@@ -222,5 +211,5 @@ export const Tabs: React.FC<TabsProps> = ({
       </div>
     </div>
   );
-};
+});
 

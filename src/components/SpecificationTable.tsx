@@ -30,7 +30,7 @@ interface SpecificationTableProps {
   onPrintPreview: () => void;
 }
 
-export const SpecificationTable: React.FC<SpecificationTableProps> = ({
+export const SpecificationTable: React.FC<SpecificationTableProps> = React.memo(({
   config,
   matrixRows,
   specRows,
@@ -865,4 +865,4 @@ export const SpecificationTable: React.FC<SpecificationTableProps> = ({
       )}
     </div>
   );
-};
+});

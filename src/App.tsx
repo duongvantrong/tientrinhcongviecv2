@@ -123,12 +123,11 @@ export default function App() {
     return [];
   });
 
-  // Real-time date & clock tracking (defaults to real-time)
+  // Real-time date tracking (defaults to real-time)
   const [isRealTime, setIsRealTime] = useState<boolean>(() => {
     const saved = localStorage.getItem('ppct_is_realtime');
     return saved !== null ? JSON.parse(saved) : true;
   });
-  const [liveTime, setLiveTime] = useState<Date>(() => new Date());
 
   const [activeDatasetId, setActiveDatasetId] = useState<string>(() => {
     return datasets[0]?.id || '';
@@ -435,54 +434,82 @@ export default function App() {
     return generateExamSchedule(timeframeConfig, activeDataset);
   }, [timeframeConfig, activeDataset]);
 
-  // Save changes to localStorage
+  // Debounced save changes to localStorage to prevent main thread blocking
   useEffect(() => {
-    localStorage.setItem('ppct_datasets', JSON.stringify(datasets));
+    const handler = setTimeout(() => {
+      try {
+        localStorage.setItem('ppct_datasets', JSON.stringify(datasets));
+      } catch (e) {
+        console.warn('Failed to save datasets to localStorage', e);
+      }
+    }, 250);
+    return () => clearTimeout(handler);
   }, [datasets]);
 
   useEffect(() => {
-    localStorage.setItem('ppct_timeframe_config', JSON.stringify(timeframeConfig));
+    const handler = setTimeout(() => {
+      try {
+        localStorage.setItem('ppct_timeframe_config', JSON.stringify(timeframeConfig));
+      } catch (e) {
+        console.warn('Failed to save timeframe config', e);
+      }
+    }, 250);
+    return () => clearTimeout(handler);
   }, [timeframeConfig]);
 
   useEffect(() => {
-    localStorage.setItem('ppct_is_realtime', JSON.stringify(isRealTime));
+    try {
+      localStorage.setItem('ppct_is_realtime', JSON.stringify(isRealTime));
+    } catch (e) {
+      console.warn('Failed to save isRealTime', e);
+    }
   }, [isRealTime]);
 
-  // Real-time ticking and midnight automatic update
+  // Periodic date check (every 15s) for midnight automatic transition without re-rendering every 1s
   useEffect(() => {
-    if (isRealTime) {
+    if (!isRealTime) return;
+
+    const checkMidnight = () => {
       const todayStr = getTodayDateStr(new Date());
       setTimeframeConfig((prev) => (prev.currentDate !== todayStr ? { ...prev, currentDate: todayStr } : prev));
-    }
+    };
 
-    const timer = setInterval(() => {
-      const now = new Date();
-      setLiveTime(now);
-
-      if (isRealTime) {
-        const todayStr = getTodayDateStr(now);
-        setTimeframeConfig((prev) => {
-          if (prev.currentDate !== todayStr) {
-            return { ...prev, currentDate: todayStr };
-          }
-          return prev;
-        });
-      }
-    }, 1000);
-
+    checkMidnight();
+    const timer = setInterval(checkMidnight, 15000);
     return () => clearInterval(timer);
   }, [isRealTime]);
 
   useEffect(() => {
-    localStorage.setItem('ppct_matrix_config', JSON.stringify(matrixConfig));
+    const handler = setTimeout(() => {
+      try {
+        localStorage.setItem('ppct_matrix_config', JSON.stringify(matrixConfig));
+      } catch (e) {
+        console.warn('Failed to save matrix config', e);
+      }
+    }, 250);
+    return () => clearTimeout(handler);
   }, [matrixConfig]);
 
   useEffect(() => {
-    localStorage.setItem('ppct_matrix_rows', JSON.stringify(matrixRows));
+    const handler = setTimeout(() => {
+      try {
+        localStorage.setItem('ppct_matrix_rows', JSON.stringify(matrixRows));
+      } catch (e) {
+        console.warn('Failed to save matrix rows', e);
+      }
+    }, 250);
+    return () => clearTimeout(handler);
   }, [matrixRows]);
 
   useEffect(() => {
-    localStorage.setItem('ppct_sgk_books', JSON.stringify(sgkBooks));
+    const handler = setTimeout(() => {
+      try {
+        localStorage.setItem('ppct_sgk_books', JSON.stringify(sgkBooks));
+      } catch (e) {
+        console.warn('Failed to save sgk books', e);
+      }
+    }, 250);
+    return () => clearTimeout(handler);
   }, [sgkBooks]);
 
   // Handlers
@@ -691,7 +718,6 @@ export default function App() {
         term={currentTerm}
         isBeforeTerm={isBeforeTerm}
         isRealTime={isRealTime}
-        liveTime={liveTime}
         onDateChange={handleDateChange}
         onSyncRealTime={handleSyncRealTime}
         onResetDate={handleSyncRealTime}
@@ -769,6 +795,7 @@ export default function App() {
               setExamSyncTimestamp(Date.now());
               setActiveTab('exam_builder');
             }}
+            onOpenQuestionBank={() => setIsQuestionBankModalOpen(true)}
           />
         ) : activeTab === 'exam_builder' ? (
           <ExamBuilderTab
@@ -788,12 +815,14 @@ export default function App() {
         )}
       </main>
 
-      {/* Upload PPCT Modal: Chọn Khối trước rồi mới tải lên */}
+      {/* Upload PPCT Modal: Chọn Khối trước rồi mới tải lên, có mục Quản lý & Xóa */}
       <UploadPpctModal
         isOpen={isUploadModalOpen}
         onClose={() => setIsUploadModalOpen(false)}
         onAddDataset={handleAddDataset}
         initialGrade={uploadModalGrade}
+        datasets={datasets}
+        onDeleteDataset={handleDeleteDataset}
       />
 
       {/* Sgk Manager Modal (Tập 1, Tập 2) */}

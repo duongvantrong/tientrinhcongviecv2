@@ -11,7 +11,7 @@ interface HeaderProps {
   term: 1 | 2;
   isBeforeTerm: boolean;
   isRealTime: boolean;
-  liveTime: Date;
+  liveTime?: Date;
   onDateChange: (newDate: string) => void;
   onSyncRealTime: () => void;
   onResetDate?: () => void;
@@ -22,7 +22,34 @@ interface HeaderProps {
   onOpenWhitelist?: () => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({
+/**
+ * Isolated live clock component that ticks every second
+ * WITHOUT causing Header or the rest of the application to re-render.
+ */
+const LiveClockDisplay: React.FC = React.memo(() => {
+  const [time, setTime] = React.useState<Date>(() => new Date());
+
+  React.useEffect(() => {
+    const timer = setInterval(() => {
+      setTime(new Date());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  return (
+    <>
+      <span className="font-semibold text-slate-800">
+        {getDayOfWeekVN(time)}, {formatDateVN(time)}
+      </span>
+
+      <span className="font-mono text-[11px] sm:text-xs font-bold text-emerald-800 bg-emerald-50 px-1.5 sm:px-2 py-0.5 rounded border border-emerald-200 shadow-2xs">
+        {formatTimeVN(time)}
+      </span>
+    </>
+  );
+});
+
+export const Header: React.FC<HeaderProps> = React.memo(({
   currentDateStr,
   startDateWeek1Str,
   currentWeek,
@@ -68,13 +95,7 @@ export const Header: React.FC<HeaderProps> = ({
                     <span>Thời gian thực</span>
                   </span>
 
-                  <span className="font-semibold text-slate-800">
-                    {getDayOfWeekVN(liveTime)}, {formatDateVN(liveTime)}
-                  </span>
-
-                  <span className="font-mono text-[11px] sm:text-xs font-bold text-emerald-800 bg-emerald-50 px-1.5 sm:px-2 py-0.5 rounded border border-emerald-200 shadow-2xs">
-                    {formatTimeVN(liveTime)}
-                  </span>
+                  <LiveClockDisplay />
                 </>
               ) : (
                 <>
@@ -193,4 +214,4 @@ export const Header: React.FC<HeaderProps> = ({
       </div>
     </header>
   );
-};
+});
