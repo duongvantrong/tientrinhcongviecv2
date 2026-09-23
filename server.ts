@@ -640,6 +640,102 @@ Yêu cầu phân tích:
     }
   });
 
+  // API endpoint: Generate high-quality, scientifically accurate exam questions using Gemini AI
+  app.post('/api/generate-exam-questions', async (req, res) => {
+    try {
+      const {
+        subject = 'Toán',
+        grade = '9',
+        topics = [],
+        format = 'tn_only',
+        count = 10,
+        examLevel = 'kttx',
+      } = req.body;
+
+      if (!process.env.GEMINI_API_KEY) {
+        return res.json({
+          success: false,
+          fallback: true,
+          message: 'Không tìm thấy GEMINI_API_KEY, hệ thống kích hoạt Ngân hàng chuẩn GDPT 2018 cục bộ.',
+        });
+      }
+
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      const topicsStr = Array.isArray(topics) && topics.length > 0 ? topics.join('; ') : `Nội dung Toán ${grade} học kì 1`;
+
+      const prompt = `
+Bạn là chuyên gia thẩm định và ra đề thi môn ${subject} THCS chuẩn Chương trình Giáo dục Phổ thông 2018 (GDPT 2018) của Bộ Giáo dục và Đào tạo Việt Nam.
+
+Nhiệm vụ: Hãy tạo đề kiểm tra (${examLevel.toUpperCase()}) môn ${subject} Lớp ${grade}.
+Chủ đề / Bài học căn cứ: ${topicsStr}.
+Hình thức kiểm tra: ${format === 'tn_only' ? '100% Trắc nghiệm 4 lựa chọn (MCQ)' : format === 'tl_only' ? '100% Tự luận' : 'Kết hợp Trắc nghiệm và Tự luận'}.
+Số lượng câu hỏi yêu cầu: ${count} câu.
+
+CÁC NGUYÊN TẮC BẮT BUỘC:
+1. TÍNH CỤ THỂ & KHOA HỌC: Mọi câu hỏi phải CỰC KỲ RÕ RÀNG, có phương trình, biểu thức, dữ liệu số học thực tế, hình học cụ thể.
+2. TUYỆT ĐỐI KHÔNG sinh câu hỏi mơ hồ, chung chung dạng "Áp dụng quy tắc trong bài học...", "Cho bài toán yêu cầu giải quyết...", "Cho biểu thức liên quan đến...".
+3. CÔNG THỨC TOÁN HỌC: Bắt buộc viết bằng LaTeX chuẩn nằm trong cặp dấu đô la $...$ (ví dụ: $2x - 3y = 5$, $\\sqrt{x + 1}$, $\\frac{a}{b}$).
+4. TRẮC NGHIỆM: Phải có 4 phương án A, B, C, D phân biệt, duy nhất 1 phương án đúng, các phương án nhiễu khoa học, kèm lời giải chi tiết.
+5. TỰ LUẬN: Đầy đủ các ý a, b, c với biểu thức hoặc dữ liệu số rõ ràng, kèm thang điểm từng bước (essayGradingSteps) tổng điểm chuẩn (ví dụ 3.5đ, 3.5đ, 3.0đ cho 3 bài).
+
+Yêu cầu định dạng trả về DUY NHẤT một chuỗi JSON hợp lệ (không kèm markdown \`\`\`json):
+{
+  "questions": [
+    {
+      "prompt": "Câu hỏi cụ thể bằng LaTeX...",
+      "section": "${format === 'tl_only' ? 'part4_essay' : 'part1_mcq'}",
+      "type": "${format === 'tl_only' ? 'essay' : 'multiple_choice'}",
+      "cognitiveLevel": "nhanBiet" | "thongHieu" | "vanDung" | "vanDungCao",
+      "options": [
+        { "key": "A", "text": "Phương án A" },
+        { "key": "B", "text": "Phương án B" },
+        { "key": "C", "text": "Phương án C" },
+        { "key": "D", "text": "Phương án D" }
+      ],
+      "correctOption": "A",
+      "solutionExplanation": "Lời giải chi tiết...",
+      "learningObjective": "Yêu cầu cần đạt...",
+      "essayGradingSteps": [
+        { "step": "Bước 1...", "point": 1.0 },
+        { "step": "Bước 2...", "point": 1.5 }
+      ]
+    }
+  ]
+}
+`;
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: prompt,
+      });
+
+      const text = response.text || '';
+      const cleanJson = text.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/i, '').trim();
+      const parsed = JSON.parse(cleanJson);
+
+      if (parsed && Array.isArray(parsed.questions) && parsed.questions.length > 0) {
+        return res.json({
+          success: true,
+          questions: parsed.questions,
+          source: 'gemini_ai',
+        });
+      }
+
+      return res.json({
+        success: false,
+        fallback: true,
+        message: 'AI không trả về danh sách câu hỏi hợp lệ, chuyển sang ngân hàng chuẩn GDPT 2018.',
+      });
+    } catch (err: any) {
+      console.warn('[Generate Questions API] Gemini AI error, fallback to local:', err?.message || err);
+      return res.json({
+        success: false,
+        fallback: true,
+        message: 'Lỗi gọi API AI, tự động chuyển về Ngân hàng câu hỏi chuẩn GDPT 2018.',
+      });
+    }
+  });
+
   // Vite middleware for development
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({

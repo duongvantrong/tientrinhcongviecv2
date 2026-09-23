@@ -27,61 +27,61 @@ const generateToan9Lessons = (): PpctLesson[] => {
   const lessons: PpctLesson[] = [];
   let stt = 1;
 
-  // HK1: Tuần 1 -> 18 (72 tiết)
+  // HK1: Tuần 1 -> 18 (72 tiết) - Mỗi tuần chuẩn bị đầy đủ cả Đại số (Số học) và Hình học
   const hk1Plan = [
     // Tuần 1 (T1-T4)
-    { w: 1, c: 'Chương I. Phương trình và hệ hai phương trình bậc nhất hai ẩn', b: 'Bài 1. Khái niệm phương trình và hệ hai phương trình bậc nhất hai ẩn (tiết 1, 2)', p: 2 },
-    { w: 1, c: 'Chương I. Phương trình và hệ hai phương trình bậc nhất hai ẩn', b: 'Bài 2. Giải hệ hai phương trình bậc nhất hai ẩn (tiết 1, 2) - PP thế', p: 2 },
+    { w: 1, c: 'Chương I. Phương trình và hệ hai phương trình bậc nhất hai ẩn (Đại số)', b: 'Bài 1. Khái niệm phương trình và hệ hai phương trình bậc nhất hai ẩn (tiết 1, 2, 3)', p: 3 },
+    { w: 1, c: 'Chương IV. Hệ thức lượng trong tam giác vuông (Hình học)', b: 'Bài 11. Một số hệ thức về cạnh và đường cao trong tam giác vuông (tiết 1)', p: 1 },
     // Tuần 2 (T5-T8)
-    { w: 2, c: 'Chương I. Phương trình và hệ hai phương trình bậc nhất hai ẩn', b: 'Bài 2. Giải hệ hai phương trình bậc nhất hai ẩn (tiết 3, 4) - PP cộng đại số', p: 2 },
-    { w: 2, c: 'Chương I. Phương trình và hệ hai phương trình bậc nhất hai ẩn', b: 'Luyện tập chung: Các phương pháp giải hệ hai phương trình bậc nhất hai ẩn', p: 2 },
+    { w: 2, c: 'Chương I. Phương trình và hệ hai phương trình bậc nhất hai ẩn (Đại số)', b: 'Bài 2. Giải hệ hai phương trình bậc nhất hai ẩn: PP thế và PP cộng đại số (tiết 1, 2, 3)', p: 3 },
+    { w: 2, c: 'Chương IV. Hệ thức lượng trong tam giác vuông (Hình học)', b: 'Bài 11. Một số hệ thức về cạnh và đường cao trong tam giác vuông (tiết 2)', p: 1 },
     // Tuần 3 (T9-T12) - KTTX 1
-    { w: 3, c: 'Chương I. Phương trình và hệ hai phương trình bậc nhất hai ẩn', b: 'Bài 3. Giải bài toán bằng cách lập hệ phương trình (tiết 1, 2)', p: 2 },
-    { w: 3, c: 'Chương I. Phương trình và hệ hai phương trình bậc nhất hai ẩn', b: 'Bài 3. Giải bài toán bằng cách lập hệ phương trình (tiết 3) & Kiểm tra thường xuyên 1 (HK1)', p: 2 },
+    { w: 3, c: 'Chương I. Phương trình và hệ hai phương trình bậc nhất hai ẩn (Đại số)', b: 'Bài 3. Giải bài toán bằng cách lập hệ phương trình (tiết 1, 2, 3)', p: 3 },
+    { w: 3, c: 'Chương IV. Hệ thức lượng trong tam giác vuông (Hình học)', b: 'Bài 12. Tỉ số lượng giác của góc nhọn (tiết 1) & Kiểm tra thường xuyên 1 (HK1)', p: 1 },
     // Tuần 4 (T13-T16)
-    { w: 4, c: 'Chương I. Phương trình và hệ hai phương trình bậc nhất hai ẩn', b: 'Bài 4. Phương trình quy về phương trình bậc nhất một ẩn (tiết 1, 2) - Phương trình tích', p: 2 },
-    { w: 4, c: 'Chương I. Phương trình và hệ hai phương trình bậc nhất hai ẩn', b: 'Bài 4. Phương trình quy về phương trình bậc nhất một ẩn (tiết 3, 4) - Phương trình chứa ẩn ở mẫu', p: 2 },
+    { w: 4, c: 'Chương I. Phương trình và hệ hai phương trình bậc nhất hai ẩn (Đại số)', b: 'Bài 4. Phương trình quy về phương trình bậc nhất một ẩn: PT tích và PT chứa ẩn ở mẫu (tiết 1, 2, 3)', p: 3 },
+    { w: 4, c: 'Chương IV. Hệ thức lượng trong tam giác vuông (Hình học)', b: 'Bài 12. Tỉ số lượng giác của góc nhọn (tiết 2)', p: 1 },
     // Tuần 5 (T17-T20)
-    { w: 5, c: 'Chương I. Phương trình và hệ hai phương trình bậc nhất hai ẩn', b: 'Luyện tập chung các dạng phương trình quy về bậc nhất', p: 2 },
-    { w: 5, c: 'Chương I. Phương trình và hệ hai phương trình bậc nhất hai ẩn', b: 'Bài tập cuối chương I (tiết 1, 2)', p: 2 },
+    { w: 5, c: 'Chương I. Phương trình và hệ hai phương trình bậc nhất hai ẩn (Đại số)', b: 'Luyện tập chung và Bài tập cuối chương I: Hệ phương trình bậc nhất hai ẩn', p: 3 },
+    { w: 5, c: 'Chương IV. Hệ thức lượng trong tam giác vuông (Hình học)', b: 'Bài 12. Tỉ số lượng giác của góc nhọn (tiết 3)', p: 1 },
     // Tuần 6 (T21-T24) - KTTX 2
-    { w: 6, c: 'Chương II. Bất đẳng thức và bất phương trình bậc nhất một ẩn', b: 'Bài 5. Bất đẳng thức và tính chất (tiết 1, 2)', p: 2 },
-    { w: 6, c: 'Chương II. Bất đẳng thức và bất phương trình bậc nhất một ẩn', b: 'Bài 6. Bất phương trình bậc nhất một ẩn (tiết 1) & Kiểm tra thường xuyên 2 (HK1)', p: 2 },
+    { w: 6, c: 'Chương II. Bất đẳng thức và bất phương trình bậc nhất một ẩn (Đại số)', b: 'Bài 5. Bất đẳng thức & Bài 6. Bất phương trình bậc nhất một ẩn (tiết 1, 2, 3)', p: 3 },
+    { w: 6, c: 'Chương IV. Hệ thức lượng trong tam giác vuông (Hình học)', b: 'Bài 13. Một số hệ thức giữa cạnh và góc trong tam giác vuông (tiết 1) & Kiểm tra thường xuyên 2 (HK1)', p: 1 },
     // Tuần 7 (T25-T28)
-    { w: 7, c: 'Chương II. Bất đẳng thức và bất phương trình bậc nhất một ẩn', b: 'Bài 6. Bất phương trình bậc nhất một ẩn (tiết 2, 3)', p: 2 },
-    { w: 7, c: 'Chương II. Bất đẳng thức và bất phương trình bậc nhất một ẩn', b: 'Luyện tập chung và bài tập cuối chương II', p: 2 },
+    { w: 7, c: 'Chương II. Bất đẳng thức và bất phương trình bậc nhất một ẩn (Đại số)', b: 'Bài 6. Bất phương trình bậc nhất một ẩn (tiếp theo) & Luyện tập chương II', p: 3 },
+    { w: 7, c: 'Chương IV. Hệ thức lượng trong tam giác vuông (Hình học)', b: 'Bài 13. Một số hệ thức giữa cạnh và góc trong tam giác vuông (tiết 2)', p: 1 },
     // Tuần 8 (T29-T32)
-    { w: 8, c: 'Chương IV. Hệ thức lượng trong tam giác vuông', b: 'Bài 11. Tỉ số lượng giác của góc nhọn (tiết 1, 2)', p: 2 },
-    { w: 8, c: 'Chương IV. Hệ thức lượng trong tam giác vuông', b: 'Bài 11. Tỉ số lượng giác của góc nhọn (tiết 3) & Bài 12. Hệ thức giữa cạnh và góc trong tam giác vuông (tiết 1)', p: 2 },
+    { w: 8, c: 'Chương I & II. Ôn tập Đại số giữa học kỳ I', b: 'Ôn tập Đại số giữa học kỳ I: Hệ phương trình và Bất phương trình', p: 2 },
+    { w: 8, c: 'Chương IV. Hệ thức lượng trong tam giác vuông (Hình học)', b: 'Luyện tập Hệ thức lượng & Thực hành ứng dụng đo khoảng cách, chiều cao', p: 2 },
     // Tuần 9 (T33-T36) - GIỮA KỲ 1
-    { w: 9, c: 'Ôn tập & Kiểm tra giữa kì I', b: 'Ôn tập kiểm tra giữa học kỳ I (Đại số & Hình học)', p: 2 },
-    { w: 9, c: 'Ôn tập & Kiểm tra giữa kì I', b: 'Kiểm tra giữa học kỳ I (Đề 90 phút) & Trả bài kiểm tra', p: 2 },
+    { w: 9, c: 'Ôn tập & Kiểm tra giữa kì I', b: 'Ôn tập tổng hợp kiểm tra giữa học kỳ I (Đại số & Hình học)', p: 2 },
+    { w: 9, c: 'Ôn tập & Kiểm tra giữa kì I', b: 'Kiểm tra giữa học kỳ I môn Toán 9 (Đại số 70% + Hình học 30%) & Trả bài', p: 2 },
     // Tuần 10 (T37-T40)
-    { w: 10, c: 'Chương IV. Hệ thức lượng trong tam giác vuông', b: 'Bài 12. Một số hệ thức giữa cạnh và góc trong tam giác vuông (tiết 2, 3)', p: 2 },
-    { w: 10, c: 'Chương IV. Hệ thức lượng trong tam giác vuông', b: 'Bài tập cuối chương IV (tiết 1, 2)', p: 2 },
+    { w: 10, c: 'Chương III. Căn bậc hai và căn bậc ba (Đại số)', b: 'Bài 7. Căn bậc hai và căn thức bậc hai (tiết 1, 2, 3)', p: 3 },
+    { w: 10, c: 'Chương IV. Hệ thức lượng trong tam giác vuông (Hình học)', b: 'Bài tập cuối chương IV: Hệ thức lượng trong tam giác vuông', p: 1 },
     // Tuần 11 (T41-T44) - KTTX 3
-    { w: 11, c: 'Chương III. Căn bậc hai và căn bậc ba', b: 'Bài 7. Căn bậc hai và căn thức bậc hai (tiết 1, 2)', p: 2 },
-    { w: 11, c: 'Chương III. Căn bậc hai và căn bậc ba', b: 'Bài 8. Khai căn bậc hai với phép nhân và phép chia (tiết 1) & Kiểm tra thường xuyên 3 (HK1)', p: 2 },
+    { w: 11, c: 'Chương III. Căn bậc hai và căn bậc ba (Đại số)', b: 'Bài 8. Khai căn bậc hai với phép nhân và phép chia (tiết 1, 2, 3)', p: 3 },
+    { w: 11, c: 'Chương V. Đường tròn (Hình học)', b: 'Bài 14. Mở đầu về đường tròn. Tính đối xứng của đường tròn (tiết 1) & KTTX 3 (HK1)', p: 1 },
     // Tuần 12 (T45-T48)
-    { w: 12, c: 'Chương III. Căn bậc hai và căn bậc ba', b: 'Bài 8. Khai căn bậc hai với phép nhân và phép chia (tiết 2, 3)', p: 2 },
-    { w: 12, c: 'Chương III. Căn bậc hai và căn bậc ba', b: 'Bài 9. Biến đổi đơn giản biểu thức chứa căn bậc hai (tiết 1, 2)', p: 2 },
+    { w: 12, c: 'Chương III. Căn bậc hai và căn bậc ba (Đại số)', b: 'Bài 9. Biến đổi đơn giản biểu thức chứa căn bậc hai (tiết 1, 2, 3)', p: 3 },
+    { w: 12, c: 'Chương V. Đường tròn (Hình học)', b: 'Bài 15. Vị trí tương đối của đường thẳng và đường tròn (tiết 1)', p: 1 },
     // Tuần 13 (T49-T52)
-    { w: 13, c: 'Chương III. Căn bậc hai và căn bậc ba', b: 'Bài 9. Biến đổi đơn giản biểu thức chứa căn bậc hai (tiết 3, 4)', p: 2 },
-    { w: 13, c: 'Chương III. Căn bậc hai và căn bậc ba', b: 'Bài 10. Căn bậc ba và căn thức bậc ba & Bài tập cuối chương III', p: 2 },
+    { w: 13, c: 'Chương III. Căn bậc hai và căn bậc ba (Đại số)', b: 'Bài 9. Rút gọn biểu thức chứa căn thức bậc hai (tiết 4, 5, 6)', p: 3 },
+    { w: 13, c: 'Chương V. Đường tròn (Hình học)', b: 'Bài 15. Tiếp tuyến của đường tròn và tính chất hai tiếp tuyến cắt nhau', p: 1 },
     // Tuần 14 (T53-T56) - KTTX 4
-    { w: 14, c: 'Chương V. Đường tròn', b: 'Bài 13. Mở đầu về đường tròn. Tính đối xứng của đường tròn (tiết 1, 2)', p: 2 },
-    { w: 14, c: 'Chương V. Đường tròn', b: 'Bài 14. Vị trí tương đối của hai đường tròn (tiết 1) & Kiểm tra thường xuyên 4 (HK1)', p: 2 },
+    { w: 14, c: 'Chương III. Căn bậc hai và căn bậc ba (Đại số)', b: 'Bài 10. Căn bậc ba và căn thức bậc ba (tiết 1, 2, 3)', p: 3 },
+    { w: 14, c: 'Chương V. Đường tròn (Hình học)', b: 'Bài 16. Vị trí tương đối của hai đường tròn (tiết 1) & KTTX 4 (HK1)', p: 1 },
     // Tuần 15 (T57-T60)
-    { w: 15, c: 'Chương V. Đường tròn', b: 'Bài 14. Vị trí tương đối của đường thẳng và đường tròn (tiết 2, 3)', p: 2 },
-    { w: 15, c: 'Chương V. Đường tròn', b: 'Bài 15. Vị trí tương đối của hai đường tròn (tiết 1, 2)', p: 2 },
+    { w: 15, c: 'Chương III. Căn bậc hai và căn bậc ba (Đại số)', b: 'Luyện tập chung và Bài tập cuối chương III: Căn bậc hai, căn bậc ba', p: 3 },
+    { w: 15, c: 'Chương V. Đường tròn (Hình học)', b: 'Bài 16. Góc ở tâm, cung và số đo cung của đường tròn', p: 1 },
     // Tuần 16 (T61-T64)
-    { w: 16, c: 'Chương V. Đường tròn', b: 'Bài tập cuối chương V: Đường tròn (tiết 1, 2)', p: 2 },
-    { w: 16, c: 'Thực hành trải nghiệm', b: 'Hoạt động thực hành và trải nghiệm: Tính chiều cao và khoảng cách', p: 2 },
+    { w: 16, c: 'Ứng dụng toán học thực tiễn', b: 'Hoạt động thực hành và trải nghiệm: Ứng dụng căn thức và tỉ số lượng giác thực tế', p: 3 },
+    { w: 16, c: 'Chương V. Đường tròn (Hình học)', b: 'Bài tập cuối chương V: Đường tròn', p: 1 },
     // Tuần 17 (T65-T68)
     { w: 17, c: 'Ôn tập cuối học kỳ I', b: 'Ôn tập cuối học kỳ I (Phần Đại số: Chương I, II, III)', p: 2 },
     { w: 17, c: 'Ôn tập cuối học kỳ I', b: 'Ôn tập cuối học kỳ I (Phần Hình học: Chương IV, V)', p: 2 },
     // Tuần 18 (T69-T72) - CUỐI KỲ 1
-    { w: 18, c: 'Kiểm tra cuối học kỳ I', b: 'Kiểm tra cuối học kỳ I môn Toán 9 (Đề 90 phút)', p: 2 },
+    { w: 18, c: 'Kiểm tra cuối học kỳ I', b: 'Kiểm tra cuối học kỳ I môn Toán 9 (Đề 90 phút: Đại số 70% + Hình học 30%)', p: 2 },
     { w: 18, c: 'Tổng kết học kỳ I', b: 'Trả bài kiểm tra cuối học kỳ I và sơ kết đánh giá học kỳ I', p: 2 },
   ];
 
@@ -179,41 +179,59 @@ const generateToan6Lessons = (): PpctLesson[] => {
   let stt = 1;
 
   const hk1Plan = [
-    { w: 1, c: 'Chương I. Tập hợp các số tự nhiên', b: 'Bài 1. Tập hợp và phần tử của tập hợp (tiết 1, 2)', p: 2 },
-    { w: 1, c: 'Chương I. Tập hợp các số tự nhiên', b: 'Bài 2. Cách ghi số tự nhiên (tiết 1, 2)', p: 2 },
-    { w: 2, c: 'Chương I. Tập hợp các số tự nhiên', b: 'Bài 3. Thứ tự trong tập hợp các số tự nhiên (tiết 1, 2)', p: 2 },
-    { w: 2, c: 'Chương I. Tập hợp các số tự nhiên', b: 'Bài 4. Phép cộng và phép trừ số tự nhiên (tiết 1, 2)', p: 2 },
-    { w: 3, c: 'Chương I. Tập hợp các số tự nhiên', b: 'Bài 5. Phép nhân và phép chia số tự nhiên (tiết 1, 2)', p: 2 },
-    { w: 3, c: 'Chương I. Tập hợp các số tự nhiên', b: 'Luyện tập chung & Kiểm tra thường xuyên 1 (HK1)', p: 2 },
-    { w: 4, c: 'Chương I. Tập hợp các số tự nhiên', b: 'Bài 6. Lũy thừa với số mũ tự nhiên (tiết 1, 2)', p: 2 },
-    { w: 4, c: 'Chương I. Tập hợp các số tự nhiên', b: 'Bài 7. Thứ tự thực hiện các phép tính (tiết 1, 2)', p: 2 },
-    { w: 5, c: 'Chương I. Tập hợp các số tự nhiên', b: 'Luyện tập chung và Bài tập cuối chương I (tiết 1, 2)', p: 2 },
-    { w: 5, c: 'Chương II. Tính chia hết trong tập hợp các số tự nhiên', b: 'Bài 8. Quan hệ chia hết và tính chất (tiết 1, 2)', p: 2 },
-    { w: 6, c: 'Chương II. Tính chia hết trong tập hợp các số tự nhiên', b: 'Bài 9. Dấu hiệu chia hết cho 2, cho 5 (tiết 1, 2)', p: 2 },
-    { w: 6, c: 'Chương II. Tính chia hết trong tập hợp các số tự nhiên', b: 'Bài 10. Dấu hiệu chia hết cho 3, cho 9 & Kiểm tra thường xuyên 2 (HK1)', p: 2 },
-    { w: 7, c: 'Chương II. Tính chia hết trong tập hợp các số tự nhiên', b: 'Bài 11. Số nguyên tố. Hợp số. Phân tích ra thừa số nguyên tố (tiết 1, 2)', p: 2 },
-    { w: 7, c: 'Chương II. Tính chia hết trong tập hợp các số tự nhiên', b: 'Bài 12. Ước chung và ước chung lớn nhất (tiết 1, 2)', p: 2 },
-    { w: 8, c: 'Chương II. Tính chia hết trong tập hợp các số tự nhiên', b: 'Bài 13. Bội chung và bội chung nhỏ nhất (tiết 1, 2)', p: 2 },
-    { w: 8, c: 'Chương II. Tính chia hết trong tập hợp các số tự nhiên', b: 'Luyện tập chung và Bài tập cuối chương II', p: 2 },
-    { w: 9, c: 'Ôn tập & Kiểm tra giữa kì I', b: 'Ôn tập kiểm tra giữa học kỳ I (Chương I & II)', p: 2 },
-    { w: 9, c: 'Ôn tập & Kiểm tra giữa kì I', b: 'Kiểm tra giữa học kỳ I môn Toán 6 (90 phút)', p: 2 },
-    { w: 10, c: 'Chương III. Số nguyên', b: 'Bài 14. Tập hợp các số nguyên (tiết 1, 2)', p: 2 },
-    { w: 10, c: 'Chương III. Số nguyên', b: 'Bài 15. Thứ tự trong tập hợp các số nguyên (tiết 1, 2)', p: 2 },
-    { w: 11, c: 'Chương III. Số nguyên', b: 'Bài 16. Phép cộng và phép trừ hai số nguyên (tiết 1, 2)', p: 2 },
-    { w: 11, c: 'Chương III. Số nguyên', b: 'Bài 16. Phép cộng và trừ số nguyên (tiết 3) & Kiểm tra thường xuyên 3 (HK1)', p: 2 },
-    { w: 12, c: 'Chương III. Số nguyên', b: 'Bài 17. Quy tắc dấu ngoặc (tiết 1, 2)', p: 2 },
-    { w: 12, c: 'Chương III. Số nguyên', b: 'Bài 18. Phép nhân hai số nguyên (tiết 1, 2)', p: 2 },
-    { w: 13, c: 'Chương III. Số nguyên', b: 'Bài 19. Phép chia hết. Ước và bội của một số nguyên (tiết 1, 2)', p: 2 },
-    { w: 13, c: 'Chương III. Số nguyên', b: 'Luyện tập chung và Bài tập cuối chương III (tiết 1, 2)', p: 2 },
-    { w: 14, c: 'Chương IV. Hình học trực quan', b: 'Bài 20. Tam giác đều. Hình vuông. Lục giác đều (tiết 1, 2)', p: 2 },
-    { w: 14, c: 'Chương IV. Hình học trực quan', b: 'Bài 21. Hình chữ nhật. Hình thoi (tiết 1) & Kiểm tra thường xuyên 4 (HK1)', p: 2 },
-    { w: 15, c: 'Chương IV. Hình học trực quan', b: 'Bài 21. Hình bình hành. Hình thang cân (tiết 2, 3)', p: 2 },
-    { w: 15, c: 'Chương IV. Hình học trực quan', b: 'Bài 22. Chu vi và diện tích một số hình phẳng trong thực tế (tiết 1, 2)', p: 2 },
-    { w: 16, c: 'Chương IV. Hình học trực quan', b: 'Bài 22. Chu vi và diện tích (tiết 3) & Bài tập cuối chương IV', p: 2 },
-    { w: 16, c: 'Thực hành trải nghiệm', b: 'Hoạt động thực hành trải nghiệm: Cắt dán mô hình hình phẳng', p: 2 },
-    { w: 17, c: 'Ôn tập cuối học kỳ I', b: 'Ôn tập cuối học kỳ I môn Toán 6 (Phần Số học)', p: 2 },
-    { w: 17, c: 'Ôn tập cuối học kỳ I', b: 'Ôn tập cuối học kỳ I môn Toán 6 (Phần Hình học)', p: 2 },
-    { w: 18, c: 'Kiểm tra cuối học kỳ I', b: 'Kiểm tra cuối học kỳ I môn Toán 6 (Đề 90 phút)', p: 2 },
+    // Tuần 1 (T1-T4)
+    { w: 1, c: 'Chương I. Tập hợp các số tự nhiên (Số học)', b: 'Bài 1. Tập hợp và phần tử của tập hợp & Bài 2. Cách ghi số tự nhiên (tiết 1, 2, 3)', p: 3 },
+    { w: 1, c: 'Chương IV. Một số hình phẳng trong thực tiễn (Hình học)', b: 'Bài 20. Tam giác đều (tiết 1)', p: 1 },
+    // Tuần 2 (T5-T8)
+    { w: 2, c: 'Chương I. Tập hợp các số tự nhiên (Số học)', b: 'Bài 3. Thứ tự trong tập hợp các số tự nhiên & Bài 4. Phép cộng, trừ (tiết 1, 2, 3)', p: 3 },
+    { w: 2, c: 'Chương IV. Một số hình phẳng trong thực tiễn (Hình học)', b: 'Bài 20. Hình vuông (tiết 2)', p: 1 },
+    // Tuần 3 (T9-T12) - KTTX 1
+    { w: 3, c: 'Chương I. Tập hợp các số tự nhiên (Số học)', b: 'Bài 5. Phép nhân và phép chia số tự nhiên (tiết 1, 2, 3)', p: 3 },
+    { w: 3, c: 'Chương IV. Một số hình phẳng trong thực tiễn (Hình học)', b: 'Bài 20. Lục giác đều (tiết 3) & Kiểm tra thường xuyên 1 (HK1)', p: 1 },
+    // Tuần 4 (T13-T16)
+    { w: 4, c: 'Chương I. Tập hợp các số tự nhiên (Số học)', b: 'Bài 6. Lũy thừa với số mũ tự nhiên & Bài 7. Thứ tự thực hiện phép tính (tiết 1, 2, 3)', p: 3 },
+    { w: 4, c: 'Chương IV. Một số hình phẳng trong thực tiễn (Hình học)', b: 'Bài 21. Hình chữ nhật và hình thoi (tiết 1)', p: 1 },
+    // Tuần 5 (T17-T20)
+    { w: 5, c: 'Chương I. Tập hợp các số tự nhiên (Số học)', b: 'Luyện tập chung và Bài tập cuối chương I: Tập hợp số tự nhiên', p: 3 },
+    { w: 5, c: 'Chương IV. Một số hình phẳng trong thực tiễn (Hình học)', b: 'Bài 21. Hình bình hành và hình thang cân (tiết 2)', p: 1 },
+    // Tuần 6 (T21-T24) - KTTX 2
+    { w: 6, c: 'Chương II. Tính chia hết trong tập hợp số tự nhiên (Số học)', b: 'Bài 8. Quan hệ chia hết & Bài 9. Dấu hiệu chia hết cho 2, 5 (tiết 1, 2, 3)', p: 3 },
+    { w: 6, c: 'Chương IV. Một số hình phẳng trong thực tiễn (Hình học)', b: 'Bài 22. Chu vi và diện tích của một số hình phẳng (tiết 1) & KTTX 2 (HK1)', p: 1 },
+    // Tuần 7 (T25-T28)
+    { w: 7, c: 'Chương II. Tính chia hết trong tập hợp số tự nhiên (Số học)', b: 'Bài 10. Dấu hiệu chia hết cho 3, 9 & Bài 11. Số nguyên tố (tiết 1, 2, 3)', p: 3 },
+    { w: 7, c: 'Chương IV. Một số hình phẳng trong thực tiễn (Hình học)', b: 'Bài 22. Chu vi và diện tích của một số hình phẳng (tiết 2)', p: 1 },
+    // Tuần 8 (T29-T32)
+    { w: 8, c: 'Ôn tập Số học giữa học kỳ I', b: 'Ôn tập Số học giữa học kỳ I: Số tự nhiên và Tính chia hết', p: 2 },
+    { w: 8, c: 'Chương IV. Hình học trực quan', b: 'Luyện tập tính chu vi, diện tích các hình phẳng & Bài tập cuối chương IV', p: 2 },
+    // Tuần 9 (T33-T36) - GIỮA KỲ 1
+    { w: 9, c: 'Ôn tập & Kiểm tra giữa kì I', b: 'Ôn tập tổng hợp kiểm tra giữa học kỳ I (Số học & Hình học)', p: 2 },
+    { w: 9, c: 'Ôn tập & Kiểm tra giữa kì I', b: 'Kiểm tra giữa học kỳ I môn Toán 6 (Số học 70% + Hình học 30%) & Trả bài', p: 2 },
+    // Tuần 10 (T37-T40)
+    { w: 10, c: 'Chương II. Tính chia hết trong tập hợp số tự nhiên (Số học)', b: 'Bài 12. Ước chung và ước chung lớn nhất (tiết 1, 2, 3)', p: 3 },
+    { w: 10, c: 'Thực hành trải nghiệm hình học', b: 'Hoạt động trải nghiệm: Cắt ghép tạo hình phẳng và đo diện tích thực tế', p: 1 },
+    // Tuần 11 (T41-T44) - KTTX 3
+    { w: 11, c: 'Chương II. Tính chia hết trong tập hợp số tự nhiên (Số học)', b: 'Bài 13. Bội chung và bội chung nhỏ nhất (tiết 1, 2, 3)', p: 3 },
+    { w: 11, c: 'Ứng dụng hình học thực tế', b: 'Thực hành tính chu vi sân trường, khu vườn & Kiểm tra thường xuyên 3 (HK1)', p: 1 },
+    // Tuần 12 (T45-T48)
+    { w: 12, c: 'Chương III. Số nguyên (Số học)', b: 'Bài 14. Tập hợp các số nguyên & Bài 15. Thứ tự trong tập hợp số nguyên', p: 3 },
+    { w: 12, c: 'Hình học và thực tiễn', b: 'Vẽ hình đơn giản với thước và compa: Tam giác đều, hình vuông', p: 1 },
+    // Tuần 13 (T49-T52)
+    { w: 13, c: 'Chương III. Số nguyên (Số học)', b: 'Bài 16. Phép cộng và phép trừ hai số nguyên (tiết 1, 2, 3)', p: 3 },
+    { w: 13, c: 'Hình học và thực tiễn', b: 'Luyện tập các đặc điểm đối xứng của hình phẳng trong thực tế', p: 1 },
+    // Tuần 14 (T53-T56) - KTTX 4
+    { w: 14, c: 'Chương III. Số nguyên (Số học)', b: 'Bài 17. Quy tắc dấu ngoặc & tính chất phép cộng số nguyên (tiết 1, 2, 3)', p: 3 },
+    { w: 14, c: 'Hình học và thực tiễn', b: 'Bài toán thực tế về diện tích lát gạch nền nhà & KTTX 4 (HK1)', p: 1 },
+    // Tuần 15 (T57-T60)
+    { w: 15, c: 'Chương III. Số nguyên (Số học)', b: 'Bài 18. Phép nhân hai số nguyên & Bài 19. Phép chia hết (tiết 1, 2, 3)', p: 3 },
+    { w: 15, c: 'Hình học và thực tiễn', b: 'Thực hành đo đạc và ước lượng kích thước vật thể dạng hình phẳng', p: 1 },
+    // Tuần 16 (T61-T64)
+    { w: 16, c: 'Chương III. Số nguyên (Số học)', b: 'Luyện tập chung và Bài tập cuối chương III: Số nguyên', p: 3 },
+    { w: 16, c: 'Hình học và thực tiễn', b: 'Tổng kết kiến thức hình học phẳng trực quan học kỳ I', p: 1 },
+    // Tuần 17 (T65-T68)
+    { w: 17, c: 'Ôn tập cuối học kỳ I', b: 'Ôn tập cuối học kỳ I môn Toán 6 (Phần Số học: Chương I, II, III)', p: 2 },
+    { w: 17, c: 'Ôn tập cuối học kỳ I', b: 'Ôn tập cuối học kỳ I môn Toán 6 (Phần Hình học trực quan)', p: 2 },
+    // Tuần 18 (T69-T72) - CUỐI KỲ 1
+    { w: 18, c: 'Kiểm tra cuối học kỳ I', b: 'Kiểm tra cuối học kỳ I môn Toán 6 (Số học 70% + Hình học 30% - Đề 90 phút)', p: 2 },
     { w: 18, c: 'Tổng kết học kỳ I', b: 'Trả bài kiểm tra cuối học kỳ I và sơ kết đánh giá học kỳ I', p: 2 },
   ];
 
@@ -292,41 +310,59 @@ const generateToan7Lessons = (): PpctLesson[] => {
   let stt = 1;
 
   const hk1Plan = [
-    { w: 1, c: 'Chương I. Số hữu tỉ', b: 'Bài 1. Tập hợp các số hữu tỉ (tiết 1, 2)', p: 2 },
-    { w: 1, c: 'Chương I. Số hữu tỉ', b: 'Bài 2. Cộng, trừ, nhân, chia số hữu tỉ (tiết 1, 2)', p: 2 },
-    { w: 2, c: 'Chương I. Số hữu tỉ', b: 'Bài 2. Các phép tính với số hữu tỉ (tiết 3, 4)', p: 2 },
-    { w: 2, c: 'Chương I. Số hữu tỉ', b: 'Bài 3. Lũy thừa với số mũ tự nhiên của một số hữu tỉ (tiết 1, 2)', p: 2 },
-    { w: 3, c: 'Chương I. Số hữu tỉ', b: 'Bài 4. Thứ tự thực hiện các phép tính. Quy tắc dấu ngoặc (tiết 1, 2)', p: 2 },
-    { w: 3, c: 'Chương I. Số hữu tỉ', b: 'Luyện tập chung chương I & Kiểm tra thường xuyên 1 (HK1)', p: 2 },
-    { w: 4, c: 'Chương I. Số hữu tỉ', b: 'Bài tập cuối chương I (tiết 1, 2)', p: 2 },
-    { w: 4, c: 'Chương II. Số thực', b: 'Bài 5. Làm quen với số thập phân vô hạn tuần hoàn (tiết 1, 2)', p: 2 },
-    { w: 5, c: 'Chương II. Số thực', b: 'Bài 6. Số vô tỉ. Căn bậc hai số học (tiết 1, 2)', p: 2 },
-    { w: 5, c: 'Chương II. Số thực', b: 'Bài 7. Tập hợp các số thực (tiết 1, 2)', p: 2 },
-    { w: 6, c: 'Chương II. Số thực', b: 'Bài 8. Giá trị tuyệt đối của một số thực (tiết 1, 2)', p: 2 },
-    { w: 6, c: 'Chương II. Số thực', b: 'Bài 9. Làm tròn và ước lượng số thực & Kiểm tra thường xuyên 2 (HK1)', p: 2 },
-    { w: 7, c: 'Chương II. Số thực', b: 'Luyện tập chung và Bài tập cuối chương II', p: 2 },
-    { w: 7, c: 'Chương III. Góc và đường thẳng song song', b: 'Bài 10. Các góc ở vị trí đặc biệt (tiết 1, 2)', p: 2 },
-    { w: 8, c: 'Chương III. Góc và đường thẳng song song', b: 'Bài 11. Hai đường thẳng song song và dấu hiệu nhận biết (tiết 1, 2)', p: 2 },
-    { w: 8, c: 'Chương III. Góc và đường thẳng song song', b: 'Bài 12. Định lí và chứng minh định lí (tiết 1, 2)', p: 2 },
-    { w: 9, c: 'Ôn tập & Kiểm tra giữa kì I', b: 'Ôn tập kiểm tra giữa học kỳ I (Số hữu tỉ, Số thực, Góc & ĐTSS)', p: 2 },
-    { w: 9, c: 'Ôn tập & Kiểm tra giữa kì I', b: 'Kiểm tra giữa học kỳ I môn Toán 7 (Đề 90 phút)', p: 2 },
-    { w: 10, c: 'Chương III. Góc và đường thẳng song song', b: 'Luyện tập chung và Bài tập cuối chương III', p: 2 },
-    { w: 10, c: 'Chương IV. Tam giác bằng nhau', b: 'Bài 13. Tổng các góc trong một tam giác (tiết 1, 2)', p: 2 },
-    { w: 11, c: 'Chương IV. Tam giác bằng nhau', b: 'Bài 14. Hai tam giác bằng nhau. Trường hợp bằng nhau c-c-c (tiết 1, 2)', p: 2 },
-    { w: 11, c: 'Chương IV. Tam giác bằng nhau', b: 'Bài 14. Hai tam giác bằng nhau (tiết 3) & Kiểm tra thường xuyên 3 (HK1)', p: 2 },
-    { w: 12, c: 'Chương IV. Tam giác bằng nhau', b: 'Bài 15. Trường hợp bằng nhau c-g-c và g-c-g của tam giác (tiết 1, 2)', p: 2 },
-    { w: 12, c: 'Chương IV. Tam giác bằng nhau', b: 'Bài 15. Trường hợp bằng nhau của tam giác (tiết 3, 4)', p: 2 },
-    { w: 13, c: 'Chương IV. Tam giác bằng nhau', b: 'Bài 16. Các trường hợp bằng nhau của tam giác vuông (tiết 1, 2)', p: 2 },
-    { w: 13, c: 'Chương IV. Tam giác bằng nhau', b: 'Bài 17. Tam giác cân. Đường trung trực của đoạn thẳng (tiết 1, 2)', p: 2 },
-    { w: 14, c: 'Chương IV. Tam giác bằng nhau', b: 'Bài 17. Tam giác cân (tiết 3, 4)', p: 2 },
-    { w: 14, c: 'Chương IV. Tam giác bằng nhau', b: 'Luyện tập chung chương IV & Kiểm tra thường xuyên 4 (HK1)', p: 2 },
-    { w: 15, c: 'Chương IV. Tam giác bằng nhau', b: 'Bài tập cuối chương IV: Tam giác bằng nhau (tiết 1, 2)', p: 2 },
-    { w: 15, c: 'Chương X. Một số hình khối trong thực tiễn', b: 'Bài 36. Hình hộp chữ nhật và hình lập phương (tiết 1, 2)', p: 2 },
-    { w: 16, c: 'Chương X. Một số hình khối trong thực tiễn', b: 'Bài 37. Hình lăng trụ đứng tam giác và tứ giác (tiết 1, 2)', p: 2 },
-    { w: 16, c: 'Thực hành trải nghiệm', b: 'Hoạt động trải nghiệm: Tạo lập mô hình hình khối thực tiễn', p: 2 },
-    { w: 17, c: 'Ôn tập cuối học kỳ I', b: 'Ôn tập cuối học kỳ I môn Toán 7 (Đại số: Số hữu tỉ, Số thực)', p: 2 },
-    { w: 17, c: 'Ôn tập cuối học kỳ I', b: 'Ôn tập cuối học kỳ I môn Toán 7 (Hình học: Tam giác, Hình khối)', p: 2 },
-    { w: 18, c: 'Kiểm tra cuối học kỳ I', b: 'Kiểm tra cuối học kỳ I môn Toán 7 (Đề 90 phút)', p: 2 },
+    // Tuần 1 (T1-T4)
+    { w: 1, c: 'Chương I. Số hữu tỉ (Số học)', b: 'Bài 1. Tập hợp các số hữu tỉ & Bài 2. Phép tính số hữu tỉ (tiết 1, 2, 3)', p: 3 },
+    { w: 1, c: 'Chương III. Góc và hai đường thẳng song song (Hình học)', b: 'Bài 10. Các góc ở vị trí đặc biệt (tiết 1)', p: 1 },
+    // Tuần 2 (T5-T8)
+    { w: 2, c: 'Chương I. Số hữu tỉ (Số học)', b: 'Bài 2. Các phép tính với số hữu tỉ & Bài 3. Lũy thừa số hữu tỉ (tiết 1, 2, 3)', p: 3 },
+    { w: 2, c: 'Chương III. Góc và hai đường thẳng song song (Hình học)', b: 'Bài 10. Hai góc đối đỉnh và kề bù (tiết 2)', p: 1 },
+    // Tuần 3 (T9-T12) - KTTX 1
+    { w: 3, c: 'Chương I. Số hữu tỉ (Số học)', b: 'Bài 4. Thứ tự thực hiện phép tính và quy tắc dấu ngoặc (tiết 1, 2, 3)', p: 3 },
+    { w: 3, c: 'Chương III. Góc và hai đường thẳng song song (Hình học)', b: 'Bài 11. Tia phân giác của một góc (tiết 1) & Kiểm tra thường xuyên 1 (HK1)', p: 1 },
+    // Tuần 4 (T13-T16)
+    { w: 4, c: 'Chương I. Số hữu tỉ (Số học)', b: 'Luyện tập chung và Bài tập cuối chương I: Số hữu tỉ', p: 3 },
+    { w: 4, c: 'Chương III. Góc và hai đường thẳng song song (Hình học)', b: 'Bài 12. Hai đường thẳng song song và dấu hiệu nhận biết (tiết 1)', p: 1 },
+    // Tuần 5 (T17-T20)
+    { w: 5, c: 'Chương II. Số thực (Số học)', b: 'Bài 5. Số thập phân vô hạn tuần hoàn & Bài 6. Số vô tỉ, Căn bậc hai số học (tiết 1, 2, 3)', p: 3 },
+    { w: 5, c: 'Chương III. Góc và hai đường thẳng song song (Hình học)', b: 'Bài 12. Tiên đề Euclid và tính chất hai đường thẳng song song (tiết 2)', p: 1 },
+    // Tuần 6 (T21-T24) - KTTX 2
+    { w: 6, c: 'Chương II. Số thực (Số học)', b: 'Bài 7. Tập hợp các số thực & Bài 8. Giá trị tuyệt đối của số thực (tiết 1, 2, 3)', p: 3 },
+    { w: 6, c: 'Chương III. Góc và hai đường thẳng song song (Hình học)', b: 'Bài 13. Định lí và chứng minh định lí (tiết 1) & KTTX 2 (HK1)', p: 1 },
+    // Tuần 7 (T25-T28)
+    { w: 7, c: 'Chương II. Số thực (Số học)', b: 'Bài 9. Làm tròn và ước lượng số thực & Luyện tập chương II', p: 3 },
+    { w: 7, c: 'Chương IV. Tam giác bằng nhau (Hình học)', b: 'Bài 14. Tổng các góc trong một tam giác (tiết 1)', p: 1 },
+    // Tuần 8 (T29-T32)
+    { w: 8, c: 'Ôn tập Số học giữa học kỳ I', b: 'Ôn tập Số học giữa học kỳ I: Số hữu tỉ và Số thực', p: 2 },
+    { w: 8, c: 'Chương III. Góc và hai đường thẳng song song', b: 'Luyện tập chung chương III và Ôn tập Hình học giữa học kỳ I', p: 2 },
+    // Tuần 9 (T33-T36) - GIỮA KỲ 1
+    { w: 9, c: 'Ôn tập & Kiểm tra giữa kì I', b: 'Ôn tập tổng hợp chuẩn bị kiểm tra giữa học kỳ I (Số học & Hình học)', p: 2 },
+    { w: 9, c: 'Ôn tập & Kiểm tra giữa kì I', b: 'Kiểm tra giữa học kỳ I môn Toán 7 (Số học 70% + Hình học 30%) & Trả bài', p: 2 },
+    // Tuần 10 (T37-T40)
+    { w: 10, c: 'Chương II. Số thực (Số học)', b: 'Luyện tập chung các phép tính và bài tập cuối chương II', p: 3 },
+    { w: 10, c: 'Chương IV. Tam giác bằng nhau (Hình học)', b: 'Bài 14. Hai tam giác bằng nhau. Trường hợp bằng nhau c-c-c (tiết 1)', p: 1 },
+    // Tuần 11 (T41-T44) - KTTX 3
+    { w: 11, c: 'Chương VI. Tỉ lệ thức và đại lượng tỉ lệ', b: 'Bài 21. Tỉ lệ thức (tiết 1, 2, 3)', p: 3 },
+    { w: 11, c: 'Chương IV. Tam giác bằng nhau (Hình học)', b: 'Bài 15. Trường hợp bằng nhau c-g-c của hai tam giác & KTTX 3 (HK1)', p: 1 },
+    // Tuần 12 (T45-T48)
+    { w: 12, c: 'Chương VI. Tỉ lệ thức và đại lượng tỉ lệ', b: 'Bài 22. Tính chất của dãy tỉ số bằng nhau (tiết 1, 2, 3)', p: 3 },
+    { w: 12, c: 'Chương IV. Tam giác bằng nhau (Hình học)', b: 'Bài 15. Trường hợp bằng nhau g-c-g của hai tam giác', p: 1 },
+    // Tuần 13 (T49-T52)
+    { w: 13, c: 'Chương VI. Tỉ lệ thức và đại lượng tỉ lệ', b: 'Bài 23. Đại lượng tỉ lệ thuận và tỉ lệ nghịch (tiết 1, 2, 3)', p: 3 },
+    { w: 13, c: 'Chương IV. Tam giác bằng nhau (Hình học)', b: 'Bài 16. Các trường hợp bằng nhau của tam giác vuông', p: 1 },
+    // Tuần 14 (T53-T56) - KTTX 4
+    { w: 14, c: 'Chương VI. Tỉ lệ thức và đại lượng tỉ lệ', b: 'Luyện tập chung và Bài tập cuối chương VI: Tỉ lệ thức', p: 3 },
+    { w: 14, c: 'Chương IV. Tam giác bằng nhau (Hình học)', b: 'Bài 17. Tam giác cân. Đường trung trực của đoạn thẳng & KTTX 4 (HK1)', p: 1 },
+    // Tuần 15 (T57-T60)
+    { w: 15, c: 'Hoạt động thực hành và trải nghiệm', b: 'Hoạt động trải nghiệm: Dùng tỉ lệ thức trong đời sống và tính toán', p: 3 },
+    { w: 15, c: 'Chương IV. Tam giác bằng nhau (Hình học)', b: 'Bài tập cuối chương IV: Tam giác bằng nhau', p: 1 },
+    // Tuần 16 (T61-T64)
+    { w: 16, c: 'Hoạt động thực hành và trải nghiệm', b: 'Ôn tập rèn luyện kĩ năng tính toán số học học kỳ I', p: 2 },
+    { w: 16, c: 'Chương X. Một số hình khối trong thực tiễn', b: 'Bài 36. Hình hộp chữ nhật, lập phương & Bài 37. Hình lăng trụ đứng', p: 2 },
+    // Tuần 17 (T65-T68)
+    { w: 17, c: 'Ôn tập cuối học kỳ I', b: 'Ôn tập cuối học kỳ I môn Toán 7 (Phần Số học: Chương I, II, VI)', p: 2 },
+    { w: 17, c: 'Ôn tập cuối học kỳ I', b: 'Ôn tập cuối học kỳ I môn Toán 7 (Phần Hình học: Chương III, IV, X)', p: 2 },
+    // Tuần 18 (T69-T72) - CUỐI KỲ 1
+    { w: 18, c: 'Kiểm tra cuối học kỳ I', b: 'Kiểm tra cuối học kỳ I môn Toán 7 (Số học 70% + Hình học 30% - Đề 90 phút)', p: 2 },
     { w: 18, c: 'Tổng kết học kỳ I', b: 'Trả bài kiểm tra cuối học kỳ I và sơ kết đánh giá học kỳ I', p: 2 },
   ];
 
@@ -405,41 +441,59 @@ const generateToan8Lessons = (): PpctLesson[] => {
   let stt = 1;
 
   const hk1Plan = [
-    { w: 1, c: 'Chương I. Đa thức nhiều biến', b: 'Bài 1. Đơn thức nhiều biến. Đa thức nhiều biến (tiết 1, 2)', p: 2 },
-    { w: 1, c: 'Chương I. Đa thức nhiều biến', b: 'Bài 2. Các phép toán cộng, trừ đa thức nhiều biến (tiết 1, 2)', p: 2 },
-    { w: 2, c: 'Chương I. Đa thức nhiều biến', b: 'Bài 3. Phép nhân đa thức nhiều biến (tiết 1, 2)', p: 2 },
-    { w: 2, c: 'Chương I. Đa thức nhiều biến', b: 'Bài 4. Phép chia đa thức cho đơn thức (tiết 1, 2)', p: 2 },
-    { w: 3, c: 'Chương I. Đa thức nhiều biến', b: 'Luyện tập chung và Bài tập cuối chương I', p: 2 },
-    { w: 3, c: 'Chương II. Hằng đẳng thức đáng nhớ', b: 'Bài 5. Hằng đẳng thức đáng nhớ: Bình phương của tổng, hiệu & KTTX 1', p: 2 },
-    { w: 4, c: 'Chương II. Hằng đẳng thức đáng nhớ', b: 'Bài 5. Hiệu hai bình phương (tiết 2, 3)', p: 2 },
-    { w: 4, c: 'Chương II. Hằng đẳng thức đáng nhớ', b: 'Bài 6. Lập phương của một tổng, một hiệu (tiết 1, 2)', p: 2 },
-    { w: 5, c: 'Chương II. Hằng đẳng thức đáng nhớ', b: 'Bài 7. Tổng và hiệu của hai lập phương (tiết 1, 2)', p: 2 },
-    { w: 5, c: 'Chương II. Hằng đẳng thức đáng nhớ', b: 'Bài 8. Phân tích đa thức thành nhân tử: Đặt nhân tử chung, dùng HĐT (tiết 1, 2)', p: 2 },
-    { w: 6, c: 'Chương II. Hằng đẳng thức đáng nhớ', b: 'Bài 8. Phân tích đa thức thành nhân tử: Nhóm hạng tử (tiết 3, 4)', p: 2 },
-    { w: 6, c: 'Chương II. Hằng đẳng thức đáng nhớ', b: 'Luyện tập chung và Bài tập cuối chương II & Kiểm tra thường xuyên 2', p: 2 },
-    { w: 7, c: 'Chương III. Tứ giác', b: 'Bài 9. Tứ giác. Hình thang cân (tiết 1, 2)', p: 2 },
-    { w: 7, c: 'Chương III. Tứ giác', b: 'Bài 10. Hình bình hành. Hình thoi (tiết 1, 2)', p: 2 },
-    { w: 8, c: 'Chương III. Tứ giác', b: 'Bài 11. Hình chữ nhật. Hình vuông (tiết 1, 2)', p: 2 },
-    { w: 8, c: 'Chương III. Tứ giác', b: 'Luyện tập chung chương III: Các dạng tứ giác đặc biệt', p: 2 },
-    { w: 9, c: 'Ôn tập & Kiểm tra giữa kì I', b: 'Ôn tập kiểm tra giữa học kỳ I (Đa thức, Hằng đẳng thức, Tứ giác)', p: 2 },
-    { w: 9, c: 'Ôn tập & Kiểm tra giữa kì I', b: 'Kiểm tra giữa học kỳ I môn Toán 8 (Đề 90 phút)', p: 2 },
-    { w: 10, c: 'Chương III. Tứ giác', b: 'Bài tập cuối chương III: Tứ giác (tiết 1, 2)', p: 2 },
-    { w: 10, c: 'Chương IV. Định lí Thalès trong tam giác', b: 'Bài 12. Định lí Thalès trong tam giác (tiết 1, 2)', p: 2 },
-    { w: 11, c: 'Chương IV. Định lí Thalès trong tam giác', b: 'Bài 13. Đường trung bình của tam giác (tiết 1, 2)', p: 2 },
-    { w: 11, c: 'Chương IV. Định lí Thalès trong tam giác', b: 'Bài 14. Tính chất đường phân giác của tam giác & KTTX 3 (HK1)', p: 2 },
-    { w: 12, c: 'Chương IV. Định lí Thalès trong tam giác', b: 'Luyện tập chung và Bài tập cuối chương IV', p: 2 },
-    { w: 12, c: 'Chương V. Dữ liệu và biểu đồ', b: 'Bài 15. Thu thập và phân loại dữ liệu (tiết 1, 2)', p: 2 },
-    { w: 13, c: 'Chương V. Dữ liệu và biểu đồ', b: 'Bài 16. Lựa chọn biểu đồ thích hợp để biểu diễn dữ liệu (tiết 1, 2)', p: 2 },
-    { w: 13, c: 'Chương V. Dữ liệu và biểu đồ', b: 'Bài 17. Biểu diễn dữ liệu trên các bảng, biểu đồ (tiết 1, 2)', p: 2 },
-    { w: 14, c: 'Chương V. Dữ liệu và biểu đồ', b: 'Bài tập cuối chương V: Dữ liệu và biểu đồ', p: 2 },
-    { w: 14, c: 'Chương X. Một số hình khối trong thực tiễn', b: 'Bài 33. Hình chóp tam giác đều (tiết 1) & Kiểm tra thường xuyên 4', p: 2 },
-    { w: 15, c: 'Chương X. Một số hình khối trong thực tiễn', b: 'Bài 34. Hình chóp tứ giác đều (tiết 1, 2)', p: 2 },
-    { w: 15, c: 'Chương X. Một số hình khối trong thực tiễn', b: 'Bài tập cuối chương X: Diện tích xung quanh và thể tích hình chóp', p: 2 },
-    { w: 16, c: 'Thực hành trải nghiệm', b: 'Hoạt động trải nghiệm: Làm mô hình hình chóp và đo đạc thực địa', p: 2 },
-    { w: 16, c: 'Thực hành trải nghiệm', b: 'Hoạt động trải nghiệm: Khảo sát thống kê tại trường', p: 2 },
-    { w: 17, c: 'Ôn tập cuối học kỳ I', b: 'Ôn tập cuối học kỳ I môn Toán 8 (Phần Đại số)', p: 2 },
-    { w: 17, c: 'Ôn tập cuối học kỳ I', b: 'Ôn tập cuối học kỳ I môn Toán 8 (Phần Hình học)', p: 2 },
-    { w: 18, c: 'Kiểm tra cuối học kỳ I', b: 'Kiểm tra cuối học kỳ I môn Toán 8 (Đề 90 phút)', p: 2 },
+    // Tuần 1 (T1-T4)
+    { w: 1, c: 'Chương I. Đa thức nhiều biến (Đại số)', b: 'Bài 1. Đơn thức nhiều biến & Bài 2. Các phép toán cộng, trừ đa thức (tiết 1, 2, 3)', p: 3 },
+    { w: 1, c: 'Chương III. Tứ giác (Hình học)', b: 'Bài 9. Tứ giác: Định nghĩa và tổng các góc của tứ giác (tiết 1)', p: 1 },
+    // Tuần 2 (T5-T8)
+    { w: 2, c: 'Chương I. Đa thức nhiều biến (Đại số)', b: 'Bài 3. Phép nhân đa thức & Bài 4. Phép chia đa thức cho đơn thức (tiết 1, 2, 3)', p: 3 },
+    { w: 2, c: 'Chương III. Tứ giác (Hình học)', b: 'Bài 9. Hình thang cân: Định nghĩa và tính chất (tiết 2)', p: 1 },
+    // Tuần 3 (T9-T12) - KTTX 1
+    { w: 3, c: 'Chương II. Hằng đẳng thức đáng nhớ (Đại số)', b: 'Bài 5. Hằng đẳng thức: Bình phương tổng, hiệu, hiệu hai bình phương (tiết 1, 2, 3)', p: 3 },
+    { w: 3, c: 'Chương III. Tứ giác (Hình học)', b: 'Bài 10. Hình bình hành (tiết 1) & Kiểm tra thường xuyên 1 (HK1)', p: 1 },
+    // Tuần 4 (T13-T16)
+    { w: 4, c: 'Chương II. Hằng đẳng thức đáng nhớ (Đại số)', b: 'Bài 6. Lập phương của một tổng, một hiệu & Tổng hiệu hai lập phương (tiết 1, 2, 3)', p: 3 },
+    { w: 4, c: 'Chương III. Tứ giác (Hình học)', b: 'Bài 10. Hình thoi: Định nghĩa và dấu hiệu nhận biết (tiết 2)', p: 1 },
+    // Tuần 5 (T17-T20)
+    { w: 5, c: 'Chương II. Hằng đẳng thức đáng nhớ (Đại số)', b: 'Bài 8. Phân tích đa thức thành nhân tử: Đặt nhân tử chung, dùng hằng đẳng thức (tiết 1, 2, 3)', p: 3 },
+    { w: 5, c: 'Chương III. Tứ giác (Hình học)', b: 'Bài 11. Hình chữ nhật: Tính chất và dấu hiệu nhận biết (tiết 1)', p: 1 },
+    // Tuần 6 (T21-T24) - KTTX 2
+    { w: 6, c: 'Chương II. Hằng đẳng thức đáng nhớ (Đại số)', b: 'Bài 8. Phân tích đa thức thành nhân tử: Phương pháp nhóm hạng tử & phối hợp (tiết 1, 2, 3)', p: 3 },
+    { w: 6, c: 'Chương III. Tứ giác (Hình học)', b: 'Bài 11. Hình vuông: Tính chất và dấu hiệu nhận biết (tiết 2) & KTTX 2 (HK1)', p: 1 },
+    // Tuần 7 (T25-T28)
+    { w: 7, c: 'Chương II. Hằng đẳng thức đáng nhớ (Đại số)', b: 'Luyện tập chung và Bài tập cuối chương II: Hằng đẳng thức và nhân tử', p: 3 },
+    { w: 7, c: 'Chương III. Tứ giác (Hình học)', b: 'Luyện tập chung các dạng tứ giác đặc biệt (tiết 1)', p: 1 },
+    // Tuần 8 (T29-T32)
+    { w: 8, c: 'Ôn tập Đại số giữa học kỳ I', b: 'Ôn tập Đại số giữa học kỳ I: Đa thức nhiều biến và Hằng đẳng thức', p: 2 },
+    { w: 8, c: 'Chương III. Tứ giác (Hình học)', b: 'Bài tập cuối chương III: Tứ giác & Ôn tập Hình học giữa học kỳ I', p: 2 },
+    // Tuần 9 (T33-T36) - GIỮA KỲ 1
+    { w: 9, c: 'Ôn tập & Kiểm tra giữa kì I', b: 'Ôn tập tổng hợp kiểm tra giữa học kỳ I (Đại số & Hình học)', p: 2 },
+    { w: 9, c: 'Ôn tập & Kiểm tra giữa kì I', b: 'Kiểm tra giữa học kỳ I môn Toán 8 (Đại số 70% + Hình học 30%) & Trả bài', p: 2 },
+    // Tuần 10 (T37-T40)
+    { w: 10, c: 'Chương VI. Phân thức đại số (Đại số)', b: 'Bài 18. Khái niệm và tính chất cơ bản của phân thức đại số (tiết 1, 2, 3)', p: 3 },
+    { w: 10, c: 'Chương IV. Định lí Thalès trong tam giác (Hình học)', b: 'Bài 12. Định lí Thalès trong tam giác (tiết 1)', p: 1 },
+    // Tuần 11 (T41-T44) - KTTX 3
+    { w: 11, c: 'Chương VI. Phân thức đại số (Đại số)', b: 'Bài 20. Phép cộng và phép trừ phân thức đại số (tiết 1, 2, 3)', p: 3 },
+    { w: 11, c: 'Chương IV. Định lí Thalès trong tam giác (Hình học)', b: 'Bài 13. Đường trung bình của tam giác (tiết 1) & KTTX 3 (HK1)', p: 1 },
+    // Tuần 12 (T45-T48)
+    { w: 12, c: 'Chương VI. Phân thức đại số (Đại số)', b: 'Bài 21. Phép nhân và phép chia phân thức đại số (tiết 1, 2, 3)', p: 3 },
+    { w: 12, c: 'Chương IV. Định lí Thalès trong tam giác (Hình học)', b: 'Bài 14. Tính chất đường phân giác của tam giác (tiết 1)', p: 1 },
+    // Tuần 13 (T49-T52)
+    { w: 13, c: 'Chương VI. Phân thức đại số (Đại số)', b: 'Luyện tập chung và Bài tập cuối chương: Phân thức đại số', p: 3 },
+    { w: 13, c: 'Chương IV. Định lí Thalès trong tam giác (Hình học)', b: 'Luyện tập chung và Bài tập cuối chương IV: Định lí Thalès', p: 1 },
+    // Tuần 14 (T53-T56) - KTTX 4
+    { w: 14, c: 'Chương V. Dữ liệu và biểu đồ (Thống kê)', b: 'Bài 15. Thu thập, phân loại và biểu diễn dữ liệu (tiết 1, 2, 3)', p: 3 },
+    { w: 14, c: 'Chương X. Một số hình khối trong thực tiễn (Hình học)', b: 'Bài 33. Hình chóp tam giác đều (tiết 1) & Kiểm tra thường xuyên 4 (HK1)', p: 1 },
+    // Tuần 15 (T57-T60)
+    { w: 15, c: 'Chương V. Dữ liệu và biểu đồ (Thống kê)', b: 'Bài 16. Lựa chọn biểu đồ thích hợp để biểu diễn dữ liệu (tiết 1, 2, 3)', p: 3 },
+    { w: 15, c: 'Chương X. Một số hình khối trong thực tiễn (Hình học)', b: 'Bài 34. Hình chóp tứ giác đều (tiết 1)', p: 1 },
+    // Tuần 16 (T61-T64)
+    { w: 16, c: 'Chương V. Dữ liệu và biểu đồ (Thống kê)', b: 'Bài tập cuối chương V: Dữ liệu và biểu đồ', p: 2 },
+    { w: 16, c: 'Chương X. Một số hình khối trong thực tiễn (Hình học)', b: 'Bài tập cuối chương X: Diện tích xung quanh và thể tích hình chóp', p: 2 },
+    // Tuần 17 (T65-T68)
+    { w: 17, c: 'Ôn tập cuối học kỳ I', b: 'Ôn tập cuối học kỳ I môn Toán 8 (Phần Đại số: Chương I, II, VI & Thống kê)', p: 2 },
+    { w: 17, c: 'Ôn tập cuối học kỳ I', b: 'Ôn tập cuối học kỳ I môn Toán 8 (Phần Hình học: Tứ giác, Thalès, Hình chóp)', p: 2 },
+    // Tuần 18 (T69-T72) - CUỐI KỲ 1
+    { w: 18, c: 'Kiểm tra cuối học kỳ I', b: 'Kiểm tra cuối học kỳ I môn Toán 8 (Đại số 70% + Hình học 30% - Đề 90 phút)', p: 2 },
     { w: 18, c: 'Tổng kết học kỳ I', b: 'Trả bài kiểm tra cuối học kỳ I và sơ kết đánh giá học kỳ I', p: 2 },
   ];
 

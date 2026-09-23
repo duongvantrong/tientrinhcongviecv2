@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { ExamQuestion, BankQuestionTemplate, CognitiveLevel } from '../../types';
 import { getSuggestedQuestions } from '../../utils/examGenerator';
+import { isGeometryText } from '../../utils/concreteLessonQuestionGenerator';
 import { LatexRenderer } from '../../utils/latexUtils';
 
 interface ExamQuestionPickerModalProps {
@@ -40,11 +41,32 @@ export const ExamQuestionPickerModal: React.FC<ExamQuestionPickerModalProps> = (
   if (!isOpen || !question) return null;
 
   const [selectedLevel, setSelectedLevel] = useState<CognitiveLevel>(question.cognitiveLevel);
+  const [domainFilter, setDomainFilter] = useState<'all' | 'algebra' | 'geometry'>('all');
 
   // Lấy các câu hỏi gợi ý từ ngân hàng cho đúng dạng phần và chủ đề
   const suggestions = useMemo(() => {
     return getSuggestedQuestions(question, grade, selectedLevel, customBank, allowProbStats);
   }, [question, grade, selectedLevel, customBank, allowProbStats]);
+
+  const algCount = useMemo(() => {
+    return suggestions.filter(
+      (s) => !isGeometryText([s.prompt, ...(s.topicKeywords || []), s.lesson || ''].join(' '))
+    ).length;
+  }, [suggestions]);
+
+  const geomCount = useMemo(() => {
+    return suggestions.filter(
+      (s) => isGeometryText([s.prompt, ...(s.topicKeywords || []), s.lesson || ''].join(' '))
+    ).length;
+  }, [suggestions]);
+
+  const filteredSuggestions = useMemo(() => {
+    if (domainFilter === 'all') return suggestions;
+    return suggestions.filter((s) => {
+      const isGeom = isGeometryText([s.prompt, ...(s.topicKeywords || []), s.lesson || ''].join(' '));
+      return domainFilter === 'geometry' ? isGeom : !isGeom;
+    });
+  }, [suggestions, domainFilter]);
 
   const levelTabs: { key: CognitiveLevel; label: string }[] = [
     { key: 'nhanBiet', label: 'Nhận biết' },
@@ -99,47 +121,89 @@ export const ExamQuestionPickerModal: React.FC<ExamQuestionPickerModalProps> = (
           </div>
         </div>
 
-        {/* Cognitive Level Tabs & Quick actions */}
-        <div className="px-6 py-3 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3 bg-slate-50">
-          <div className="flex items-center gap-1.5">
-            <span className="text-xs font-bold text-slate-600 mr-1">Lọc mức độ:</span>
-            {levelTabs.map((tab) => (
-              <button
-                key={tab.key}
-                type="button"
-                onClick={() => setSelectedLevel(tab.key)}
-                className={`px-3 py-1 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
-                  selectedLevel === tab.key
-                    ? 'bg-emerald-700 text-white shadow-xs'
-                    : 'bg-white text-slate-700 hover:bg-slate-200 border border-slate-200'
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
+        {/* Cognitive Level Tabs, Domain Filter & Quick actions */}
+        <div className="px-6 py-3 border-b border-slate-200 flex flex-col gap-2.5 bg-slate-50">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs font-bold text-slate-600 mr-1">Lọc mức độ:</span>
+              {levelTabs.map((tab) => (
+                <button
+                  key={tab.key}
+                  type="button"
+                  onClick={() => setSelectedLevel(tab.key)}
+                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
+                    selectedLevel === tab.key
+                      ? 'bg-emerald-700 text-white shadow-xs'
+                      : 'bg-white text-slate-700 hover:bg-slate-200 border border-slate-200'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                onRegenerateEquivalent(question);
+                onClose();
+              }}
+              className="flex items-center gap-1 px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded-lg text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
+              title="Tự động đổi câu ngẫu nhiên tương đương từ ngân hàng và cập nhật đáp án"
+            >
+              <RefreshCw className="w-3.5 h-3.5 text-emerald-600" />
+              <span>Đổi ngẫu nhiên tương đương</span>
+            </button>
           </div>
 
-          <button
-            type="button"
-            onClick={() => {
-              onRegenerateEquivalent(question);
-              onClose();
-            }}
-            className="flex items-center gap-1 px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded-lg text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
-            title="Tự động đổi câu ngẫu nhiên tương đương từ ngân hàng và cập nhật đáp án"
-          >
-            <RefreshCw className="w-3.5 h-3.5 text-emerald-600" />
-            <span>Đổi ngẫu nhiên tương đương</span>
-          </button>
+          {/* Phân môn: Đại số / Số học vs Hình học */}
+          <div className="flex items-center gap-1.5 pt-1 border-t border-slate-200/60">
+            <span className="text-xs font-bold text-slate-600 mr-1">Phân môn:</span>
+            <button
+              type="button"
+              onClick={() => setDomainFilter('all')}
+              className={`px-2.5 py-0.5 rounded-md text-xs font-semibold transition-colors cursor-pointer ${
+                domainFilter === 'all'
+                  ? 'bg-slate-800 text-white shadow-xs'
+                  : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+              }`}
+            >
+              Tất cả ({suggestions.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setDomainFilter('algebra')}
+              className={`px-2.5 py-0.5 rounded-md text-xs font-semibold transition-colors cursor-pointer ${
+                domainFilter === 'algebra'
+                  ? 'bg-blue-700 text-white shadow-xs'
+                  : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+              }`}
+            >
+              🔢 Đại số / Số học ({algCount})
+            </button>
+            <button
+              type="button"
+              onClick={() => setDomainFilter('geometry')}
+              className={`px-2.5 py-0.5 rounded-md text-xs font-semibold transition-colors cursor-pointer ${
+                domainFilter === 'geometry'
+                  ? 'bg-teal-700 text-white shadow-xs'
+                  : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+              }`}
+            >
+              📐 Hình học ({geomCount})
+            </button>
+          </div>
         </div>
 
         {/* Suggestions List */}
         <div className="flex-1 overflow-y-auto p-6 space-y-4">
           <div className="text-xs text-slate-500 font-medium">
-            Tìm thấy {suggestions.length} câu hỏi phù hợp từ Ngân hàng chuẩn GDPT 2018. Chọn câu bất kỳ sẽ tự động thay thế cả nội dung câu, các phương án và đáp án chấm:
+            Tìm thấy {filteredSuggestions.length} câu hỏi phù hợp từ Ngân hàng chuẩn GDPT 2018 (đáp ứng tiêu chí tối thiểu 10 câu lựa chọn). Chọn câu bất kỳ sẽ tự động thay thế cả nội dung câu, các phương án và đáp án chấm:
           </div>
 
-          {suggestions.map((item, idx) => (
+          {filteredSuggestions.map((item, idx) => {
+            const isGeom = isGeometryText([item.prompt, ...(item.topicKeywords || []), item.lesson || ''].join(' '));
+            return (
             <div
               key={idx}
               className="p-4 rounded-xl border border-slate-200 hover:border-emerald-400 bg-white hover:bg-emerald-50/20 transition-all shadow-xs space-y-3"
@@ -160,9 +224,18 @@ export const ExamQuestionPickerModal: React.FC<ExamQuestionPickerModalProps> = (
                         ? 'Vận dụng'
                         : 'Vận dụng cao'}
                     </span>
+                    {isGeom ? (
+                      <span className="text-[11px] font-bold text-teal-800 bg-teal-50 px-2 py-0.5 rounded border border-teal-200">
+                        📐 Hình học
+                      </span>
+                    ) : (
+                      <span className="text-[11px] font-bold text-blue-800 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                        🔢 Đại số / Số học
+                      </span>
+                    )}
                     {item.source === 'uploaded' ? (
-                      <span className="text-[11px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200 flex items-center gap-1">
-                        <Sparkles className="w-3 h-3 text-blue-600" />
+                      <span className="text-[11px] font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded border border-purple-200 flex items-center gap-1">
+                        <Sparkles className="w-3 h-3 text-purple-600" />
                         Ngân hàng tham khảo tải lên
                       </span>
                     ) : (
@@ -296,7 +369,8 @@ export const ExamQuestionPickerModal: React.FC<ExamQuestionPickerModalProps> = (
                 )}
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
 
         {/* Footer */}

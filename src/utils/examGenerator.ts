@@ -20,6 +20,13 @@ import {
   GRADE_8_QUESTIONS,
   GRADE_9_QUESTIONS,
 } from '../data/questionBankGrades';
+import {
+  CURRICULUM_GRADE_9_QUESTIONS,
+  CURRICULUM_GRADE_8_QUESTIONS,
+  CURRICULUM_GRADE_7_QUESTIONS,
+  CURRICULUM_GRADE_6_QUESTIONS,
+} from '../data/curriculumMathBank';
+import { generateConcreteLessonQuestion, isGeometryText } from './concreteLessonQuestionGenerator';
 import { getLearningObjectiveForTopic } from './sgkParser';
 import { getStoredUploadedQuestions } from './questionBankStorage';
 
@@ -29,6 +36,12 @@ import { getStoredUploadedQuestions } from './questionBankStorage';
 // =================================================================
 
 export const QUESTION_BANK: BankQuestionTemplate[] = [
+  // --- BỘ CÂU HỎI BÁM SÁT PPCT TỪNG TUẦN GDPT 2018 (KHỐI 9, 8, 7, 6) ---
+  ...CURRICULUM_GRADE_9_QUESTIONS,
+  ...CURRICULUM_GRADE_8_QUESTIONS,
+  ...CURRICULUM_GRADE_7_QUESTIONS,
+  ...CURRICULUM_GRADE_6_QUESTIONS,
+
   // --- TOÁN 6, 7, 8, 9 (TỰ ĐỘNG NẠP ĐẦY ĐỦ TỪ BỘ DỮ LIỆU) ---
   ...GRADE_6_QUESTIONS,
   ...GRADE_7_QUESTIONS,
@@ -642,7 +655,8 @@ export function findBestQuestionFromBank(
   cognitiveLevel: 'nhanBiet' | 'thongHieu' | 'vanDung' | 'vanDungCao',
   usedPrompts: Set<string>,
   customBank?: BankQuestionTemplate[],
-  allowProbStats?: boolean
+  allowProbStats?: boolean,
+  targetDomain?: 'algebra' | 'geometry'
 ): BankQuestionTemplate | null {
   const topicLower = topic.toLowerCase();
   const normGrade = String(grade || '').replace(/\D/g, '') || '9';
@@ -660,6 +674,17 @@ export function findBestQuestionFromBank(
     if (!permitProbStats && isQProbStats) return false;
     // Nếu chủ đề đang xét là xác suất thống kê mà câu hỏi không phải xác suất thống kê -> loại trừ
     if (targetTopicIsProbStats && !isQProbStats) return false;
+    // Kiểm tra targetDomain nếu được yêu cầu cụ thể (Đại số hoặc Hình học)
+    if (targetDomain) {
+      const qIsGeom = isGeometryText([
+        q.prompt,
+        ...(q.topicKeywords || []),
+        q.lesson || '',
+        q.chapter || '',
+      ].join(' '));
+      const shouldBeGeom = targetDomain === 'geometry';
+      if (qIsGeom !== shouldBeGeom) return false;
+    }
     return true;
   };
 
@@ -733,8 +758,8 @@ export function findBestQuestionFromBank(
 
 /**
  * Tự động tạo câu hỏi dự phòng chất lượng cao nếu ngân hàng không có sẵn
- * Đảm bảo sinh đa dạng câu hỏi Toán THCS kèm công thức LaTeX và bài giải mẫu cho tự luận
- * Luôn tôn trọng quy tắc: nếu allowProbStats = false, không bao giờ sinh câu hỏi về xác suất thống kê
+ * Đảm bảo 100% câu hỏi toán học cụ thể, số liệu thật, công thức LaTeX, bám sát từng bài học
+ * Tuyệt đối không dùng câu hỏi mơ hồ hay chung chung
  */
 export function createFallbackQuestion(
   subject: string,
@@ -744,244 +769,70 @@ export function createFallbackQuestion(
   section: 'part1_mcq' | 'part2_true_false' | 'part3_short_answer' | 'part4_essay',
   cognitiveLevel: 'nhanBiet' | 'thongHieu' | 'vanDung' | 'vanDungCao',
   index: number,
-  allowProbStats?: boolean
+  allowProbStats?: boolean,
+  targetDomain?: 'algebra' | 'geometry'
 ): BankQuestionTemplate {
-  const cognitiveLabel =
-    cognitiveLevel === 'nhanBiet'
-      ? 'Nhận biết'
-      : cognitiveLevel === 'thongHieu'
-      ? 'Thông hiểu'
-      : cognitiveLevel === 'vanDung'
-      ? 'Vận dụng'
-      : 'Vận dụng cao';
-
   const isProbStats = allowProbStats !== undefined ? allowProbStats : isProbStatsText(lesson);
 
-  const v = index % 5;
-
-  if (section === 'part1_mcq') {
-    if (isProbStats) {
-      const probMcqTemplates: Array<{
-        prompt: string;
-        options: { key: 'A' | 'B' | 'C' | 'D'; text: string }[];
-        correct: 'A' | 'B' | 'C' | 'D';
-        solution: string;
-      }> = [
-        {
-          prompt: `Gieo một con xúc xắc cân đối và đồng chất $1$ lần. Xác suất của biến cố "Mặt xuất hiện có số chấm là số nguyên tố" là:`,
-          options: [
-            { key: 'A', text: '$\\frac{1}{2}$' },
-            { key: 'B', text: '$\\frac{1}{3}$' },
-            { key: 'C', text: '$\\frac{2}{3}$' },
-            { key: 'D', text: '$\\frac{1}{6}$' },
-          ],
-          correct: 'A',
-          solution: 'Các số nguyên tố có thể xuất hiện là $\\{2; 3; 5\\}$ (gồm 3 kết quả thuận lợi trong tổng số 6 kết quả có thể). Xác suất là $\\frac{3}{6} = \\frac{1}{2}$.',
-        },
-        {
-          prompt: `Để thu thập dữ liệu về số giờ tự học mỗi ngày của học sinh lớp ${grade}, phương pháp thu thập dữ liệu phù hợp nhất là:`,
-          options: [
-            { key: 'A', text: 'Lập phiếu hỏi hoặc phát phiếu điều tra trắc nghiệm' },
-            { key: 'B', text: 'Đo chiều cao của từng học sinh' },
-            { key: 'C', text: 'Cân khối lượng của từng học sinh' },
-            { key: 'D', text: 'Quan sát thời tiết trong tuần' },
-          ],
-          correct: 'A',
-          solution: 'Thu thập thông tin định lượng về thói quen học tập cần dùng phiếu hỏi hoặc phỏng vấn trực tiếp.',
-        },
-      ];
-      const selProb = probMcqTemplates[index % probMcqTemplates.length];
-      return {
-        subject,
-        grade,
-        topicKeywords: [lesson, chapter, 'thống kê', 'xác suất'],
-        section: 'part1_mcq',
-        type: 'multiple_choice',
-        cognitiveLevel,
-        prompt: selProb.prompt,
-        options: selProb.options,
-        correctOption: selProb.correct,
-        solutionExplanation: selProb.solution,
-        learningObjective: `${cognitiveLabel} kiến thức về ${lesson}.`,
-      };
-    }
-
-    const mcqTemplates: Array<{
+  // Nếu là chủ đề Xác suất / Thống kê được phép
+  if (isProbStats && section === 'part1_mcq' && targetDomain !== 'geometry') {
+    const probMcqTemplates: Array<{
       prompt: string;
       options: { key: 'A' | 'B' | 'C' | 'D'; text: string }[];
       correct: 'A' | 'B' | 'C' | 'D';
+      solution: string;
     }> = [
       {
-        prompt: `Khẳng định nào sau đây là **ĐÚNG** khi áp dụng quy tắc trong bài học "${lesson}"?`,
+        prompt: `Gieo một con xúc xắc cân đối và đồng chất $1$ lần. Xác suất của biến cố "Mặt xuất hiện có số chấm là số nguyên tố" là:`,
         options: [
-          { key: 'A', text: `Công thức và quy tắc toán học trong bài học "${lesson}" được thỏa mãn với mọi giá trị thuộc tập xác định.` },
-          { key: 'B', text: `Biến đổi toán học chỉ đúng khi các hệ số đều mang dấu âm.` },
-          { key: 'C', text: `Quy tắc không áp dụng được khi biểu thức nhận giá trị bằng $0$.` },
-          { key: 'D', text: `Tập giá trị của biểu thức luôn nhận giá trị âm với mọi $x$.` },
+          { key: 'A', text: '$\\frac{1}{2}$' },
+          { key: 'B', text: '$\\frac{1}{3}$' },
+          { key: 'C', text: '$\\frac{2}{3}$' },
+          { key: 'D', text: '$\\frac{1}{6}$' },
         ],
         correct: 'A',
+        solution: 'Các số nguyên tố có thể xuất hiện là $\\{2; 3; 5\\}$ (gồm 3 kết quả thuận lợi trong tổng số 6 kết quả có thể). Xác suất là $\\frac{3}{6} = \\frac{1}{2}$.',
       },
       {
-        prompt: `Cho biểu thức liên quan đến "${lesson}". Kết quả rút gọn hoặc tính giá trị cơ bản là:`,
+        prompt: `Để thu thập dữ liệu về số giờ tự học mỗi ngày của học sinh lớp ${grade}, phương pháp thu thập dữ liệu phù hợp nhất là:`,
         options: [
-          { key: 'A', text: `Giá trị biểu thức bằng $2k + 1$ với $k \\in \\mathbb{Z}$.` },
-          { key: 'B', text: `Giá trị rút gọn triệt để bằng $2a + b$.` },
-          { key: 'C', text: `Biểu thức luôn triệt tiêu về $0$.` },
-          { key: 'D', text: `Biểu thức không xác định với mọi số thực.` },
-        ],
-        correct: 'B',
-      },
-      {
-        prompt: `Điều kiện xác định của biểu thức toán học trong chủ đề "${lesson}" (${chapter}) là:`,
-        options: [
-          { key: 'A', text: `Mẫu thức khác $0$ và các biểu thức dưới dấu căn bậc hai không âm.` },
-          { key: 'B', text: `Tất cả các biến số phải đồng thời nhận giá trị dương.` },
-          { key: 'C', text: `Không cần bất kỳ điều kiện ràng buộc nào của ẩn số.` },
-          { key: 'D', text: `Biến số chỉ được nhận các giá trị nguyên âm.` },
+          { key: 'A', text: 'Lập phiếu hỏi hoặc phát phiếu điều tra trắc nghiệm' },
+          { key: 'B', text: 'Đo chiều cao của từng học sinh' },
+          { key: 'C', text: 'Cân khối lượng của từng học sinh' },
+          { key: 'D', text: 'Quan sát thời tiết trong tuần' },
         ],
         correct: 'A',
-      },
-      {
-        prompt: `Trong các phát biểu sau về "${lesson}", phát biểu nào là mệnh đề **CHÍNH XÁC**?`,
-        options: [
-          { key: 'A', text: `Mệnh đề phản ánh đúng định nghĩa và tính chất cơ bản được nêu trong SGK môn Toán.` },
-          { key: 'B', text: `Hai đại lượng luôn tỉ lệ nghịch với nhau trong mọi trường hợp.` },
-          { key: 'C', text: `Đồ thị biểu diễn luôn đi qua gốc tọa độ đối với mọi hàm số.` },
-          { key: 'D', text: `Phương trình luôn có vô số nghiệm mà không phụ thuộc hệ số.` },
-        ],
-        correct: 'A',
-      },
-      {
-        prompt: `Khi thực hiện phép tính và biến đổi đại số theo nội dung "${lesson}", giá trị thu được là:`,
-        options: [
-          { key: 'A', text: `Biểu thức đồng nhất với $x^2 - 4x + 4$.` },
-          { key: 'B', text: `Kết quả tính toán chuẩn xác bằng $12$.` },
-          { key: 'C', text: `Kết quả tính toán bằng $-12$.` },
-          { key: 'D', text: `Kết quả bằng $\\frac{1}{2}$.` },
-        ],
-        correct: 'B',
+        solution: 'Thu thập thông tin định lượng về thói quen học tập cần dùng phiếu hỏi hoặc phỏng vấn trực tiếp.',
       },
     ];
-
-    const sel = mcqTemplates[v];
+    const selProb = probMcqTemplates[index % probMcqTemplates.length];
     return {
       subject,
       grade,
-      topicKeywords: [lesson, chapter],
+      topicKeywords: [lesson, chapter, 'thống kê', 'xác suất'],
       section: 'part1_mcq',
       type: 'multiple_choice',
       cognitiveLevel,
-      prompt: sel.prompt,
-      options: sel.options,
-      correctOption: sel.correct,
-      solutionExplanation: `Căn cứ theo lý thuyết và định lý chuẩn trong bài "${lesson}", phương án ${sel.correct} là khẳng định đúng.`,
-      learningObjective: `${cognitiveLabel} kiến thức trọng tâm về ${lesson} thuộc ${chapter}.`,
+      prompt: selProb.prompt,
+      options: selProb.options,
+      correctOption: selProb.correct,
+      solutionExplanation: selProb.solution,
+      learningObjective: `Đánh giá kiến thức về ${lesson}.`,
     };
   }
 
-  if (section === 'part2_true_false') {
-    return {
-      subject,
-      grade,
-      topicKeywords: [lesson, chapter],
-      section: 'part2_true_false',
-      type: 'true_false',
-      cognitiveLevel,
-      prompt: `Xét tính Đúng/Sai của các khẳng định sau liên quan đến chủ đề "${lesson}" (${chapter}):`,
-      tfStatements: [
-        { subKey: 'a', text: `Khái niệm cơ bản và điều kiện xác định của ${lesson} được bảo toàn trong các phép biến đổi.`, isCorrect: true, explanation: 'Đúng theo lý thuyết trong SGK môn Toán.' },
-        { subKey: 'b', text: `Mọi biến đổi toán học đều áp dụng được ngay mà không cần xét điều kiện có nghĩa của biểu thức.`, isCorrect: false, explanation: 'Sai vì biến đổi toán học bắt buộc phải kèm theo điều kiện xác định.' },
-        { subKey: 'c', text: `Khi thay giá trị cụ thể thỏa mãn điều kiện, giá trị của biểu thức nhận kết quả xác định duy nhất.`, isCorrect: true, explanation: 'Đúng theo tính chất của biểu thức đại số / hình học.' },
-        { subKey: 'd', text: `Có thể kết luận dấu bằng của bất đẳng thức / cực trị mà không cần chỉ ra giá trị đạt được của biến số.`, isCorrect: false, explanation: 'Sai vì dấu bằng của bất đẳng thức phải tồn tại giá trị cụ thể của biến.' },
-      ],
-      solutionExplanation: `Kiểm tra định nghĩa, điều kiện có nghĩa và các bước biến đổi cụ thể của ${lesson}.`,
-      learningObjective: `${cognitiveLabel} các mệnh đề lý thuyết và bài tập về ${lesson}.`,
-    };
-  }
-
-  if (section === 'part3_short_answer') {
-    const values = ['15', '24', '0,5', '8', '12', '36', '7', '45'];
-    const answerVal = values[index % values.length];
-    return {
-      subject,
-      grade,
-      topicKeywords: [lesson, chapter],
-      section: 'part3_short_answer',
-      type: 'short_answer',
-      cognitiveLevel,
-      prompt: `Áp dụng kiến thức chủ đề "${lesson}" (${chapter}): Hãy thực hiện tính toán và điền kết quả số học vào ô trả lời:`,
-      shortAnswerText: answerVal,
-      solutionExplanation: `Áp dụng công thức tính toán và giải phương trình của bài học "${lesson}", ta tính ra kết quả chuẩn xác là ${answerVal}.`,
-      learningObjective: `${cognitiveLabel} và tính toán đáp số nhanh về ${lesson}.`,
-    };
-  }
-
-  // part4_essay - TỰ LUẬN CÓ THỰC HIỆN MẪU VÀ BAREM ĐIỂM SƯ PHẠM CHI TIẾT
-  const essayVariants = [
-    {
-      prompt: `Bài toán tự luận về chủ đề "${lesson}" (${chapter}):
-Cho bài toán yêu cầu giải quyết các nội dung sau:
-a) Viết biểu thức toán học và tìm điều kiện xác định của bài toán. (0.75 điểm)
-b) Rút gọn biểu thức và tính giá trị cụ thể tại điểm cho trước. (1.0 điểm)
-c) Tìm giá trị của biến số để biểu thức nhận giá trị nguyên hoặc đạt giá trị lớn nhất/nhỏ nhất. (0.75 điểm)`,
-      steps: [
-        { step: `a) Lập luận tìm điều kiện xác định của các mẫu thức và biểu thức dưới dấu căn: xác định ĐKXĐ chính xác.`, point: 0.75 },
-        { step: `b1) Quy đồng mẫu thức, thực hiện các phép tính cộng trừ nhân chia phân thức hoặc biến đổi đại số.`, point: 0.5 },
-        { step: `b2) Rút gọn triệt để các nhân tử chung và tính giá trị số học tương ứng.`, point: 0.5 },
-        { step: `c) Phân tích biểu thức thành phần nguyên và phần phân số, lập luận ước số hoặc áp dụng bất đẳng thức Cô-si để tìm giá trị tối ưu thỏa mãn ĐKXĐ.`, point: 0.75 },
-      ],
-      explanation: `THỰC HIỆN MẪU BÀI GIẢI CHI TIẾT:
-1. Ý a: Tìm điều kiện xác định bằng cách cho mẫu thức khác 0, căn thức không âm. Kết luận tập xác định rõ ràng.
-2. Ý b: Quy đồng mẫu thức chung, khai triển hằng đẳng thức và rút gọn nhân tử chung ở tử và mẫu. Sau đó thay giá trị số và tính toán cẩn thận.
-3. Ý c: Đưa biểu thức về dạng $P = A + \\frac{k}{B}$. Để $P \\in \\mathbb{Z}$ thì $B$ phải là ước của $k$. Lập bảng giá trị đối chiếu với điều kiện ban đầu để kết luận.`,
-    },
-    {
-      prompt: `Bài toán thực tế áp dụng kiến thức "${lesson}" (${chapter}):
-Một tổ sản xuất theo kế hoạch phải làm một số lượng sản phẩm trong thời gian quy định.
-a) Gọi ẩn số, đặt điều kiện và biểu diễn các đại lượng chưa biết theo ẩn. (0.75 điểm)
-b) Lập phương trình / hệ phương trình thể hiện mối liên hệ giữa các đại lượng. (1.0 điểm)
-c) Giải phương trình, đối chiếu điều kiện và kết luận kết quả của bài toán. (0.75 điểm)`,
-      steps: [
-        { step: `a) Gọi ẩn số phù hợp (năng suất, thời gian hoặc số sản phẩm), nêu rõ đơn vị và điều kiện xác định của ẩn.`, point: 0.75 },
-        { step: `b) Lập luận chặt chẽ theo dữ kiện đầu bài để thiết lập phương trình / hệ phương trình đại số.`, point: 1.0 },
-        { step: `c) Giải phương trình tìm nghiệm, kiểm tra sự phù hợp với điều kiện bài toán và viết câu kết luận đầy đủ.`, point: 0.75 },
-      ],
-      explanation: `THỰC HIỆN MẪU BÀI GIẢI CHI TIẾT:
-1. Ý a: Chọn ẩn số trực tiếp (ví dụ: số sản phẩm làm trong một ngày). Đơn vị: sản phẩm, điều kiện: nguyên dương.
-2. Ý b: Biểu diễn năng suất thực tế và thời gian thực tế hoàn thành. Do hoàn thành trước thời hạn nên ta có phương trình chênh lệch thời gian.
-3. Ý c: Quy đồng khử mẫu, giải phương trình bậc nhất hoặc bậc hai, loại nghiệm không thỏa mãn và kết luận số lượng sản phẩm.`,
-    },
-    {
-      prompt: `Bài toán hình học về chủ đề "${lesson}" (${chapter}):
-Cho hình hình học phẳng có các tính chất đã học trong chương trình.
-a) Vẽ hình chính xác, ghi giả thiết - kết luận và chứng minh hai đoạn thẳng hoặc hai góc bằng nhau. (1.0 điểm)
-b) Chứng minh hai tam giác đồng dạng / bằng nhau hoặc chứng minh các điểm cùng thuộc một đường tròn. (1.0 điểm)
-c) Chứng minh hệ thức hình học và tính diện tích hoặc tìm vị trí điểm để diện tích đạt cực trị. (0.5 điểm)`,
-      steps: [
-        { step: `a) Vẽ hình đúng tỉ lệ, lập luận hình học chặt chẽ và chỉ ra hai đoạn thẳng / hai góc bằng nhau.`, point: 1.0 },
-        { step: `b) Sử dụng trường hợp đồng dạng (g.g, c.g.c) hoặc tính chất góc nội tiếp để suy ra đẳng thức góc / đoạn thẳng.`, point: 1.0 },
-        { step: `c) Vận dụng hệ thức lượng hoặc bất đẳng thức hình học để chứng minh hệ thức và biện luận cực trị.`, point: 0.5 },
-      ],
-      explanation: `THỰC HIỆN MẪU BÀI GIẢI CHI TIẾT:
-1. Ý a: Sử dụng các tiên đề, định lý cơ bản của tam giác và đường tròn để chứng minh.
-2. Ý b: Xét hai tam giác có các góc tương ứng bằng nhau để kết luận tam giác đồng dạng, suy ra tỉ số đồng dạng cần chứng minh.
-3. Ý c: Biến đổi hệ thức hình học thông qua các đoạn thẳng tỉ lệ, áp dụng bất đẳng thức để tìm vị trí điểm cực trị.`,
-    },
-  ];
-
-  const selEssay = essayVariants[index % essayVariants.length];
-  return {
+  // Tạo câu hỏi toán học cụ thể, số liệu thật, rõ ràng, khoa học bám sát bài học
+  return generateConcreteLessonQuestion(
     subject,
     grade,
-    topicKeywords: [lesson, chapter],
-    section: 'part4_essay',
-    type: 'essay',
+    chapter,
+    lesson,
+    section,
     cognitiveLevel,
-    prompt: selEssay.prompt,
-    essayGradingSteps: selEssay.steps,
-    solutionExplanation: selEssay.explanation,
-    learningObjective: `${cognitiveLabel} tổng hợp kiến thức ${lesson} để giải quyết bài toán tự luận nhiều bước có barem chấm chi tiết.`,
-  };
+    index,
+    new Set(),
+    targetDomain
+  );
 }
 
 // =================================================================
@@ -1425,6 +1276,40 @@ export function generateCustomExamPaper(
       ? Array.from(new Set(availableLessons.map((l) => l.baiHoc)))
       : gradeDefaultTopics;
 
+  // Tách riêng chủ đề Đại số và Hình học để đảm bảo cấu trúc đề luôn có CẢ HAI phần theo PPCT
+  let algebraTopics = topicsToUse.filter((t) => !isGeometryText(t));
+  let geometryTopics = topicsToUse.filter((t) => isGeometryText(t));
+
+  // Nếu danh sách chủ đề được chọn chưa có Hình học hoặc Đại số, tự động bổ sung từ PPCT các tuần
+  if (geometryTopics.length === 0) {
+    const allGeomLessons = ppctDataset.lessons
+      .filter((l) => isGeometryText(l.baiHoc))
+      .map((l) => l.baiHoc);
+    if (allGeomLessons.length > 0) {
+      geometryTopics = Array.from(new Set(allGeomLessons));
+    } else {
+      geometryTopics =
+        normG === '6'
+          ? ['Hình tam giác đều, hình vuông, hình lục giác đều', 'Hình chữ nhật, hình thoi, hình bình hành, hình thang cân']
+          : normG === '7'
+          ? ['Góc ở vị trí đặc biệt, tia phân giác của một góc', 'Định lý tổng ba góc của tam giác, các trường hợp bằng nhau của tam giác']
+          : normG === '8'
+          ? ['Tứ giác, hình bình hành, hình chữ nhật, hình thoi, hình vuông', 'Định lý Pythagore và định lý Thalès trong tam giác']
+          : ['Hệ thức lượng trong tam giác vuông và tỉ số lượng giác của góc nhọn', 'Đường tròn, tính chất đối xứng và vị trí tương đối'];
+    }
+  }
+
+  if (algebraTopics.length === 0) {
+    const allAlgLessons = ppctDataset.lessons
+      .filter((l) => !isGeometryText(l.baiHoc))
+      .map((l) => l.baiHoc);
+    if (allAlgLessons.length > 0) {
+      algebraTopics = Array.from(new Set(allAlgLessons));
+    } else {
+      algebraTopics = gradeDefaultTopics;
+    }
+  }
+
   // Số lượng câu hỏi tùy chỉnh
   let countMcq = config.countPart1Mcq !== undefined ? config.countPart1Mcq : isKttx ? 10 : 12;
   let countTf = config.countPart2Tf !== undefined ? config.countPart2Tf : isKttx ? 0 : 2;
@@ -1464,9 +1349,16 @@ export function generateCustomExamPaper(
   // Kiểm tra xem danh sách chủ đề được chọn có chứa Xác suất & Thống kê hay không
   const selectionHasProbStats = hasProbStatsInTopics(topicsToUse);
 
-  // 1. Phần I: Trắc nghiệm 4 lựa chọn
+  // 1. Phần I: Trắc nghiệm 4 lựa chọn (Cân đối ~70% Đại số và ~30% Hình học)
+  const countGeomMcq = countMcq > 1 ? Math.max(1, Math.round(countMcq * 0.3)) : 0;
+  const countAlgMcq = countMcq - countGeomMcq;
+
   for (let i = 0; i < countMcq; i++) {
-    const topic = topicsToUse[i % topicsToUse.length];
+    const isThisGeom = i >= countAlgMcq;
+    const targetDomain: 'algebra' | 'geometry' = isThisGeom ? 'geometry' : 'algebra';
+    const topicPool = isThisGeom ? geometryTopics : algebraTopics;
+    const topicIdx = isThisGeom ? i - countAlgMcq : i;
+    const topic = topicPool[topicIdx % topicPool.length];
     const allowProbStats = selectionHasProbStats && isProbStatsText(topic);
     
     // Mức độ nhận thức: KTTX hoặc 100% TN mặc định 70% Nhận biết, 30% Thông hiểu
@@ -1483,9 +1375,29 @@ export function generateCustomExamPaper(
           : 'vanDung';
     }
 
-    let qTemplate = findBestQuestionFromBank(subject, grade, topic, 'part1_mcq', cogLevel, usedPrompts, customBank, allowProbStats);
+    let qTemplate = findBestQuestionFromBank(
+      subject,
+      grade,
+      topic,
+      'part1_mcq',
+      cogLevel,
+      usedPrompts,
+      customBank,
+      allowProbStats,
+      targetDomain
+    );
     if (!qTemplate) {
-      qTemplate = createFallbackQuestion(subject, grade, 'Chủ đề kiểm tra', topic, 'part1_mcq', cogLevel, i + 1, allowProbStats);
+      qTemplate = createFallbackQuestion(
+        subject,
+        grade,
+        isThisGeom ? 'Hình học' : 'Đại số',
+        topic,
+        'part1_mcq',
+        cogLevel,
+        i + 1,
+        allowProbStats,
+        targetDomain
+      );
     }
     usedPrompts.add(qTemplate.prompt);
 
@@ -1500,7 +1412,7 @@ export function generateCustomExamPaper(
       score: scorePerMcq,
       cognitiveLevel: cogLevel,
       cognitiveLevelLabel: cogLevel === 'nhanBiet' ? 'Nhận biết' : cogLevel === 'thongHieu' ? 'Thông hiểu' : 'Vận dụng',
-      chapter: 'Chương trình kiểm tra',
+      chapter: isThisGeom ? 'Hình học' : 'Đại số',
       lesson: topic,
       learningObjective: qTemplate.learningObjective,
       solutionExplanation: qTemplate.solutionExplanation,
@@ -1510,14 +1422,17 @@ export function generateCustomExamPaper(
     qNum++;
   }
 
-  // 2. Phần II: Trắc nghiệm Đúng/Sai
+  // 2. Phần II: Trắc nghiệm Đúng/Sai (Xen kẽ Đại số và Hình học)
   for (let i = 0; i < countTf; i++) {
-    const topic = topicsToUse[i % topicsToUse.length];
+    const isThisGeom = i % 2 === 1;
+    const targetDomain: 'algebra' | 'geometry' = isThisGeom ? 'geometry' : 'algebra';
+    const topicPool = isThisGeom ? geometryTopics : algebraTopics;
+    const topic = topicPool[Math.floor(i / 2) % topicPool.length];
     const allowProbStats = selectionHasProbStats && isProbStatsText(topic);
     const cogLevel = i === 0 ? 'thongHieu' : 'vanDung';
-    let qTemplate = findBestQuestionFromBank(subject, grade, topic, 'part2_true_false', cogLevel, usedPrompts, customBank, allowProbStats);
+    let qTemplate = findBestQuestionFromBank(subject, grade, topic, 'part2_true_false', cogLevel, usedPrompts, customBank, allowProbStats, targetDomain);
     if (!qTemplate) {
-      qTemplate = createFallbackQuestion(subject, grade, 'Chủ đề kiểm tra', topic, 'part2_true_false', cogLevel, i + 1, allowProbStats);
+      qTemplate = createFallbackQuestion(subject, grade, isThisGeom ? 'Hình học' : 'Đại số', topic, 'part2_true_false', cogLevel, i + 1, allowProbStats, targetDomain);
     }
     usedPrompts.add(qTemplate.prompt);
 
@@ -1531,7 +1446,7 @@ export function generateCustomExamPaper(
       score: scorePerTf,
       cognitiveLevel: cogLevel,
       cognitiveLevelLabel: cogLevel === 'thongHieu' ? 'Thông hiểu' : 'Vận dụng',
-      chapter: 'Chương trình kiểm tra',
+      chapter: isThisGeom ? 'Hình học' : 'Đại số',
       lesson: topic,
       learningObjective: qTemplate.learningObjective,
       solutionExplanation: qTemplate.solutionExplanation,
@@ -1541,14 +1456,20 @@ export function generateCustomExamPaper(
     qNum++;
   }
 
-  // 3. Phần III: Trắc nghiệm trả lời ngắn
+  // 3. Phần III: Trắc nghiệm trả lời ngắn (Đảm bảo có cả Đại số và Hình học)
+  const countGeomShort = countShort > 1 ? Math.max(1, Math.round(countShort * 0.25)) : 0;
+  const countAlgShort = countShort - countGeomShort;
   for (let i = 0; i < countShort; i++) {
-    const topic = topicsToUse[i % topicsToUse.length];
+    const isThisGeom = i >= countAlgShort;
+    const targetDomain: 'algebra' | 'geometry' = isThisGeom ? 'geometry' : 'algebra';
+    const topicPool = isThisGeom ? geometryTopics : algebraTopics;
+    const topicIdx = isThisGeom ? i - countAlgShort : i;
+    const topic = topicPool[topicIdx % topicPool.length];
     const allowProbStats = selectionHasProbStats && isProbStatsText(topic);
     const cogLevel = i < Math.floor(countShort * 0.5) ? 'thongHieu' : 'vanDung';
-    let qTemplate = findBestQuestionFromBank(subject, grade, topic, 'part3_short_answer', cogLevel, usedPrompts, customBank, allowProbStats);
+    let qTemplate = findBestQuestionFromBank(subject, grade, topic, 'part3_short_answer', cogLevel, usedPrompts, customBank, allowProbStats, targetDomain);
     if (!qTemplate) {
-      qTemplate = createFallbackQuestion(subject, grade, 'Chủ đề kiểm tra', topic, 'part3_short_answer', cogLevel, i + 1, allowProbStats);
+      qTemplate = createFallbackQuestion(subject, grade, isThisGeom ? 'Hình học' : 'Đại số', topic, 'part3_short_answer', cogLevel, i + 1, allowProbStats, targetDomain);
     }
     usedPrompts.add(qTemplate.prompt);
 
@@ -1562,7 +1483,7 @@ export function generateCustomExamPaper(
       score: scorePerShort,
       cognitiveLevel: cogLevel,
       cognitiveLevelLabel: cogLevel === 'thongHieu' ? 'Thông hiểu' : 'Vận dụng',
-      chapter: 'Chương trình kiểm tra',
+      chapter: isThisGeom ? 'Hình học' : 'Đại số',
       lesson: topic,
       learningObjective: qTemplate.learningObjective,
       solutionExplanation: qTemplate.solutionExplanation,
@@ -1572,18 +1493,42 @@ export function generateCustomExamPaper(
     qNum++;
   }
 
-  // 4. Phần IV: Tự luận
+  // 4. Phần IV: Tự luận (Đầy đủ cả bài Đại số và bài Hình học theo đúng phân phối PPCT)
   for (let i = 0; i < countEssay; i++) {
-    const topic = topicsToUse[i % topicsToUse.length];
+    let isThisGeom = false;
+    if (countEssay === 3) {
+      // 3 bài: Bài 1 (3.5đ Đại số), Bài 2 (3.5đ Đại số), Bài 3 (3.0đ Hình học)
+      isThisGeom = i === 2;
+    } else if (countEssay === 2) {
+      // 2 bài: Bài 1 (5.0đ Đại số), Bài 2 (5.0đ Hình học)
+      isThisGeom = i === 1;
+    } else if (countEssay >= 4) {
+      isThisGeom = i === countEssay - 1;
+    }
+    const targetDomain: 'algebra' | 'geometry' = isThisGeom ? 'geometry' : 'algebra';
+    const topicPool = isThisGeom ? geometryTopics : algebraTopics;
+    const topic = topicPool[i % topicPool.length];
     const allowProbStats = selectionHasProbStats && isProbStatsText(topic);
     const cogLevel: 'thongHieu' | 'vanDung' | 'vanDungCao' =
       i === 0 ? 'thongHieu' : i === 1 ? 'vanDung' : 'vanDungCao';
 
-    let qTemplate = findBestQuestionFromBank(subject, grade, topic, 'part4_essay', cogLevel, usedPrompts, customBank, allowProbStats);
+    let qTemplate = findBestQuestionFromBank(subject, grade, topic, 'part4_essay', cogLevel, usedPrompts, customBank, allowProbStats, targetDomain);
     if (!qTemplate) {
-      qTemplate = createFallbackQuestion(subject, grade, 'Chủ đề kiểm tra', topic, 'part4_essay', cogLevel, i + 1, allowProbStats);
+      qTemplate = createFallbackQuestion(subject, grade, isThisGeom ? 'Hình học' : 'Đại số', topic, 'part4_essay', cogLevel, i + 1, allowProbStats, targetDomain);
     }
     usedPrompts.add(qTemplate.prompt);
+
+    // Điểm số sư phạm chuẩn mực cho từng bài tự luận (tổng tròn 10.0 điểm)
+    let currentScore = scorePerEssay;
+    if (format === 'tl_only') {
+      if (countEssay === 3) {
+        currentScore = i === 0 ? 3.5 : i === 1 ? 3.5 : 3.0;
+      } else if (countEssay === 2) {
+        currentScore = 5.0;
+      } else if (countEssay === 4) {
+        currentScore = i < 2 ? 3.0 : 2.0;
+      }
+    }
 
     questions.push({
       id: `custom-q-p4-${i + 1}-${Date.now()}`,
@@ -1592,10 +1537,10 @@ export function generateCustomExamPaper(
       type: 'essay',
       prompt: qTemplate.prompt,
       essayGradingSteps: qTemplate.essayGradingSteps,
-      score: scorePerEssay,
+      score: currentScore,
       cognitiveLevel: cogLevel,
       cognitiveLevelLabel: cogLevel === 'thongHieu' ? 'Thông hiểu' : cogLevel === 'vanDung' ? 'Vận dụng' : 'Vận dụng cao',
-      chapter: 'Chương trình kiểm tra',
+      chapter: isThisGeom ? 'Hình học' : 'Đại số',
       lesson: topic,
       learningObjective: qTemplate.learningObjective,
       solutionExplanation: qTemplate.solutionExplanation,
@@ -2388,6 +2333,29 @@ export function getSuggestedQuestions(
       shouldAllowProbStats
     );
     results.push(...generated);
+    generated.forEach((g) => existingPrompts.add(g.prompt.trim()));
+  }
+
+  // ĐẢM BẢO CHẮC CHẮN 100%: Số lượng câu hỏi gợi ý khác nhau ít nhất là 10 câu (mục tiêu 14 - 16 câu)
+  let loopIdx = 0;
+  while (results.length < 14 && loopIdx < 20) {
+    loopIdx++;
+    const targetDomain: 'algebra' | 'geometry' = loopIdx % 2 === 0 ? 'geometry' : 'algebra';
+    const fb = createFallbackQuestion(
+      'Toán',
+      normGrade,
+      targetDomain === 'geometry' ? 'Hình học' : 'Đại số',
+      currentQuestion.lesson || 'Kiến thức trọng tâm',
+      section,
+      desiredLevel,
+      loopIdx * 7 + results.length,
+      shouldAllowProbStats,
+      targetDomain
+    );
+    if (!existingPrompts.has(fb.prompt.trim())) {
+      existingPrompts.add(fb.prompt.trim());
+      results.push({ ...fb, source: 'ai_system' });
+    }
   }
 
   return results;
@@ -2408,6 +2376,11 @@ export function regenerateSingleQuestion(
       ? allowProbStats
       : isProbStatsQuestion(currentQuestion) || isProbStatsText(currentQuestion.lesson || '');
 
+  const isGeom = isGeometryText(
+    [currentQuestion.prompt, currentQuestion.lesson, currentQuestion.chapter].join(' ')
+  );
+  const targetDomain: 'algebra' | 'geometry' = isGeom ? 'geometry' : 'algebra';
+
   let replacement = findBestQuestionFromBank(
     'Toán',
     normGrade,
@@ -2416,7 +2389,8 @@ export function regenerateSingleQuestion(
     currentQuestion.cognitiveLevel,
     usedPrompts,
     customBank,
-    shouldAllowProb
+    shouldAllowProb,
+    targetDomain
   );
 
   if (!replacement) {
@@ -2428,7 +2402,8 @@ export function regenerateSingleQuestion(
       currentQuestion.section,
       currentQuestion.cognitiveLevel,
       Date.now() % 100,
-      shouldAllowProb
+      shouldAllowProb,
+      targetDomain
     );
   }
 
