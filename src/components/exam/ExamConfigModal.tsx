@@ -20,6 +20,8 @@ import {
   PpctDataset,
 } from '../../types';
 import { defaultDatasets } from '../../data/defaultData';
+import { isGeometryText } from '../../utils/concreteLessonQuestionGenerator';
+import { isProbStatsText } from '../../utils/examGenerator';
 
 interface ExamConfigModalProps {
   isOpen: boolean;
@@ -871,39 +873,125 @@ export const ExamConfigModal: React.FC<ExamConfigModalProps> = ({
             </div>
 
             {/* Checklist bài học */}
-            <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 max-h-48 overflow-y-auto space-y-1.5">
-              <div className="text-[11px] text-slate-500 font-semibold mb-1 flex items-center justify-between">
+            <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-2">
+              <div className="text-[11px] text-slate-600 font-semibold flex flex-wrap items-center justify-between gap-2 border-b border-slate-200/80 pb-2">
                 <span>Chọn bài học đưa vào nội dung kiểm tra:</span>
-                <div className="flex gap-2 text-indigo-600">
+                <div className="flex flex-wrap items-center gap-1.5 text-xs">
                   <button
                     type="button"
                     onClick={() => setSelectedTopics(availableLessons)}
-                    className="hover:underline"
+                    className="px-2 py-0.5 rounded bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 font-semibold cursor-pointer shadow-2xs"
                   >
-                    Chọn tất cả
+                    Chọn tất cả ({availableLessons.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const geoms = availableLessons.filter((l) => isGeometryText(l));
+                      if (geoms.length > 0) setSelectedTopics(geoms);
+                    }}
+                    className="px-2 py-0.5 rounded bg-teal-50 hover:bg-teal-100 border border-teal-300 text-teal-800 font-bold cursor-pointer shadow-2xs flex items-center gap-1"
+                    title="Chỉ chọn các bài học Hình học"
+                  >
+                    <span>📐 Chỉ chọn Hình học</span>
+                    <span className="text-[10px] bg-teal-200 px-1 rounded-full">
+                      {availableLessons.filter((l) => isGeometryText(l)).length}
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const algs = availableLessons.filter((l) => !isGeometryText(l));
+                      if (algs.length > 0) setSelectedTopics(algs);
+                    }}
+                    className="px-2 py-0.5 rounded bg-blue-50 hover:bg-blue-100 border border-blue-300 text-blue-800 font-bold cursor-pointer shadow-2xs flex items-center gap-1"
+                    title="Chỉ chọn các bài học Đại số / Số học"
+                  >
+                    <span>🔢 Chỉ chọn Đại số</span>
+                    <span className="text-[10px] bg-blue-200 px-1 rounded-full">
+                      {availableLessons.filter((l) => !isGeometryText(l)).length}
+                    </span>
                   </button>
                 </div>
               </div>
-              {availableLessons.length > 0 ? (
-                availableLessons.map((topic, idx) => (
-                  <label
-                    key={idx}
-                    className="flex items-center gap-2.5 p-1.5 hover:bg-white rounded-lg transition-colors cursor-pointer text-xs"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={selectedTopics.includes(topic)}
-                      onChange={() => handleToggleTopic(topic)}
-                      className="rounded text-indigo-600 focus:ring-indigo-500"
-                    />
-                    <span className="text-slate-800 font-medium">{topic}</span>
-                  </label>
-                ))
-              ) : (
-                <div className="text-xs text-slate-400 italic p-2 text-center">
-                  Không có bài học nào trong khoảng tuần này. Hãy điều chỉnh lại tuần bắt đầu và tuần kết thúc.
+
+              {/* Thông báo định hướng đề thi theo nội dung được chọn */}
+              {selectedTopics.length > 0 && (
+                <div className="p-2 rounded-lg bg-indigo-50/70 border border-indigo-200 text-xs text-indigo-950 flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="font-bold">Định hướng đề thi:</span>
+                    {selectedTopics.every((t) => isGeometryText(t)) ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-teal-100 text-teal-900 font-extrabold border border-teal-300">
+                        📐 Đề thi 100% HÌNH HỌC ({selectedTopics.length} bài đã chọn)
+                      </span>
+                    ) : selectedTopics.every((t) => !isGeometryText(t)) ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-100 text-blue-900 font-extrabold border border-blue-300">
+                        🔢 Đề thi 100% ĐẠI SỐ / SỐ HỌC ({selectedTopics.length} bài đã chọn)
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-purple-100 text-purple-900 font-extrabold border border-purple-300">
+                        ⚖️ Đề thi kết hợp (
+                        {selectedTopics.filter((t) => !isGeometryText(t)).length} Đại số +{' '}
+                        {selectedTopics.filter((t) => isGeometryText(t)).length} Hình học)
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-[11px] text-slate-500 font-medium shrink-0">
+                    Đã chọn {selectedTopics.length} / {availableLessons.length} bài
+                  </span>
                 </div>
               )}
+
+              <div className="max-h-56 overflow-y-auto space-y-1.5 pr-1">
+                {availableLessons.length > 0 ? (
+                  availableLessons.map((topic, idx) => {
+                    const isGeom = isGeometryText(topic);
+                    const isProb = isProbStatsText(topic);
+                    const isChecked = selectedTopics.includes(topic);
+                    return (
+                      <label
+                        key={idx}
+                        className={`flex items-center justify-between gap-2.5 p-2 rounded-lg border transition-colors cursor-pointer text-xs ${
+                          isChecked
+                            ? isGeom
+                              ? 'bg-teal-50/60 border-teal-300 text-teal-950 font-semibold'
+                              : 'bg-indigo-50/50 border-indigo-200 text-indigo-950 font-semibold'
+                            : 'bg-white border-slate-200 hover:border-slate-300 text-slate-700'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={() => handleToggleTopic(topic)}
+                            className="rounded text-indigo-600 focus:ring-indigo-500 shrink-0"
+                          />
+                          <span className="truncate">{topic}</span>
+                        </div>
+                        <div className="shrink-0">
+                          {isGeom ? (
+                            <span className="text-[10px] font-bold text-teal-800 bg-teal-100 px-2 py-0.5 rounded-full border border-teal-300">
+                              📐 Hình học
+                            </span>
+                          ) : isProb ? (
+                            <span className="text-[10px] font-bold text-purple-800 bg-purple-100 px-2 py-0.5 rounded-full border border-purple-300">
+                              📊 Thống kê
+                            </span>
+                          ) : (
+                            <span className="text-[10px] font-bold text-blue-800 bg-blue-100 px-2 py-0.5 rounded-full border border-blue-300">
+                              🔢 Đại số / Số học
+                            </span>
+                          )}
+                        </div>
+                      </label>
+                    );
+                  })
+                ) : (
+                  <div className="text-xs text-slate-400 italic p-2 text-center">
+                    Không có bài học nào trong khoảng tuần này. Hãy điều chỉnh lại tuần bắt đầu và tuần kết thúc.
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>

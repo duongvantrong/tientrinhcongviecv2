@@ -26,6 +26,13 @@ import {
   CURRICULUM_GRADE_7_QUESTIONS,
   CURRICULUM_GRADE_6_QUESTIONS,
 } from '../data/curriculumMathBank';
+import {
+  GRADE_9_GEOMETRY_QUESTIONS,
+  GRADE_8_GEOMETRY_QUESTIONS,
+  GRADE_7_GEOMETRY_QUESTIONS,
+  GRADE_6_GEOMETRY_QUESTIONS,
+  ConcreteGeometryQuestion,
+} from './geometryQuestionBank';
 import { generateConcreteLessonQuestion, isGeometryText } from './concreteLessonQuestionGenerator';
 import { getLearningObjectiveForTopic } from './sgkParser';
 import { getStoredUploadedQuestions } from './questionBankStorage';
@@ -770,7 +777,8 @@ export function createFallbackQuestion(
   cognitiveLevel: 'nhanBiet' | 'thongHieu' | 'vanDung' | 'vanDungCao',
   index: number,
   allowProbStats?: boolean,
-  targetDomain?: 'algebra' | 'geometry'
+  targetDomain?: 'algebra' | 'geometry',
+  usedPrompts?: Set<string>
 ): BankQuestionTemplate {
   const isProbStats = allowProbStats !== undefined ? allowProbStats : isProbStatsText(lesson);
 
@@ -830,7 +838,7 @@ export function createFallbackQuestion(
     section,
     cognitiveLevel,
     index,
-    new Set(),
+    usedPrompts || new Set(),
     targetDomain
   );
 }
@@ -1269,44 +1277,54 @@ export function generateCustomExamPaper(
       ? ['Đơn thức và đa thức nhiều biến', 'Các hằng đẳng thức đáng nhớ', 'Phân thức đại số']
       : ['Căn bậc hai và hằng đẳng thức', 'Phương trình và hệ phương trình bậc nhất hai ẩn'];
 
+  const userSpecifiedTopics = !!(config.selectedTopics && config.selectedTopics.length > 0);
   const topicsToUse =
-    config.selectedTopics && config.selectedTopics.length > 0
-      ? config.selectedTopics
+    userSpecifiedTopics
+      ? config.selectedTopics!
       : availableLessons.length > 0
       ? Array.from(new Set(availableLessons.map((l) => l.baiHoc)))
       : gradeDefaultTopics;
 
-  // Tách riêng chủ đề Đại số và Hình học để đảm bảo cấu trúc đề luôn có CẢ HAI phần theo PPCT
-  let algebraTopics = topicsToUse.filter((t) => !isGeometryText(t));
-  let geometryTopics = topicsToUse.filter((t) => isGeometryText(t));
+  // Phân loại chủ đề đã chọn thành Hình học và Đại số
+  const selectedGeomTopics = topicsToUse.filter((t) => isGeometryText(t));
+  const selectedAlgTopics = topicsToUse.filter((t) => !isGeometryText(t));
 
-  // Nếu danh sách chủ đề được chọn chưa có Hình học hoặc Đại số, tự động bổ sung từ PPCT các tuần
-  if (geometryTopics.length === 0) {
-    const allGeomLessons = ppctDataset.lessons
-      .filter((l) => isGeometryText(l.baiHoc))
-      .map((l) => l.baiHoc);
-    if (allGeomLessons.length > 0) {
-      geometryTopics = Array.from(new Set(allGeomLessons));
+  const isOnlyGeom = selectedGeomTopics.length > 0 && selectedAlgTopics.length === 0;
+  const isOnlyAlg = selectedAlgTopics.length > 0 && selectedGeomTopics.length === 0;
+
+  let geometryTopics: string[] = [];
+  let algebraTopics: string[] = [];
+
+  if (isOnlyGeom) {
+    // Người dùng chỉ chọn bài học Hình học -> 100% đề thi là Hình học, không ép câu Đại số
+    geometryTopics = selectedGeomTopics;
+    algebraTopics = [];
+  } else if (isOnlyAlg) {
+    // Người dùng chỉ chọn bài học Đại số -> 100% đề thi là Đại số, không ép câu Hình học
+    algebraTopics = selectedAlgTopics;
+    geometryTopics = [];
+  } else {
+    // Người dùng chọn cả hai hoặc lấy theo phạm vi tuần
+    if (selectedGeomTopics.length > 0) {
+      geometryTopics = selectedGeomTopics;
     } else {
-      geometryTopics =
+      const allGeom = ppctDataset.lessons.filter((l) => isGeometryText(l.baiHoc)).map((l) => l.baiHoc);
+      geometryTopics = allGeom.length > 0 ? Array.from(new Set(allGeom)) : [
         normG === '6'
-          ? ['Hình tam giác đều, hình vuông, hình lục giác đều', 'Hình chữ nhật, hình thoi, hình bình hành, hình thang cân']
+          ? 'Hình tam giác đều, hình vuông, hình lục giác đều'
           : normG === '7'
-          ? ['Góc ở vị trí đặc biệt, tia phân giác của một góc', 'Định lý tổng ba góc của tam giác, các trường hợp bằng nhau của tam giác']
+          ? 'Định lý tổng ba góc của tam giác, các trường hợp bằng nhau'
           : normG === '8'
-          ? ['Tứ giác, hình bình hành, hình chữ nhật, hình thoi, hình vuông', 'Định lý Pythagore và định lý Thalès trong tam giác']
-          : ['Hệ thức lượng trong tam giác vuông và tỉ số lượng giác của góc nhọn', 'Đường tròn, tính chất đối xứng và vị trí tương đối'];
+          ? 'Tứ giác, hình bình hành, hình chữ nhật, hình thoi'
+          : 'Hệ thức lượng trong tam giác vuông và tỉ số lượng giác góc nhọn'
+      ];
     }
-  }
 
-  if (algebraTopics.length === 0) {
-    const allAlgLessons = ppctDataset.lessons
-      .filter((l) => !isGeometryText(l.baiHoc))
-      .map((l) => l.baiHoc);
-    if (allAlgLessons.length > 0) {
-      algebraTopics = Array.from(new Set(allAlgLessons));
+    if (selectedAlgTopics.length > 0) {
+      algebraTopics = selectedAlgTopics;
     } else {
-      algebraTopics = gradeDefaultTopics;
+      const allAlg = ppctDataset.lessons.filter((l) => !isGeometryText(l.baiHoc)).map((l) => l.baiHoc);
+      algebraTopics = allAlg.length > 0 ? Array.from(new Set(allAlg)) : gradeDefaultTopics;
     }
   }
 
@@ -1349,15 +1367,26 @@ export function generateCustomExamPaper(
   // Kiểm tra xem danh sách chủ đề được chọn có chứa Xác suất & Thống kê hay không
   const selectionHasProbStats = hasProbStatsInTopics(topicsToUse);
 
-  // 1. Phần I: Trắc nghiệm 4 lựa chọn (Cân đối ~70% Đại số và ~30% Hình học)
-  const countGeomMcq = countMcq > 1 ? Math.max(1, Math.round(countMcq * 0.3)) : 0;
-  const countAlgMcq = countMcq - countGeomMcq;
+  // 1. Phần I: Trắc nghiệm 4 lựa chọn
+  let countGeomMcq = 0;
+  let countAlgMcq = 0;
+  if (isOnlyGeom) {
+    countGeomMcq = countMcq;
+    countAlgMcq = 0;
+  } else if (isOnlyAlg) {
+    countGeomMcq = 0;
+    countAlgMcq = countMcq;
+  } else {
+    const geomRatio = selectedGeomTopics.length / Math.max(1, topicsToUse.length);
+    countGeomMcq = Math.max(1, Math.min(countMcq - 1, Math.round(countMcq * geomRatio)));
+    countAlgMcq = countMcq - countGeomMcq;
+  }
 
   for (let i = 0; i < countMcq; i++) {
-    const isThisGeom = i >= countAlgMcq;
+    const isThisGeom = isOnlyGeom ? true : isOnlyAlg ? false : i >= countAlgMcq;
     const targetDomain: 'algebra' | 'geometry' = isThisGeom ? 'geometry' : 'algebra';
     const topicPool = isThisGeom ? geometryTopics : algebraTopics;
-    const topicIdx = isThisGeom ? i - countAlgMcq : i;
+    const topicIdx = isThisGeom ? (isOnlyGeom ? i : i - countAlgMcq) : i;
     const topic = topicPool[topicIdx % topicPool.length];
     const allowProbStats = selectionHasProbStats && isProbStatsText(topic);
     
@@ -1396,7 +1425,8 @@ export function generateCustomExamPaper(
         cogLevel,
         i + 1,
         allowProbStats,
-        targetDomain
+        targetDomain,
+        usedPrompts
       );
     }
     usedPrompts.add(qTemplate.prompt);
@@ -1422,9 +1452,9 @@ export function generateCustomExamPaper(
     qNum++;
   }
 
-  // 2. Phần II: Trắc nghiệm Đúng/Sai (Xen kẽ Đại số và Hình học)
+  // 2. Phần II: Trắc nghiệm Đúng/Sai
   for (let i = 0; i < countTf; i++) {
-    const isThisGeom = i % 2 === 1;
+    const isThisGeom = isOnlyGeom ? true : isOnlyAlg ? false : i % 2 === 1;
     const targetDomain: 'algebra' | 'geometry' = isThisGeom ? 'geometry' : 'algebra';
     const topicPool = isThisGeom ? geometryTopics : algebraTopics;
     const topic = topicPool[Math.floor(i / 2) % topicPool.length];
@@ -1432,7 +1462,7 @@ export function generateCustomExamPaper(
     const cogLevel = i === 0 ? 'thongHieu' : 'vanDung';
     let qTemplate = findBestQuestionFromBank(subject, grade, topic, 'part2_true_false', cogLevel, usedPrompts, customBank, allowProbStats, targetDomain);
     if (!qTemplate) {
-      qTemplate = createFallbackQuestion(subject, grade, isThisGeom ? 'Hình học' : 'Đại số', topic, 'part2_true_false', cogLevel, i + 1, allowProbStats, targetDomain);
+      qTemplate = createFallbackQuestion(subject, grade, isThisGeom ? 'Hình học' : 'Đại số', topic, 'part2_true_false', cogLevel, i + 1, allowProbStats, targetDomain, usedPrompts);
     }
     usedPrompts.add(qTemplate.prompt);
 
@@ -1456,20 +1486,30 @@ export function generateCustomExamPaper(
     qNum++;
   }
 
-  // 3. Phần III: Trắc nghiệm trả lời ngắn (Đảm bảo có cả Đại số và Hình học)
-  const countGeomShort = countShort > 1 ? Math.max(1, Math.round(countShort * 0.25)) : 0;
-  const countAlgShort = countShort - countGeomShort;
+  // 3. Phần III: Trắc nghiệm trả lời ngắn
+  let countGeomShort = 0;
+  let countAlgShort = 0;
+  if (isOnlyGeom) {
+    countGeomShort = countShort;
+    countAlgShort = 0;
+  } else if (isOnlyAlg) {
+    countGeomShort = 0;
+    countAlgShort = countShort;
+  } else {
+    countGeomShort = countShort > 1 ? Math.max(1, Math.round(countShort * 0.25)) : 0;
+    countAlgShort = countShort - countGeomShort;
+  }
   for (let i = 0; i < countShort; i++) {
-    const isThisGeom = i >= countAlgShort;
+    const isThisGeom = isOnlyGeom ? true : isOnlyAlg ? false : i >= countAlgShort;
     const targetDomain: 'algebra' | 'geometry' = isThisGeom ? 'geometry' : 'algebra';
     const topicPool = isThisGeom ? geometryTopics : algebraTopics;
-    const topicIdx = isThisGeom ? i - countAlgShort : i;
+    const topicIdx = isThisGeom ? (isOnlyGeom ? i : i - countAlgShort) : i;
     const topic = topicPool[topicIdx % topicPool.length];
     const allowProbStats = selectionHasProbStats && isProbStatsText(topic);
     const cogLevel = i < Math.floor(countShort * 0.5) ? 'thongHieu' : 'vanDung';
     let qTemplate = findBestQuestionFromBank(subject, grade, topic, 'part3_short_answer', cogLevel, usedPrompts, customBank, allowProbStats, targetDomain);
     if (!qTemplate) {
-      qTemplate = createFallbackQuestion(subject, grade, isThisGeom ? 'Hình học' : 'Đại số', topic, 'part3_short_answer', cogLevel, i + 1, allowProbStats, targetDomain);
+      qTemplate = createFallbackQuestion(subject, grade, isThisGeom ? 'Hình học' : 'Đại số', topic, 'part3_short_answer', cogLevel, i + 1, allowProbStats, targetDomain, usedPrompts);
     }
     usedPrompts.add(qTemplate.prompt);
 
@@ -1493,17 +1533,17 @@ export function generateCustomExamPaper(
     qNum++;
   }
 
-  // 4. Phần IV: Tự luận (Đầy đủ cả bài Đại số và bài Hình học theo đúng phân phối PPCT)
+  // 4. Phần IV: Tự luận
   for (let i = 0; i < countEssay; i++) {
-    let isThisGeom = false;
-    if (countEssay === 3) {
-      // 3 bài: Bài 1 (3.5đ Đại số), Bài 2 (3.5đ Đại số), Bài 3 (3.0đ Hình học)
-      isThisGeom = i === 2;
-    } else if (countEssay === 2) {
-      // 2 bài: Bài 1 (5.0đ Đại số), Bài 2 (5.0đ Hình học)
-      isThisGeom = i === 1;
-    } else if (countEssay >= 4) {
-      isThisGeom = i === countEssay - 1;
+    let isThisGeom = isOnlyGeom ? true : isOnlyAlg ? false : false;
+    if (!isOnlyGeom && !isOnlyAlg) {
+      if (countEssay === 3) {
+        isThisGeom = i === 2;
+      } else if (countEssay === 2) {
+        isThisGeom = i === 1;
+      } else if (countEssay >= 4) {
+        isThisGeom = i === countEssay - 1;
+      }
     }
     const targetDomain: 'algebra' | 'geometry' = isThisGeom ? 'geometry' : 'algebra';
     const topicPool = isThisGeom ? geometryTopics : algebraTopics;
@@ -1514,7 +1554,7 @@ export function generateCustomExamPaper(
 
     let qTemplate = findBestQuestionFromBank(subject, grade, topic, 'part4_essay', cogLevel, usedPrompts, customBank, allowProbStats, targetDomain);
     if (!qTemplate) {
-      qTemplate = createFallbackQuestion(subject, grade, isThisGeom ? 'Hình học' : 'Đại số', topic, 'part4_essay', cogLevel, i + 1, allowProbStats, targetDomain);
+      qTemplate = createFallbackQuestion(subject, grade, isThisGeom ? 'Hình học' : 'Đại số', topic, 'part4_essay', cogLevel, i + 1, allowProbStats, targetDomain, usedPrompts);
     }
     usedPrompts.add(qTemplate.prompt);
 
@@ -2259,6 +2299,14 @@ export function getSuggestedQuestions(
   const topicLower = (currentQuestion.lesson || '').toLowerCase();
   const normGrade = String(grade || '').replace(/\D/g, '') || '9';
 
+  // Xác định rõ ràng chủ đề đang xét là Hình học hay Đại số
+  const isCurrentGeom = isGeometryText([
+    currentQuestion.chapter || '',
+    currentQuestion.lesson || '',
+    currentQuestion.prompt || '',
+  ].join(' '));
+  const currentDomain: 'algebra' | 'geometry' = isCurrentGeom ? 'geometry' : 'algebra';
+
   // Xác định rõ ràng quyền sinh câu hỏi Xác suất / Thống kê
   const shouldAllowProbStats =
     allowProbStats !== undefined
@@ -2278,6 +2326,8 @@ export function getSuggestedQuestions(
       const isQProb = isProbStatsQuestion(q);
       if (!shouldAllowProbStats && isQProb) return;
       if (shouldAllowProbStats && !isQProb) return;
+      const qIsGeom = isGeometryText(q.prompt + ' ' + (q.topicKeywords || []).join(' ') + ' ' + (q.lesson || ''));
+      if (isCurrentGeom !== qIsGeom) return;
       uploadedCandidates.push({ ...q, source: 'uploaded' });
     });
 
@@ -2289,15 +2339,17 @@ export function getSuggestedQuestions(
     });
   }
 
-  // 2. Lọc từ QUESTION_BANK hệ thống: Chuẩn xác 100% cùng Khối lớp, cùng dạng thức (section) và cùng mức độ nhận thức
+  // 2. Lọc từ QUESTION_BANK hệ thống: Chuẩn xác 100% cùng Khối lớp, cùng dạng thức (section), cùng mức độ nhận thức và cùng thể loại
   const matchingQuestions = QUESTION_BANK.filter((q) => {
     if (q.prompt.trim() === currentQuestion.prompt.trim()) return false;
     if (q.section !== section) return false;
     if (q.cognitiveLevel !== desiredLevel) return false;
-    if ((q.grade || '9') !== normGrade) return false; // Tuyệt đối không lẫn lộn giữa các khối
+    if ((q.grade || '9') !== normGrade) return false;
     const isQProb = isProbStatsQuestion(q);
     if (!shouldAllowProbStats && isQProb) return false;
     if (shouldAllowProbStats && !isQProb) return false;
+    const qIsGeom = isGeometryText(q.prompt + ' ' + (q.topicKeywords || []).join(' ') + ' ' + (q.lesson || ''));
+    if (isCurrentGeom !== qIsGeom) return false;
     return true;
   });
 
@@ -2308,23 +2360,78 @@ export function getSuggestedQuestions(
     return bTopic - aTopic;
   });
 
-  // Kết hợp ngân hàng tải lên lên đầu danh sách gợi ý (KHÔNG BỊ GIỚI HẠN .slice(0, 10))
+  // Kết hợp ngân hàng tải lên và hệ thống
   const results: BankQuestionTemplate[] = [
     ...uploadedCandidates,
     ...matchingQuestions.map((q) => ({ ...q, source: 'ai_system' as const })),
   ];
 
-  // Đảm bảo số lượng câu hỏi gợi ý luôn đa dạng và NHIỀU HƠN 10 CÂU (tối thiểu 14 đến 16 câu)
   const existingPrompts = new Set<string>([
     currentQuestion.prompt.trim(),
     ...results.map((r) => r.prompt.trim()),
   ]);
 
+  // 3. Nếu là câu hỏi Hình học trắc nghiệm (part1_mcq), tải từ ngân hàng hình học chuyên biệt 80+ câu
+  if (currentDomain === 'geometry' && section === 'part1_mcq') {
+    let geomBank: ConcreteGeometryQuestion[] = [];
+    if (normGrade === '9') geomBank = GRADE_9_GEOMETRY_QUESTIONS;
+    else if (normGrade === '8') geomBank = GRADE_8_GEOMETRY_QUESTIONS;
+    else if (normGrade === '7') geomBank = GRADE_7_GEOMETRY_QUESTIONS;
+    else geomBank = GRADE_6_GEOMETRY_QUESTIONS;
+
+    // Ưu tiên câu cùng mức độ nhận thức
+    const exactLevel = geomBank.filter(
+      (q) => q.cognitiveLevel === desiredLevel && !existingPrompts.has(q.prompt.trim())
+    );
+    exactLevel.forEach((q) => {
+      existingPrompts.add(q.prompt.trim());
+      results.push({
+        subject: 'Toán',
+        grade: normGrade,
+        topicKeywords: q.topicKeywords,
+        chapter: q.chapter || currentQuestion.chapter || 'Hình học',
+        lesson: q.lesson || currentQuestion.lesson || 'Hình học',
+        section: 'part1_mcq',
+        type: 'multiple_choice',
+        cognitiveLevel: q.cognitiveLevel,
+        prompt: q.prompt,
+        options: q.options,
+        correctOption: q.correctOption,
+        solutionExplanation: q.solutionExplanation,
+        learningObjective: q.learningObjective,
+        source: 'ai_system',
+      });
+    });
+
+    // Các câu hình học ở mức độ khác
+    const otherLevels = geomBank.filter((q) => !existingPrompts.has(q.prompt.trim()));
+    otherLevels.forEach((q) => {
+      existingPrompts.add(q.prompt.trim());
+      results.push({
+        subject: 'Toán',
+        grade: normGrade,
+        topicKeywords: q.topicKeywords,
+        chapter: q.chapter || currentQuestion.chapter || 'Hình học',
+        lesson: q.lesson || currentQuestion.lesson || 'Hình học',
+        section: 'part1_mcq',
+        type: 'multiple_choice',
+        cognitiveLevel: q.cognitiveLevel,
+        prompt: q.prompt,
+        options: q.options,
+        correctOption: q.correctOption,
+        solutionExplanation: q.solutionExplanation,
+        learningObjective: q.learningObjective,
+        source: 'ai_system',
+      });
+    });
+  }
+
+  // 4. Bổ sung thêm gợi ý đa dạng nếu chưa đủ 16 câu
   if (results.length < 14) {
     const needed = 16 - results.length;
     const generated = generateDiverseSuggestions(
       normGrade,
-      currentQuestion.chapter || 'Toán học',
+      currentQuestion.chapter || (currentDomain === 'geometry' ? 'Hình học' : 'Đại số'),
       currentQuestion.lesson || 'Kiến thức trọng tâm',
       section,
       desiredLevel,
@@ -2336,21 +2443,21 @@ export function getSuggestedQuestions(
     generated.forEach((g) => existingPrompts.add(g.prompt.trim()));
   }
 
-  // ĐẢM BẢO CHẮC CHẮN 100%: Số lượng câu hỏi gợi ý khác nhau ít nhất là 10 câu (mục tiêu 14 - 16 câu)
+  // 5. ĐẢM BẢO CHẮC CHẮN: Số lượng câu hỏi gợi ý khác nhau luôn từ 14 đến 16 câu
   let loopIdx = 0;
-  while (results.length < 14 && loopIdx < 20) {
+  while (results.length < 16 && loopIdx < 25) {
     loopIdx++;
-    const targetDomain: 'algebra' | 'geometry' = loopIdx % 2 === 0 ? 'geometry' : 'algebra';
     const fb = createFallbackQuestion(
       'Toán',
       normGrade,
-      targetDomain === 'geometry' ? 'Hình học' : 'Đại số',
+      currentDomain === 'geometry' ? 'Hình học' : 'Đại số',
       currentQuestion.lesson || 'Kiến thức trọng tâm',
       section,
       desiredLevel,
       loopIdx * 7 + results.length,
       shouldAllowProbStats,
-      targetDomain
+      currentDomain,
+      existingPrompts
     );
     if (!existingPrompts.has(fb.prompt.trim())) {
       existingPrompts.add(fb.prompt.trim());
@@ -2397,13 +2504,14 @@ export function regenerateSingleQuestion(
     replacement = createFallbackQuestion(
       'Toán',
       normGrade,
-      currentQuestion.chapter,
+      currentQuestion.chapter || (targetDomain === 'geometry' ? 'Hình học' : 'Đại số'),
       currentQuestion.lesson,
       currentQuestion.section,
       currentQuestion.cognitiveLevel,
       Date.now() % 100,
       shouldAllowProb,
-      targetDomain
+      targetDomain,
+      usedPrompts
     );
   }
 
@@ -2441,6 +2549,11 @@ export function createNewQuestionWithLevel(
       ? allowProbStats
       : isProbStatsQuestion(baseQuestion) || isProbStatsText(baseQuestion.lesson || '');
 
+  const isGeom = isGeometryText(
+    [baseQuestion.prompt, baseQuestion.lesson, baseQuestion.chapter].join(' ')
+  );
+  const targetDomain: 'algebra' | 'geometry' = isGeom ? 'geometry' : 'algebra';
+
   let replacement = findBestQuestionFromBank(
     'Toán',
     normGrade,
@@ -2449,19 +2562,22 @@ export function createNewQuestionWithLevel(
     level,
     usedPrompts,
     undefined,
-    shouldAllowProb
+    shouldAllowProb,
+    targetDomain
   );
 
   if (!replacement) {
     replacement = createFallbackQuestion(
       'Toán',
       normGrade,
-      baseQuestion.chapter,
+      baseQuestion.chapter || (targetDomain === 'geometry' ? 'Hình học' : 'Đại số'),
       baseQuestion.lesson,
       baseQuestion.section,
       level,
       allQuestionsInPaper.length + 1,
-      shouldAllowProb
+      shouldAllowProb,
+      targetDomain,
+      usedPrompts
     );
   }
 

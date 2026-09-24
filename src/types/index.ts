@@ -564,6 +564,8 @@ export interface BankQuestionTemplate {
   essayGradingSteps?: { step: string; point: number }[];
   solutionExplanation: string;
   learningObjective: string;
+  chapter?: string;
+  lesson?: string;
   // Metadata nguồn câu hỏi
   source?: 'uploaded' | 'ai_system';
   sourceFileName?: string;

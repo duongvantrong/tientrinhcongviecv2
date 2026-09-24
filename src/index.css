@@ -1,5 +1,9 @@
 @import "tailwindcss";
 
+body, button, input, select, textarea {
+  font-family: 'Be Vietnam Pro', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+}
+
 /* =========================================================
    CẤU HÌNH IN ẤN CHUẨN A4 CHO SƠ ĐỒ LỚP HỌC (SEATING CHART)
    Đảm bảo chỉ in đúng 1 bản sơ đồ lớp rõ ràng, không lem trang

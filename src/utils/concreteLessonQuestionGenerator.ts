@@ -5,6 +5,17 @@ import {
   CURRICULUM_GRADE_7_QUESTIONS,
   CURRICULUM_GRADE_6_QUESTIONS,
 } from '../data/curriculumMathBank';
+import {
+  GRADE_9_GEOMETRY_QUESTIONS,
+  GRADE_8_GEOMETRY_QUESTIONS,
+  GRADE_7_GEOMETRY_QUESTIONS,
+  GRADE_6_GEOMETRY_QUESTIONS,
+  ConcreteGeometryQuestion,
+} from './geometryQuestionBank';
+import {
+  detectCurriculumTopicCluster,
+  getCurriculumQuestionsForTopic,
+} from './curriculumTopicBank';
 
 export type McqOpt = { key: 'A' | 'B' | 'C' | 'D'; text: string };
 
@@ -91,7 +102,99 @@ export function generateConcreteLessonQuestion(
       ? false
       : isGeometryText(combinedText);
 
-  // 1. Kiểm tra trong ngân hàng câu hỏi bám sát chương trình (Curriculum Bank)
+  // 1. Nếu là câu hỏi trắc nghiệm Hình học (Part 1 MCQ), sử dụng ngân hàng hình học chuyên sâu 80+ câu
+  if (isGeom && section === 'part1_mcq') {
+    let geomBank: ConcreteGeometryQuestion[] = [];
+    if (normGrade === '9') geomBank = GRADE_9_GEOMETRY_QUESTIONS;
+    else if (normGrade === '8') geomBank = GRADE_8_GEOMETRY_QUESTIONS;
+    else if (normGrade === '7') geomBank = GRADE_7_GEOMETRY_QUESTIONS;
+    else geomBank = GRADE_6_GEOMETRY_QUESTIONS;
+
+    // 1a. Ưu tiên khớp chính xác mức độ nhận thức VÀ chưa từng xuất hiện trong đề
+    const exactLevelUnused = geomBank.filter(
+      (q) => q.cognitiveLevel === cognitiveLevel && !usedPrompts.has(q.prompt.trim())
+    );
+    if (exactLevelUnused.length > 0) {
+      const sel = exactLevelUnused[index % exactLevelUnused.length];
+      usedPrompts.add(sel.prompt.trim());
+      return {
+        subject,
+        grade: normGrade,
+        topicKeywords: sel.topicKeywords,
+        chapter: sel.chapter || chapter || 'Hình học',
+        lesson: sel.lesson || lesson,
+        section: 'part1_mcq',
+        type: 'multiple_choice',
+        cognitiveLevel: sel.cognitiveLevel,
+        prompt: sel.prompt,
+        options: sel.options,
+        correctOption: sel.correctOption,
+        solutionExplanation: sel.solutionExplanation,
+        learningObjective: sel.learningObjective,
+      };
+    }
+
+    // 1b. Chưa dùng ở bất kỳ mức độ nào
+    const anyUnused = geomBank.filter((q) => !usedPrompts.has(q.prompt.trim()));
+    if (anyUnused.length > 0) {
+      const sel = anyUnused[index % anyUnused.length];
+      usedPrompts.add(sel.prompt.trim());
+      return {
+        subject,
+        grade: normGrade,
+        topicKeywords: sel.topicKeywords,
+        chapter: sel.chapter || chapter || 'Hình học',
+        lesson: sel.lesson || lesson,
+        section: 'part1_mcq',
+        type: 'multiple_choice',
+        cognitiveLevel: cognitiveLevel,
+        prompt: sel.prompt,
+        options: sel.options,
+        correctOption: sel.correctOption,
+        solutionExplanation: sel.solutionExplanation,
+        learningObjective: sel.learningObjective,
+      };
+    }
+
+    // 1c. Khớp chính xác mức độ nhận thức
+    const exactLevel = geomBank.filter((q) => q.cognitiveLevel === cognitiveLevel);
+    if (exactLevel.length > 0) {
+      const sel = exactLevel[index % exactLevel.length];
+      return {
+        subject,
+        grade: normGrade,
+        topicKeywords: sel.topicKeywords,
+        chapter: sel.chapter || chapter || 'Hình học',
+        lesson: sel.lesson || lesson,
+        section: 'part1_mcq',
+        type: 'multiple_choice',
+        cognitiveLevel: sel.cognitiveLevel,
+        prompt: sel.prompt,
+        options: sel.options,
+        correctOption: sel.correctOption,
+        solutionExplanation: sel.solutionExplanation,
+        learningObjective: sel.learningObjective,
+      };
+    }
+  }
+
+  // 2. Ưu tiên tuyệt đối ngân hàng câu hỏi chuẩn PPCT & SGK của từng bài học
+  const topicClusterQuestions = getCurriculumQuestionsForTopic(normGrade, lesson, chapter);
+  if (topicClusterQuestions && topicClusterQuestions.length > 0) {
+    const matchingCluster = topicClusterQuestions.filter(
+      (q) => q.section === section && !usedPrompts.has(q.prompt)
+    );
+    if (matchingCluster.length > 0) {
+      const exactLevel = matchingCluster.filter((q) => q.cognitiveLevel === cognitiveLevel);
+      const chosen = exactLevel.length > 0
+        ? exactLevel[index % exactLevel.length]
+        : matchingCluster[index % matchingCluster.length];
+      usedPrompts.add(chosen.prompt);
+      return { ...chosen, source: 'ai_system' };
+    }
+  }
+
+  // 3. Kiểm tra trong ngân hàng câu hỏi bám sát chương trình (Curriculum Bank)
   let gradeBank: BankQuestionTemplate[] = [];
   if (normGrade === '9') gradeBank = CURRICULUM_GRADE_9_QUESTIONS;
   else if (normGrade === '8') gradeBank = CURRICULUM_GRADE_8_QUESTIONS;
@@ -111,22 +214,74 @@ export function generateConcreteLessonQuestion(
 
   if (matchingBankQuestions.length > 0) {
     const exactLevel = matchingBankQuestions.filter((q) => q.cognitiveLevel === cognitiveLevel);
-    if (exactLevel.length > 0) {
-      return exactLevel[index % exactLevel.length];
-    }
-    return matchingBankQuestions[index % matchingBankQuestions.length];
+    const chosen = exactLevel.length > 0 ? exactLevel[index % exactLevel.length] : matchingBankQuestions[index % matchingBankQuestions.length];
+    usedPrompts.add(chosen.prompt);
+    return chosen;
   }
 
-  // 2. Nếu không tìm thấy trong ngân hàng sẵn có, sinh câu hỏi toán học cụ thể dựa vào khối và thể loại
+  // 4. Nếu không tìm thấy trong ngân hàng sẵn có, sinh câu hỏi toán học cụ thể dựa vào khối và thể loại
   if (normGrade === '9') {
-    return generateGrade9Concrete(subject, chapter, lesson, section, cognitiveLevel, index, isGeom);
+    return generateGrade9Concrete(subject, chapter, lesson, section, cognitiveLevel, index, isGeom, usedPrompts);
   } else if (normGrade === '8') {
-    return generateGrade8Concrete(subject, chapter, lesson, section, cognitiveLevel, index, isGeom);
+    return generateGrade8Concrete(subject, chapter, lesson, section, cognitiveLevel, index, isGeom, usedPrompts);
   } else if (normGrade === '7') {
-    return generateGrade7Concrete(subject, chapter, lesson, section, cognitiveLevel, index, isGeom);
+    return generateGrade7Concrete(subject, chapter, lesson, section, cognitiveLevel, index, isGeom, usedPrompts);
   } else {
-    return generateGrade6Concrete(subject, chapter, lesson, section, cognitiveLevel, index, isGeom);
+    return generateGrade6Concrete(subject, chapter, lesson, section, cognitiveLevel, index, isGeom, usedPrompts);
   }
+}
+
+function selectVariant<T extends { prompt: string; level: 'nhanBiet' | 'thongHieu' | 'vanDung' | 'vanDungCao' }>(
+  variants: T[],
+  cognitiveLevel: 'nhanBiet' | 'thongHieu' | 'vanDung' | 'vanDungCao',
+  index: number,
+  usedPrompts: Set<string>
+): T {
+  // 1. Khớp chính xác mức độ nhận thức VÀ chưa từng dùng trong đề
+  const exactUnused = variants.filter(
+    (v) => v.level === cognitiveLevel && !usedPrompts.has(v.prompt.trim())
+  );
+  if (exactUnused.length > 0) {
+    const sel = exactUnused[index % exactUnused.length];
+    usedPrompts.add(sel.prompt.trim());
+    return sel;
+  }
+
+  // 2. Chưa dùng trong đề ở bất kỳ mức độ nào
+  const anyUnused = variants.filter((v) => !usedPrompts.has(v.prompt.trim()));
+  if (anyUnused.length > 0) {
+    const sel = anyUnused[index % anyUnused.length];
+    usedPrompts.add(sel.prompt.trim());
+    return sel;
+  }
+
+  // 3. Khớp chính xác mức độ nhận thức
+  const exact = variants.filter((v) => v.level === cognitiveLevel);
+  if (exact.length > 0) {
+    const sel = exact[index % exact.length];
+    usedPrompts.add(sel.prompt.trim());
+    return sel;
+  }
+
+  const sel = variants[index % variants.length];
+  usedPrompts.add(sel.prompt.trim());
+  return sel;
+}
+
+function pickUnused<T extends { prompt: string }>(
+  items: T[],
+  index: number,
+  usedPrompts: Set<string>
+): T {
+  const unused = items.filter((item) => !usedPrompts.has(item.prompt.trim()));
+  if (unused.length > 0) {
+    const chosen = unused[index % unused.length];
+    usedPrompts.add(chosen.prompt.trim());
+    return chosen;
+  }
+  const chosen = items[index % items.length];
+  usedPrompts.add(chosen.prompt.trim());
+  return chosen;
 }
 
 // ============================================================================
@@ -140,7 +295,8 @@ function generateGrade9Concrete(
   section: 'part1_mcq' | 'part2_true_false' | 'part3_short_answer' | 'part4_essay',
   cognitiveLevel: 'nhanBiet' | 'thongHieu' | 'vanDung' | 'vanDungCao',
   index: number,
-  isGeom: boolean = false
+  isGeom: boolean = false,
+  usedPrompts: Set<string> = new Set()
 ): BankQuestionTemplate {
   // PHẦN 1: TRẮC NGHIỆM 4 PHƯƠNG ÁN (MCQ)
   if (section === 'part1_mcq') {
@@ -298,7 +454,7 @@ function generateGrade9Concrete(
         level: 'thongHieu',
       },
     ];
-    const sel = algVariants[index % algVariants.length];
+    const sel = selectVariant(algVariants, cognitiveLevel, index, usedPrompts);
     return {
       subject,
       grade: '9',
@@ -475,7 +631,8 @@ function generateGrade8Concrete(
   section: 'part1_mcq' | 'part2_true_false' | 'part3_short_answer' | 'part4_essay',
   cognitiveLevel: 'nhanBiet' | 'thongHieu' | 'vanDung' | 'vanDungCao',
   index: number,
-  isGeom: boolean = false
+  isGeom: boolean = false,
+  usedPrompts: Set<string> = new Set()
 ): BankQuestionTemplate {
   if (section === 'part1_mcq') {
     if (isGeom) {
@@ -601,7 +758,7 @@ function generateGrade8Concrete(
         sol: '$(2x + 3)^2 = (2x)^2 + 2(2x)(3) + 3^2 = 4x^2 + 12x + 9$.',
       },
     ];
-    const sel = g8AlgMcq[index % g8AlgMcq.length];
+    const sel = pickUnused(g8AlgMcq, index, usedPrompts);
     return {
       subject,
       grade: '8',
@@ -782,7 +939,8 @@ function generateGrade7Concrete(
   section: 'part1_mcq' | 'part2_true_false' | 'part3_short_answer' | 'part4_essay',
   cognitiveLevel: 'nhanBiet' | 'thongHieu' | 'vanDung' | 'vanDungCao',
   index: number,
-  isGeom: boolean = false
+  isGeom: boolean = false,
+  usedPrompts: Set<string> = new Set()
 ): BankQuestionTemplate {
   if (section === 'part1_mcq') {
     if (isGeom) {
@@ -891,7 +1049,7 @@ function generateGrade7Concrete(
         sol: '$2x - 8 = 0 \\Leftrightarrow 2x = 8 \\Leftrightarrow x = 4$.',
       },
     ];
-    const sel = g7AlgMcq[index % g7AlgMcq.length];
+    const sel = pickUnused(g7AlgMcq, index, usedPrompts);
     return {
       subject,
       grade: '7',
@@ -1026,7 +1184,8 @@ function generateGrade6Concrete(
   section: 'part1_mcq' | 'part2_true_false' | 'part3_short_answer' | 'part4_essay',
   cognitiveLevel: 'nhanBiet' | 'thongHieu' | 'vanDung' | 'vanDungCao',
   index: number,
-  isGeom: boolean = false
+  isGeom: boolean = false,
+  usedPrompts: Set<string> = new Set()
 ): BankQuestionTemplate {
   if (section === 'part1_mcq') {
     if (isGeom) {
@@ -1118,7 +1277,7 @@ function generateGrade6Concrete(
         sol: 'Số đối của $-20$ là $20$.',
       },
     ];
-    const sel = g6AlgMcq[index % g6AlgMcq.length];
+    const sel = pickUnused(g6AlgMcq, index, usedPrompts);
     return {
       subject,
       grade: '6',
