@@ -7,6 +7,7 @@ import { ProgressCharts } from './ProgressCharts';
 import { UpcomingExams } from './UpcomingExams';
 import { ExamScheduleTable } from './ExamScheduleTable';
 import { WeeklyTimetableSection } from './timetable/WeeklyTimetableSection';
+import { GradeSgkReferenceSection } from './GradeSgkReferenceSection';
 import { BookOpen, Layers, Upload, CheckCircle2 } from 'lucide-react';
 import { TeacherTimetableConfig } from '../types';
 import { getDefaultTeacherTimetable } from '../utils/timetableScheduler';
@@ -39,6 +40,7 @@ interface ProgressAndScheduleTabProps {
   onUpdateSgkBooks?: (books: SgkBook[]) => void;
   onLinkSgkToPpct?: (ppctId: string, volume1Id?: string, volume2Id?: string) => void;
   onApplySgkToMatrix?: (bookId: string, volume: 1 | 2 | 'all') => void;
+  onOpenReconciliation?: () => void;
   timetableConfig?: TeacherTimetableConfig;
   onUpdateTimetableConfig?: (newConfig: TeacherTimetableConfig) => void;
 }
@@ -71,6 +73,7 @@ export const ProgressAndScheduleTab: React.FC<ProgressAndScheduleTabProps> = ({
   onUpdateSgkBooks,
   onLinkSgkToPpct,
   onApplySgkToMatrix,
+  onOpenReconciliation,
   timetableConfig: propTimetableConfig,
   onUpdateTimetableConfig: propOnUpdateTimetableConfig,
 }) => {
@@ -327,6 +330,19 @@ export const ProgressAndScheduleTab: React.FC<ProgressAndScheduleTabProps> = ({
                 isBeforeTerm={isBeforeTerm}
               />
             </>
+          )}
+
+          {/* Cơ sở SGK tham chiếu & Đối chiếu cân đối */}
+          {sgkBooks && onUpdateSgkBooks && (
+            <GradeSgkReferenceSection
+              selectedGrade={currentGrade}
+              sgkBooks={sgkBooks}
+              activePpct={activeDataset}
+              onUpdateSgkBooks={onUpdateSgkBooks}
+              onLinkSgkToPpct={onLinkSgkToPpct}
+              onApplySgkToMatrix={onApplySgkToMatrix}
+              onOpenReconciliation={onOpenReconciliation}
+            />
           )}
 
           <UpcomingExams

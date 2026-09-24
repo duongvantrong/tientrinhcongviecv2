@@ -12,6 +12,7 @@ import { ExamBuilderTab } from './components/exam/ExamBuilderTab';
 import { GvcnDashboardTab } from './components/gvcn/GvcnDashboardTab';
 import { PpctManualEditorModal } from './components/PpctManualEditorModal';
 import { SgkManagerModal } from './components/SgkManagerModal';
+import { SgkPpctReconciliationModal } from './components/sgk/SgkPpctReconciliationModal';
 import { PpctFullViewerModal } from './components/PpctFullViewerModal';
 import { UploadPpctModal } from './components/UploadPpctModal';
 import { QuestionBankManagerModal } from './components/QuestionBankManagerModal';
@@ -66,6 +67,7 @@ export default function App() {
   });
 
   const [isSgkManagerOpen, setIsSgkManagerOpen] = useState(false);
+  const [isSgkReconciliationOpen, setIsSgkReconciliationOpen] = useState(false);
   const [isFullPpctViewerOpen, setIsFullPpctViewerOpen] = useState(false);
   const [isQuestionBankModalOpen, setIsQuestionBankModalOpen] = useState(false);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState<boolean>(false);
@@ -548,6 +550,20 @@ export default function App() {
     setActiveTab('matrix');
   };
 
+  const handleApplyReconciledMatrix = (
+    newRows: MatrixRow[],
+    configUpdates?: Partial<MatrixConfig>
+  ) => {
+    setMatrixRows(newRows);
+    if (configUpdates) {
+      setMatrixConfig((prev) => ({
+        ...prev,
+        ...configUpdates,
+      }));
+    }
+    setActiveTab('matrix');
+  };
+
   const handleOpenUploadModal = (grade?: string) => {
     setUploadModalGrade(grade || activeDataset?.grade || '9');
     setIsUploadModalOpen(true);
@@ -774,6 +790,7 @@ export default function App() {
             onUpdateSgkBooks={setSgkBooks}
             onLinkSgkToPpct={handleLinkSgkToPpct}
             onApplySgkToMatrix={handleApplySgkToMatrix}
+            onOpenReconciliation={() => setIsSgkReconciliationOpen(true)}
             timetableConfig={timetableConfig}
             onUpdateTimetableConfig={handleUpdateTimetableConfig}
           />
@@ -792,6 +809,7 @@ export default function App() {
             onUpdateRows={setMatrixRows}
             onOpenSgkManager={() => setIsSgkManagerOpen(true)}
             onOpenFullPpct={() => setIsFullPpctViewerOpen(true)}
+            onOpenReconciliation={() => setIsSgkReconciliationOpen(true)}
             onOpenExamBuilder={() => {
               setExamSyncTimestamp(Date.now());
               setActiveTab('exam_builder');
@@ -835,6 +853,19 @@ export default function App() {
         onUpdateSgkBooks={setSgkBooks}
         onLinkSgkToPpct={handleLinkSgkToPpct}
         onApplySgkToMatrix={handleApplySgkToMatrix}
+        onOpenReconciliation={() => setIsSgkReconciliationOpen(true)}
+      />
+
+      {/* Modal Đối chiếu SGK với PPCT & Phân chia điểm cân đối */}
+      <SgkPpctReconciliationModal
+        isOpen={isSgkReconciliationOpen}
+        onClose={() => setIsSgkReconciliationOpen(false)}
+        sgkBooks={sgkBooks}
+        onUpdateSgkBooks={setSgkBooks}
+        activePpct={activeDataset}
+        allPpctDatasets={datasets}
+        matrixConfig={matrixConfig}
+        onApplyMatrixRows={handleApplyReconciledMatrix}
       />
 
       {/* Manual PPCT editor modal */}

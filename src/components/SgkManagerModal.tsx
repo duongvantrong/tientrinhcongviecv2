@@ -45,6 +45,7 @@ interface SgkManagerModalProps {
   onUpdateSgkBooks: (books: SgkBook[]) => void;
   onLinkSgkToPpct: (ppctId: string, volume1Id?: string, volume2Id?: string) => void;
   onApplySgkToMatrix?: (bookId: string, volume: 1 | 2 | 'all') => void;
+  onOpenReconciliation?: () => void;
 }
 
 export const SgkManagerModal: React.FC<SgkManagerModalProps> = ({
@@ -55,6 +56,7 @@ export const SgkManagerModal: React.FC<SgkManagerModalProps> = ({
   onUpdateSgkBooks,
   onLinkSgkToPpct,
   onApplySgkToMatrix,
+  onOpenReconciliation,
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedGrade, setSelectedGrade] = useState<string>(() => activePpct?.grade || '9');
@@ -710,16 +712,32 @@ export const SgkManagerModal: React.FC<SgkManagerModalProps> = ({
                 />
               </div>
 
-              {onApplySgkToMatrix && (
-                <button
-                  onClick={handleApplyToMatrix}
-                  className="w-full sm:w-auto px-3.5 py-1.5 bg-emerald-800 hover:bg-emerald-900 text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 shadow-2xs transition-all"
-                  title="Đồng bộ ngay các Yêu cầu cần đạt từ bộ SGK này vào Bảng đặc tả đề thi"
-                >
-                  <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-                  <span>Áp dụng vào Bảng đặc tả Ma trận</span>
-                </button>
-              )}
+              <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+                {onOpenReconciliation && (
+                  <button
+                    onClick={() => {
+                      onOpenReconciliation();
+                      onClose();
+                    }}
+                    className="w-full sm:w-auto px-3.5 py-1.5 bg-gradient-to-r from-teal-800 to-emerald-800 hover:from-teal-900 hover:to-emerald-900 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 shadow-2xs transition-all cursor-pointer"
+                    title="Đọc qua các bài trong chương cần thực hiện, đối chiếu với PPCT để hiển thị nội dung chính xác và tính toán số tiết để phân chia điểm cân đối"
+                  >
+                    <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                    <span>Đối chiếu SGK & PPCT cân đối điểm</span>
+                  </button>
+                )}
+
+                {onApplySgkToMatrix && (
+                  <button
+                    onClick={handleApplyToMatrix}
+                    className="w-full sm:w-auto px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 shadow-2xs transition-all cursor-pointer"
+                    title="Đồng bộ ngay các Yêu cầu cần đạt từ bộ SGK này vào Bảng đặc tả đề thi"
+                  >
+                    <BookOpen className="w-3.5 h-3.5 text-emerald-700" />
+                    <span>Nạp YCCĐ vào Bảng đặc tả</span>
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* Editing Lesson Modal / Inline Form if active */}

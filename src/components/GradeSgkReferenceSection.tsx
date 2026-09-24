@@ -38,6 +38,7 @@ interface GradeSgkReferenceSectionProps {
   onUpdateSgkBooks: (books: SgkBook[]) => void;
   onLinkSgkToPpct?: (ppctId: string, volume1Id?: string, volume2Id?: string) => void;
   onApplySgkToMatrix?: (bookId: string, volume: 1 | 2 | 'all') => void;
+  onOpenReconciliation?: () => void;
 }
 
 export const GradeSgkReferenceSection: React.FC<GradeSgkReferenceSectionProps> = ({
@@ -47,6 +48,7 @@ export const GradeSgkReferenceSection: React.FC<GradeSgkReferenceSectionProps> =
   onUpdateSgkBooks,
   onLinkSgkToPpct,
   onApplySgkToMatrix,
+  onOpenReconciliation,
 }) => {
   const [expandedVolume, setExpandedVolume] = useState<1 | 2 | null>(null);
   const [inputUrlVol, setInputUrlVol] = useState<1 | 2 | null>(null);
@@ -163,7 +165,18 @@ export const GradeSgkReferenceSection: React.FC<GradeSgkReferenceSectionProps> =
           </div>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-2 shrink-0 flex-wrap">
+          {onOpenReconciliation && (
+            <button
+              onClick={onOpenReconciliation}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-slate-950 font-bold rounded-lg text-xs transition-all shadow-xs cursor-pointer"
+              title="Đọc qua các bài trong chương cần thực hiện, đối chiếu với PPCT để hiển thị nội dung chính xác và tính toán số tiết để phân chia điểm cân đối"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-slate-950" />
+              <span>Đối chiếu SGK & PPCT cân đối điểm</span>
+            </button>
+          )}
+
           <a
             href="https://hanhtrangso.nxbgd.vn"
             target="_blank"

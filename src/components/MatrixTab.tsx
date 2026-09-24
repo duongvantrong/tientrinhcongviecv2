@@ -36,6 +36,7 @@ interface MatrixTabProps {
   onOpenFullPpct?: () => void;
   onOpenExamBuilder?: () => void;
   onOpenQuestionBank?: () => void;
+  onOpenReconciliation?: () => void;
 }
 
 export const MatrixTab: React.FC<MatrixTabProps> = ({
@@ -54,6 +55,7 @@ export const MatrixTab: React.FC<MatrixTabProps> = ({
   onOpenFullPpct,
   onOpenExamBuilder,
   onOpenQuestionBank,
+  onOpenReconciliation,
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<'matrix' | 'spec' | 'all'>('matrix');
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
@@ -420,11 +422,12 @@ export const MatrixTab: React.FC<MatrixTabProps> = ({
         onLoadSampleTemplate={handleLoadSampleTemplate}
         onOpenSgkManager={onOpenSgkManager}
         onOpenFullPpct={onOpenFullPpct}
+        onOpenReconciliation={onOpenReconciliation}
       />
 
       {/* Navigation Sub-Tabs between Phụ lục I & Phụ lục II */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-2.5 rounded-xl border border-slate-200 shadow-2xs">
-        <div className="flex items-center gap-1.5 p-1 bg-slate-100/90 rounded-lg">
+        <div className="flex items-center gap-1.5 p-1 bg-slate-100/90 rounded-lg flex-wrap">
           <button
             onClick={() => setActiveSubTab('matrix')}
             className={`px-3.5 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-all ${
@@ -460,6 +463,17 @@ export const MatrixTab: React.FC<MatrixTabProps> = ({
             <Layers className="w-3.5 h-3.5 text-indigo-700" />
             <span>Xem cả 2 bảng (PL I + PL II)</span>
           </button>
+
+          {onOpenReconciliation && (
+            <button
+              onClick={onOpenReconciliation}
+              className="px-3.5 py-1.5 rounded-md text-xs font-bold bg-gradient-to-r from-emerald-800 to-teal-800 hover:from-emerald-900 hover:to-teal-900 text-white flex items-center gap-1.5 shadow-2xs transition-all cursor-pointer"
+              title="Đọc qua các bài trong chương cần thực hiện từ SGK, đối chiếu PPCT để tính toán số tiết và phân chia điểm cân đối (10.0đ)"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+              <span>Đối chiếu SGK & PPCT cân đối điểm</span>
+            </button>
+          )}
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">

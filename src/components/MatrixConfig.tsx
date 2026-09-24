@@ -48,6 +48,7 @@ interface MatrixConfigProps {
   onLoadSampleTemplate: (file: File) => void;
   onOpenSgkManager?: () => void;
   onOpenFullPpct?: () => void;
+  onOpenReconciliation?: () => void;
 }
 
 export const MatrixConfigSection: React.FC<MatrixConfigProps> = ({
@@ -66,6 +67,7 @@ export const MatrixConfigSection: React.FC<MatrixConfigProps> = ({
   onLoadSampleTemplate,
   onOpenSgkManager,
   onOpenFullPpct,
+  onOpenReconciliation,
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [showLessonSelector, setShowLessonSelector] = useState(false);
@@ -355,7 +357,7 @@ export const MatrixConfigSection: React.FC<MatrixConfigProps> = ({
           <button
             type="button"
             onClick={onOpenSgkManager}
-            className="flex items-center gap-2 bg-teal-50 hover:bg-teal-100/90 border border-teal-300 rounded-lg px-3 py-1.5 text-xs text-teal-950 font-medium transition-colors shadow-2xs group"
+            className="flex items-center gap-2 bg-teal-50 hover:bg-teal-100/90 border border-teal-300 rounded-lg px-3 py-1.5 text-xs text-teal-950 font-medium transition-colors shadow-2xs group cursor-pointer"
             title="Nhấn để mở Bảng quản lý & Tải lên Sách Giáo Khoa Toán Tập 1, Tập 2"
           >
             <BookMarked className="w-3.5 h-3.5 text-teal-700 group-hover:scale-110 transition-transform" />
@@ -364,6 +366,18 @@ export const MatrixConfigSection: React.FC<MatrixConfigProps> = ({
               {matchedSgkBook ? `${matchedSgkBook.title} (Tập ${matchedSgkBook.volume})` : `Toán ${config.grade} (Tập 1 & 2)`}
             </strong>
           </button>
+
+          {onOpenReconciliation && (
+            <button
+              type="button"
+              onClick={onOpenReconciliation}
+              className="flex items-center gap-1.5 bg-gradient-to-r from-emerald-800 to-teal-800 hover:from-emerald-900 hover:to-teal-900 text-white rounded-lg px-3.5 py-1.5 text-xs font-bold transition-all shadow-2xs cursor-pointer group"
+              title="Đọc qua các bài trong chương cần thực hiện từ SGK, đối chiếu PPCT để tính toán số tiết và phân chia điểm cân đối"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-amber-300 group-hover:scale-110 transition-transform" />
+              <span>Đối chiếu SGK & PPCT cân đối điểm</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -850,15 +864,29 @@ export const MatrixConfigSection: React.FC<MatrixConfigProps> = ({
               <span> ({totalPeriodsInScope} tiết thực tế)</span>
             </div>
 
-            <button
-              type="button"
-              onClick={() => setShowLessonSelector(!showLessonSelector)}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-white hover:bg-emerald-50 text-emerald-800 border border-emerald-300 rounded-lg text-[11px] font-semibold transition-colors shadow-2xs"
-            >
-              <ListFilter className="w-3.5 h-3.5" />
-              <span>{showLessonSelector ? 'Đóng danh sách bài' : 'Xem & Tùy chọn bài học'}</span>
-              {showLessonSelector ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-            </button>
+            <div className="flex items-center gap-2">
+              {onOpenReconciliation && (
+                <button
+                  type="button"
+                  onClick={onOpenReconciliation}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-gradient-to-r from-emerald-700 to-teal-800 hover:from-emerald-800 hover:to-teal-900 text-white rounded-lg text-[11px] font-bold transition-all shadow-2xs cursor-pointer"
+                  title="Đọc qua các bài trong chương cần thực hiện, đối chiếu với PPCT và tính toán số tiết để phân chia điểm cân đối"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                  <span>Đối chiếu SGK & Cân đối điểm</span>
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={() => setShowLessonSelector(!showLessonSelector)}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-white hover:bg-emerald-50 text-emerald-800 border border-emerald-300 rounded-lg text-[11px] font-semibold transition-colors shadow-2xs cursor-pointer"
+              >
+                <ListFilter className="w-3.5 h-3.5" />
+                <span>{showLessonSelector ? 'Đóng danh sách' : 'Xem & Tùy chọn bài'}</span>
+                {showLessonSelector ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+              </button>
+            </div>
           </div>
         </div>
 
