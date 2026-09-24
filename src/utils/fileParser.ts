@@ -1,7 +1,12 @@
 import * as XLSX from 'xlsx';
 import mammoth from 'mammoth';
 import { PpctDataset, PpctLesson, PpctValidationResult, PpctIssue } from '../types';
-import { cleanContentWithoutNls, isTechCompetenceText, getOfficialSgkTopicAndChapter } from './dateCalculations';
+import {
+  cleanContentWithoutNls,
+  isTechCompetenceText,
+  getOfficialSgkTopicAndChapter,
+  identifySgkChapterAndLesson,
+} from './dateCalculations';
 
 /**
  * Extracts table rows and text from a Word document (.docx) using mammoth
@@ -553,11 +558,14 @@ export async function parsePpctFile(
     let finalBaiHoc = cleanContentWithoutNls(baiHoc.replace(/^[-–—\s]+/, '').trim());
     let finalChapter = cleanContentWithoutNls(currentChapter);
 
-    if (isTechCompetenceText(finalBaiHoc) || isTechCompetenceText(finalChapter)) {
-      const match = getOfficialSgkTopicAndChapter(`${finalChapter} ${finalBaiHoc}`);
-      if (match) {
-        finalChapter = match.chapter;
-        finalBaiHoc = match.topic;
+    // Đối chiếu chính xác theo SGK: Xác định chương và tên bài canonical
+    // Nếu có Bài 4 thuộc chương 2 thì sẽ để chương 2 và nội dung của bài 4
+    const sgkRes = identifySgkChapterAndLesson(finalBaiHoc, finalChapter, '9');
+    if (sgkRes && sgkRes.chapter) {
+      finalChapter = sgkRes.chapter;
+      // Giữ tên bài hoặc lấy canonical lesson title nếu chưa chuẩn
+      if (!finalBaiHoc || isTechCompetenceText(finalBaiHoc)) {
+        finalBaiHoc = sgkRes.canonicalLessonTitle;
       }
     }
 
@@ -1138,9 +1146,13 @@ export function autoStandardizePpct(
   const balancedHK2 = balanceTerm(hk2List, 68, 19, 35, 73);
   const finalLessons = [...balancedHK1, ...balancedHK2];
 
-  // Re-number STT globally
+  // Re-number STT globally and align SGK chapter
   finalLessons.forEach((l, idx) => {
     l.stt = idx + 1;
+    const sgkRes = identifySgkChapterAndLesson(l.baiHoc, l.chuong, dataset.grade || '9');
+    if (sgkRes && sgkRes.chapter) {
+      l.chuong = sgkRes.chapter;
+    }
   });
 
   const updatedDataset: PpctDataset = {

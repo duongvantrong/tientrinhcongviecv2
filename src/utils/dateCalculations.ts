@@ -417,6 +417,406 @@ export function cleanContentWithoutNls(text: string): string {
 }
 
 /**
+ * Chuyển đổi số La Mã sang số nguyên (I -> 1, II -> 2, IV -> 4, IX -> 9, X -> 10, v.v.)
+ */
+export function romanToNumber(roman: string): number {
+  if (!roman) return 0;
+  const map: Record<string, number> = {
+    I: 1, V: 5, X: 10, L: 50, C: 100, D: 500, M: 1000,
+  };
+  const clean = roman.toUpperCase().trim();
+  let result = 0;
+  for (let i = 0; i < clean.length; i++) {
+    const current = map[clean[i]] || 0;
+    const next = map[clean[i + 1]] || 0;
+    if (current < next) {
+      result -= current;
+    } else {
+      result += current;
+    }
+  }
+  return result;
+}
+
+/**
+ * Trích xuất thứ tự chương (Chương I -> 1, Chương II -> 2, Chương 3 -> 3, Chủ đề 2 -> 2)
+ */
+export function extractChapterOrder(chapterTitle: string): number {
+  if (!chapterTitle) return 999;
+  const norm = chapterTitle.trim();
+  const mRoman = norm.match(/(?:chương|chủ đề|chuong|chu de|ôn tập chương|bài tập cuối chương)\s+([ivxlcdm]+)\b/i);
+  if (mRoman) {
+    const num = romanToNumber(mRoman[1]);
+    if (num > 0) return num;
+  }
+  const mDigit = norm.match(/(?:chương|chủ đề|chuong|chu de)\s+(\d+)\b/i);
+  if (mDigit) {
+    return parseInt(mDigit[1], 10);
+  }
+  return 999;
+}
+
+/**
+ * Chuẩn hóa tên bài học về tên bài học chính thức (canonical lesson title):
+ * - Loại bỏ hoàn toàn mã năng lực số (NLS), công cụ GeoGebra, Mindmap...
+ * - Loại bỏ các phân nhánh phụ trong bài: ví dụ " 1. Phương trình tích", " 2. Phương trình chứa ẩn ở mẫu", " Bài tập thực hành..."
+ * - Loại bỏ các thẻ tiết: (t1), (tiết 1), (tiết 1-3), 1 tiết (T4)...
+ * - Đảm bảo các dòng cùng thuộc một bài học sẽ có CÙNG CHÍNH XÁC một tên bài chuẩn
+ */
+export function extractCanonicalLessonTitle(rawTopic: string): string {
+  if (!rawTopic) return '';
+  let text = cleanContentWithoutNls(rawTopic);
+
+  // Loại bỏ các thẻ tiết: (t1), (tiết 1), (tiết 1-3), 1 tiết (T4), ...
+  text = text
+    .replace(/\s*[\(\[]\s*(?:tiết|t)\s*\d+[\s\S]*?[\)\]]/gi, '')
+    .replace(/\s*\b\d+\s*tiết\s*\(T\d+.*?\)/gi, '')
+    .replace(/\s*&?\s*kiểm tra thường xuyên\s*\d*.*$/i, '')
+    .replace(/\s*&?\s*kttx\s*\d*.*$/i, '')
+    .replace(/\s*&?\s*kt\s*15\s*phút.*$/i, '')
+    .trim();
+
+  // 1. Kiểm tra bài tập cuối chương / ôn tập chương
+  const mEndCh = text.match(/(?:bài tập cuối chương|ôn tập chương|luyện tập cuối chương|bài tập chương)\s+([ivxlcdm\d]+)(.*)$/i);
+  if (mEndCh) {
+    const rawNum = mEndCh[1];
+    const roman = romanToNumber(rawNum);
+    const romanStr = roman > 0 ? (['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'][roman - 1] || rawNum) : rawNum.toUpperCase();
+    return `Bài tập cuối chương ${romanStr}`;
+  }
+
+  // 2. Kiểm tra Luyện tập chung
+  if (/^luyện tập chung\b/i.test(text)) {
+    const chMatch = text.match(/chương\s+([ivxlcdm\d]+)/i);
+    if (chMatch) {
+      const roman = romanToNumber(chMatch[1]);
+      const romanStr = roman > 0 ? (['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'][roman - 1] || chMatch[1]) : chMatch[1].toUpperCase();
+      return `Luyện tập chung (Chương ${romanStr})`;
+    }
+    return 'Luyện tập chung';
+  }
+
+  // 3. Nếu là bài học "Bài X..."
+  const mLesson = text.match(/^(\s*bài\s+\d+[\.\:\s]+)(.*)$/i);
+  if (mLesson) {
+    const prefix = mLesson[1].trim().replace(':', '.'); // "Bài 4."
+    let rest = mLesson[2].trim();
+
+    // Loại bỏ các phân nhánh phụ trong bài:
+    // " 1. Phương trình tích", " 2. Phương trình...", " 1.1. ", " 2.1. "
+    // " Bài tập thực hành...", " Luyện tập thực hành..."
+    // " - Tiết 1", " - Phần 1"
+    const subIdx = rest.search(/(?:\s+\d+\.\d*(?:\.\d*)*\s+[A-ZÀ-Ỹ]|\s+bài tập thực hành|\s+luyện tập thực hành|\s+thực hành giải|\s*[-–—]\s*(?:tiết|phần|mục)\s*\d+)/i);
+    if (subIdx !== -1) {
+      rest = rest.substring(0, subIdx).trim();
+    }
+
+    // Xóa ký tự gạch nối, dấu hai chấm hoặc chấm ở cuối
+    rest = rest.replace(/[-–—:\.\s]+$/, '').trim();
+
+    return `${prefix} ${rest}`.trim();
+  }
+
+  return text;
+}
+
+export interface SgkLessonMatchResult {
+  chapter: string;
+  chapterNumber: number;
+  canonicalLessonTitle: string;
+  lessonNumber?: number;
+  isReviewOrPractice?: boolean;
+}
+
+/**
+ * Đối chiếu chính xác nội dung PPCT với SGK theo chuẩn GDPT 2018:
+ * - Xác định chính xác theo nội dung trong SGK: Chương 1 gồm những bài nào, Chương 2 gồm những bài nào,
+ *   rồi lần lượt cho các chương khác.
+ * - Nếu PPCT có Bài 4 thuộc Chương 2 thì xếp vào Chương 2 và nội dung của Bài 4.
+ * - Tuyệt đối không để lẫn lộn giữa Đại số và Hình học dù dạy xen kẽ cùng tuần trong PPCT.
+ * - Bài tập cuối chương X xếp chính xác vào Chương X.
+ */
+export function identifySgkChapterAndLesson(
+  rawTopic: string,
+  rawChapter: string = '',
+  grade: string = '9',
+  sgkBooks?: SgkBook[]
+): SgkLessonMatchResult {
+  const normGrade = String(grade || '9').replace(/\D/g, '') || '9';
+  const canonicalTitle = extractCanonicalLessonTitle(rawTopic);
+  const lowerTopic = canonicalTitle.toLowerCase();
+
+  // Danh mục tên chuẩn các chương môn Toán THCS (KNTT / chuẩn GDPT 2018)
+  const officialChaptersGrade9: Record<number, string> = {
+    1: 'Chương I: Phương trình và hệ hai phương trình bậc nhất hai ẩn',
+    2: 'Chương II: Phương trình và bất phương trình bậc nhất một ẩn',
+    3: 'Chương III: Căn bậc hai và căn bậc ba',
+    4: 'Chương IV: Hệ thức lượng trong tam giác vuông',
+    5: 'Chương V: Đường tròn',
+    6: 'Chương VI: Hàm số y = ax² (a ≠ 0). Phương trình bậc hai một ẩn',
+    7: 'Chương VII: Một số yếu tố thống kê',
+    8: 'Chương VIII: Một số yếu tố xác suất',
+    9: 'Chương IX: Đường tròn và đa giác đều',
+    10: 'Chương X: Một số hình khối trong thực tiễn',
+  };
+
+  const officialChaptersGrade6: Record<number, string> = {
+    1: 'Chương I: Tập hợp các số tự nhiên',
+    2: 'Chương II: Tính chia hết trong tập hợp các số tự nhiên',
+    3: 'Chương III: Số nguyên',
+    4: 'Chương IV: Một số hình phẳng trong thực tiễn',
+    5: 'Chương V: Tính đối xứng của hình phẳng trong tự nhiên',
+    6: 'Chương VI: Phân số',
+    7: 'Chương VII: Số thập phân',
+    8: 'Chương VIII: Những hình hình học cơ bản',
+    9: 'Chương IX: Dữ liệu và xác suất thực nghiệm',
+  };
+
+  const officialChaptersGrade7: Record<number, string> = {
+    1: 'Chương I: Số hữu tỉ',
+    2: 'Chương II: Số thực',
+    3: 'Chương III: Góc và đường thẳng song song',
+    4: 'Chương IV: Tam giác bằng nhau',
+    5: 'Chương V: Thu thập và biểu diễn dữ liệu',
+    6: 'Chương VI: Tỉ lệ thức và đại lượng tỉ lệ',
+    7: 'Chương VII: Biểu thức đại số và đa thức một biến',
+    8: 'Chương VIII: Làm quen với biến cố và xác suất của biến cố',
+    9: 'Chương IX: Quan hệ giữa các yếu tố trong một tam giác',
+    10: 'Chương X: Một số hình khối trong thực tiễn',
+  };
+
+  const officialChaptersGrade8: Record<number, string> = {
+    1: 'Chương I: Đa thức nhiều biến',
+    2: 'Chương II: Hằng đẳng thức đáng nhớ và ứng dụng',
+    3: 'Chương III: Tứ giác',
+    4: 'Chương IV: Định lí Thalès trong tam giác',
+    5: 'Chương V: Dữ liệu và biểu đồ',
+    6: 'Chương VI: Phân thức đại số',
+    7: 'Chương VII: Phương trình bậc nhất và hàm số bậc nhất',
+    8: 'Chương VIII: Mở đầu về tính xác suất của biến cố',
+    9: 'Chương IX: Tam giác đồng dạng',
+    10: 'Chương X: Một số hình khối trong thực tiễn',
+  };
+
+  const officialMap =
+    normGrade === '6'
+      ? officialChaptersGrade6
+      : normGrade === '7'
+      ? officialChaptersGrade7
+      : normGrade === '8'
+      ? officialChaptersGrade8
+      : officialChaptersGrade9;
+
+  // 1. Kiểm tra nếu là Bài tập cuối chương / Ôn tập chương X
+  const mEndCh = lowerTopic.match(/(?:bài tập cuối chương|ôn tập chương|luyện tập cuối chương|bài tập chương)\s+([ivxlcdm\d]+)/i);
+  if (mEndCh) {
+    let chNum = romanToNumber(mEndCh[1]);
+    if (!chNum || chNum <= 0) {
+      chNum = parseInt(mEndCh[1], 10) || 1;
+    }
+    const officialTitle = officialMap[chNum] || `Chương ${chNum}`;
+    return {
+      chapter: officialTitle,
+      chapterNumber: chNum,
+      canonicalLessonTitle: canonicalTitle,
+      isReviewOrPractice: true,
+    };
+  }
+
+  // 2. Tra cứu nếu bài học có số thứ tự "Bài N"
+  const mLesson = canonicalTitle.match(/\bbài\s+(\d+)\b/i);
+  if (mLesson) {
+    const lessonNum = parseInt(mLesson[1], 10);
+
+    // Đối chiếu với bộ SGK hiện hành (Grade 9)
+    if (normGrade === '9') {
+      let chNum = 1;
+      if (lessonNum >= 1 && lessonNum <= 3) chNum = 1; // Bài 1, 2, 3 -> Chương 1
+      else if (lessonNum >= 4 && lessonNum <= 6) chNum = 2; // Bài 4, 5, 6 -> Chương 2
+      else if (lessonNum >= 7 && lessonNum <= 10) chNum = 3; // Bài 7, 8, 9, 10 -> Chương 3
+      else if (lessonNum >= 11 && lessonNum <= 12) chNum = 4; // Bài 11, 12 -> Chương 4
+      else if (lessonNum >= 13 && lessonNum <= 15) chNum = 5; // Bài 13, 14, 15 -> Chương 5
+      else if (lessonNum >= 16 && lessonNum <= 19) chNum = 6; // Bài 16, 17, 18, 19 -> Chương 6
+      else if (lessonNum >= 20 && lessonNum <= 21) chNum = 7; // Bài 20, 21 -> Chương 7
+      else if (lessonNum >= 22 && lessonNum <= 23) chNum = 8; // Bài 22, 23 -> Chương 8
+      else if (lessonNum >= 24 && lessonNum <= 27) chNum = 9; // Bài 24, 25, 26, 27 -> Chương 9
+      else if (lessonNum >= 28 && lessonNum <= 30) chNum = 10; // Bài 28, 29, 30 -> Chương 10
+
+      // Nếu bộ sách Cánh diều (số bài học đánh số lại từ 1 trong mỗi chương), phân biệt bằng từ khóa
+      if (lowerTopic.includes('tỉ số lượng giác') || lowerTopic.includes('hệ thức về cạnh và góc')) {
+        chNum = 4;
+      } else if (lowerTopic.includes('đường tròn') || lowerTopic.includes('tiếp tuyến')) {
+        chNum = 5;
+      } else if (lowerTopic.includes('bất đẳng thức') || lowerTopic.includes('bất phương trình') || lowerTopic.includes('phương trình quy về')) {
+        chNum = 2;
+      } else if (lowerTopic.includes('hệ hai phương trình') || lowerTopic.includes('phương trình bậc nhất hai ẩn')) {
+        chNum = 1;
+      } else if (lowerTopic.includes('căn thức') || lowerTopic.includes('căn bậc hai')) {
+        chNum = 3;
+      }
+
+      return {
+        chapter: officialMap[chNum] || `Chương ${chNum}`,
+        chapterNumber: chNum,
+        canonicalLessonTitle: canonicalTitle,
+        lessonNumber: lessonNum,
+      };
+    }
+
+    // Grade 6
+    if (normGrade === '6') {
+      let chNum = 1;
+      if (lessonNum >= 1 && lessonNum <= 7) chNum = 1;
+      else if (lessonNum >= 8 && lessonNum <= 13) chNum = 2;
+      else if (lessonNum >= 14 && lessonNum <= 19) chNum = 3;
+      else if (lessonNum >= 20 && lessonNum <= 22) chNum = 4;
+      else if (lessonNum >= 23 && lessonNum <= 27) chNum = 5;
+      else if (lessonNum >= 28 && lessonNum <= 37) chNum = 6;
+      return {
+        chapter: officialMap[chNum] || `Chương ${chNum}`,
+        chapterNumber: chNum,
+        canonicalLessonTitle: canonicalTitle,
+        lessonNumber: lessonNum,
+      };
+    }
+
+    // Grade 7
+    if (normGrade === '7') {
+      let chNum = 1;
+      if (lessonNum >= 1 && lessonNum <= 4) chNum = 1;
+      else if (lessonNum >= 5 && lessonNum <= 7) chNum = 2;
+      else if (lessonNum >= 8 && lessonNum <= 11) chNum = 3;
+      else if (lessonNum >= 12 && lessonNum <= 16) chNum = 4;
+      else if (lessonNum >= 17 && lessonNum <= 19) chNum = 5;
+      return {
+        chapter: officialMap[chNum] || `Chương ${chNum}`,
+        chapterNumber: chNum,
+        canonicalLessonTitle: canonicalTitle,
+        lessonNumber: lessonNum,
+      };
+    }
+
+    // Grade 8
+    if (normGrade === '8') {
+      let chNum = 1;
+      if (lessonNum >= 1 && lessonNum <= 2) chNum = 1;
+      else if (lessonNum >= 3 && lessonNum <= 5) chNum = 2;
+      else if (lessonNum >= 6 && lessonNum <= 9) chNum = 3;
+      else if (lessonNum >= 10 && lessonNum <= 13) chNum = 4;
+      else if (lessonNum >= 14 && lessonNum <= 17) chNum = 5;
+      return {
+        chapter: officialMap[chNum] || `Chương ${chNum}`,
+        chapterNumber: chNum,
+        canonicalLessonTitle: canonicalTitle,
+        lessonNumber: lessonNum,
+      };
+    }
+  }
+
+  // 3. Nếu là Luyện tập chung
+  if (lowerTopic.includes('luyện tập chung')) {
+    const mChInLtc = lowerTopic.match(/chương\s+([ivxlcdm\d]+)/i);
+    let chNum = 0;
+    if (mChInLtc) {
+      chNum = romanToNumber(mChInLtc[1]) || parseInt(mChInLtc[1], 10);
+    }
+    if (!chNum && rawChapter) {
+      chNum = extractChapterOrder(rawChapter);
+    }
+    if (!chNum || chNum === 999) {
+      chNum = 1;
+    }
+    return {
+      chapter: officialMap[chNum] || (rawChapter ? rawChapter : `Chương ${chNum}`),
+      chapterNumber: chNum,
+      canonicalLessonTitle: canonicalTitle,
+      isReviewOrPractice: true,
+    };
+  }
+
+  // 4. Tra cứu từ khóa nội dung theo SGK (khi không có số thứ tự bài)
+  if (normGrade === '9') {
+    if (
+      lowerTopic.includes('tỉ số lượng giác') ||
+      lowerTopic.includes('hệ thức về cạnh và góc') ||
+      lowerTopic.includes('tam giác vuông') ||
+      lowerTopic.includes('sin, cos')
+    ) {
+      return {
+        chapter: officialMap[4],
+        chapterNumber: 4,
+        canonicalLessonTitle: canonicalTitle,
+      };
+    }
+    if (
+      lowerTopic.includes('đường tròn') ||
+      lowerTopic.includes('tiếp tuyến') ||
+      lowerTopic.includes('dây cung') ||
+      lowerTopic.includes('cung và dây')
+    ) {
+      return {
+        chapter: officialMap[5],
+        chapterNumber: 5,
+        canonicalLessonTitle: canonicalTitle,
+      };
+    }
+    if (
+      lowerTopic.includes('phương trình bậc nhất hai ẩn') ||
+      lowerTopic.includes('hệ hai phương trình') ||
+      lowerTopic.includes('phương pháp thế') ||
+      lowerTopic.includes('cộng đại số')
+    ) {
+      return {
+        chapter: officialMap[1],
+        chapterNumber: 1,
+        canonicalLessonTitle: canonicalTitle,
+      };
+    }
+    if (
+      lowerTopic.includes('bất đẳng thức') ||
+      lowerTopic.includes('bất phương trình') ||
+      lowerTopic.includes('phương trình quy về')
+    ) {
+      return {
+        chapter: officialMap[2],
+        chapterNumber: 2,
+        canonicalLessonTitle: canonicalTitle,
+      };
+    }
+    if (
+      lowerTopic.includes('căn bậc hai') ||
+      lowerTopic.includes('căn thức') ||
+      lowerTopic.includes('căn bậc ba') ||
+      lowerTopic.includes('khai phương')
+    ) {
+      return {
+        chapter: officialMap[3],
+        chapterNumber: 3,
+        canonicalLessonTitle: canonicalTitle,
+      };
+    }
+  }
+
+  // 5. Nếu không khớp từ khóa nội dung, dựa vào rawChapter có sẵn
+  if (rawChapter && rawChapter.trim() !== '' && rawChapter !== 'Chủ đề chung') {
+    const chOrder = extractChapterOrder(rawChapter);
+    const resolvedTitle = officialMap[chOrder] || rawChapter;
+    return {
+      chapter: resolvedTitle,
+      chapterNumber: chOrder,
+      canonicalLessonTitle: canonicalTitle,
+    };
+  }
+
+  // Fallback: Chương 1
+  return {
+    chapter: officialMap[1] || 'Chương I',
+    chapterNumber: 1,
+    canonicalLessonTitle: canonicalTitle,
+  };
+}
+
+/**
  * Tự động đối chiếu văn bản (kể cả văn bản chứa mã NLS hay text công cụ) với
  * chương trình SGK Toán hiện nay (GDPT 2018 - Kết nối tri thức / Cánh diều / Chân trời sáng tạo)
  * để trả về Tên Chương và Tên Bài học chuẩn xác nhất theo SGK.
@@ -427,276 +827,13 @@ export function getOfficialSgkTopicAndChapter(
   sgkBooks?: SgkBook[]
 ): { chapter: string; topic: string } | null {
   if (!text) return null;
-  const lower = text.toLowerCase();
-  const normGrade = String(grade || '9').replace(/\D/g, '') || '9';
-
-  // 1. Thử đối chiếu với các cuốn sách SGK có trong hệ thống nếu có
-  if (sgkBooks && sgkBooks.length > 0) {
-    const match = findMatchingSgkLesson(text, text, sgkBooks, 'all', normGrade);
-    if (match.lesson && match.chapter && match.matchScore > 15) {
-      return {
-        chapter: match.chapter.title,
-        topic: match.lesson.title,
-      };
-    }
+  const res = identifySgkChapterAndLesson(text, '', grade, sgkBooks);
+  if (res && res.chapter) {
+    return {
+      chapter: res.chapter,
+      topic: res.canonicalLessonTitle,
+    };
   }
-
-  // 2. Tra cứu theo từ khóa cốt lõi chuẩn SGK Toán 9 hiện hành (GDPT 2018)
-  if (normGrade === '9') {
-    if (
-      lower.includes('tỉ số lượng giác') ||
-      lower.includes('ti so luong giac') ||
-      lower.includes('sin, cos, tan') ||
-      lower.includes('lượng giác') ||
-      lower.includes('tam giác vuông')
-    ) {
-      if (lower.includes('hệ thức về cạnh và góc') || lower.includes('giải tam giác vuông')) {
-        return {
-          chapter: 'Chương IV: Hệ thức lượng trong tam giác vuông',
-          topic: 'Bài 11: Một số hệ thức về cạnh và góc trong tam giác vuông',
-        };
-      }
-      return {
-        chapter: 'Chương IV: Hệ thức lượng trong tam giác vuông',
-        topic: 'Bài 10: Tỉ số lượng giác của góc nhọn',
-      };
-    }
-
-    if (
-      lower.includes('đường tròn') ||
-      lower.includes('tiếp tuyến') ||
-      lower.includes('dây cung') ||
-      lower.includes('cung và dây') ||
-      lower.includes('tứ giác nội tiếp')
-    ) {
-      if (lower.includes('tiếp tuyến')) {
-        return {
-          chapter: 'Chương V: Đường tròn',
-          topic: 'Bài 13: Tiếp tuyến của đường tròn',
-        };
-      }
-      if (lower.includes('tứ giác nội tiếp')) {
-        return {
-          chapter: 'Chương V: Đường tròn',
-          topic: 'Tứ giác nội tiếp đường tròn',
-        };
-      }
-      return {
-        chapter: 'Chương V: Đường tròn',
-        topic: 'Bài 12: Mở đầu về đường tròn. Cung và dây',
-      };
-    }
-
-    if (
-      lower.includes('hệ hai phương trình') ||
-      lower.includes('phương trình bậc nhất hai ẩn') ||
-      lower.includes('hệ phương trình') ||
-      lower.includes('phương pháp thế') ||
-      lower.includes('cộng đại số')
-    ) {
-      if (lower.includes('giải bài toán bằng cách lập hệ') || lower.includes('toán thực tế')) {
-        return {
-          chapter: 'Chương I: Phương trình và hệ hai phương trình bậc nhất hai ẩn',
-          topic: 'Bài 3: Giải bài toán bằng cách lập hệ phương trình',
-        };
-      }
-      if (lower.includes('giải hệ') || lower.includes('phương pháp')) {
-        return {
-          chapter: 'Chương I: Phương trình và hệ hai phương trình bậc nhất hai ẩn',
-          topic: 'Bài 2: Giải hệ hai phương trình bậc nhất hai ẩn',
-        };
-      }
-      return {
-        chapter: 'Chương I: Phương trình và hệ hai phương trình bậc nhất hai ẩn',
-        topic: 'Bài 1: Khái niệm phương trình và hệ hai phương trình bậc nhất hai ẩn',
-      };
-    }
-
-    if (
-      lower.includes('bất phương trình') ||
-      lower.includes('bất đẳng thức') ||
-      lower.includes('phương trình quy về')
-    ) {
-      if (lower.includes('bất đẳng thức') || lower.includes('bất phương trình')) {
-        return {
-          chapter: 'Chương II: Phương trình và bất phương trình bậc nhất một ẩn',
-          topic: 'Bài 5: Bất đẳng thức và bất phương trình bậc nhất một ẩn',
-        };
-      }
-      return {
-        chapter: 'Chương II: Phương trình và bất phương trình bậc nhất một ẩn',
-        topic: 'Bài 4: Phương trình quy về phương trình bậc nhất một ẩn',
-      };
-    }
-
-    if (lower.includes('căn bậc hai') || lower.includes('căn bậc ba') || lower.includes('căn thức')) {
-      return {
-        chapter: 'Chương III: Căn bậc hai và căn bậc ba',
-        topic: 'Bài 7: Căn bậc hai và căn thức bậc hai',
-      };
-    }
-
-    if (
-      lower.includes('hàm số y = ax²') ||
-      lower.includes('y = ax') ||
-      lower.includes('parabol') ||
-      lower.includes('phương trình bậc hai') ||
-      lower.includes('vi-ét') ||
-      lower.includes('viète') ||
-      lower.includes('công thức nghiệm')
-    ) {
-      if (lower.includes('vi-ét') || lower.includes('viète')) {
-        return {
-          chapter: 'Chương VI: Hàm số y = ax² (a ≠ 0). Phương trình bậc hai một ẩn',
-          topic: 'Bài 16: Định lí Viète và ứng dụng',
-        };
-      }
-      if (lower.includes('phương trình bậc hai') || lower.includes('công thức nghiệm')) {
-        return {
-          chapter: 'Chương VI: Hàm số y = ax² (a ≠ 0). Phương trình bậc hai một ẩn',
-          topic: 'Bài 15: Phương trình bậc hai một ẩn và công thức nghiệm',
-        };
-      }
-      return {
-        chapter: 'Chương VI: Hàm số y = ax² (a ≠ 0). Phương trình bậc hai một ẩn',
-        topic: 'Bài 14: Hàm số y = ax² (a ≠ 0) và đồ thị',
-      };
-    }
-
-    if (
-      lower.includes('tần số') ||
-      lower.includes('bảng tần số') ||
-      lower.includes('biểu đồ tần số') ||
-      lower.includes('thống kê')
-    ) {
-      return {
-        chapter: 'Chương VII: Một số yếu tố thống kê',
-        topic: 'Bài 18: Bảng tần số và biểu đồ tần số',
-      };
-    }
-
-    if (lower.includes('xác suất') || lower.includes('không gian mẫu') || lower.includes('biến cố')) {
-      return {
-        chapter: 'Chương VIII: Một số yếu tố xác suất',
-        topic: 'Bài 21: Phép thử ngẫu nhiên và không gian mẫu',
-      };
-    }
-
-    if (
-      lower.includes('hình trụ') ||
-      lower.includes('hình nón') ||
-      lower.includes('hình cầu') ||
-      lower.includes('hình khối')
-    ) {
-      return {
-        chapter: 'Chương IX: Một số hình khối trong thực tiễn',
-        topic: 'Bài 22: Hình trụ và hình nón',
-      };
-    }
-  }
-
-  // 3. Tra cứu cho Khối 8
-  if (normGrade === '8') {
-    if (lower.includes('đa thức') || lower.includes('hằng đẳng thức')) {
-      return {
-        chapter: 'Chương I: Đa thức',
-        topic: 'Bài 1: Đơn thức và đa thức nhiều biến',
-      };
-    }
-    if (lower.includes('phân thức')) {
-      return {
-        chapter: 'Chương II: Phân thức đại số',
-        topic: 'Bài 6: Phân thức đại số',
-      };
-    }
-    if (lower.includes('hàm số bậc nhất') || lower.includes('hệ số góc')) {
-      return {
-        chapter: 'Chương V: Hàm số bậc nhất',
-        topic: 'Bài 18: Hàm số bậc nhất y = ax + b (a ≠ 0)',
-      };
-    }
-    if (lower.includes('tam giác đồng dạng')) {
-      return {
-        chapter: 'Chương IX: Tam giác đồng dạng',
-        topic: 'Bài 33: Hai tam giác đồng dạng',
-      };
-    }
-    if (lower.includes('định lí pythagore') || lower.includes('tứ giác')) {
-      return {
-        chapter: 'Chương III: Tứ giác',
-        topic: 'Bài 10: Tứ giác và hình thang cân',
-      };
-    }
-  }
-
-  // 4. Tra cứu cho Khối 7
-  if (normGrade === '7') {
-    if (lower.includes('số hữu tỉ') || lower.includes('hữu tỉ')) {
-      return {
-        chapter: 'Chương I: Số hữu tỉ',
-        topic: 'Bài 1: Tập hợp các số hữu tỉ',
-      };
-    }
-    if (lower.includes('số thực') || lower.includes('căn bậc hai số học')) {
-      return {
-        chapter: 'Chương II: Số thực',
-        topic: 'Bài 6: Số vô tỉ. Căn bậc hai số học',
-      };
-    }
-    if (lower.includes('tam giác bằng nhau')) {
-      return {
-        chapter: 'Chương IV: Tam giác bằng nhau',
-        topic: 'Bài 14: Hai tam giác bằng nhau',
-      };
-    }
-    if (lower.includes('tỉ lệ thức') || lower.includes('đại lượng tỉ lệ')) {
-      return {
-        chapter: 'Chương VI: Tỉ lệ thức và đại lượng tỉ lệ',
-        topic: 'Bài 21: Tỉ lệ thức',
-      };
-    }
-    if (lower.includes('biểu thức đại số') || lower.includes('đa thức một biến')) {
-      return {
-        chapter: 'Chương VII: Biểu thức đại số và đa thức một biến',
-        topic: 'Bài 26: Đa thức một biến',
-      };
-    }
-  }
-
-  // 5. Tra cứu cho Khối 6
-  if (normGrade === '6') {
-    if (lower.includes('số tự nhiên') || lower.includes('tập hợp')) {
-      return {
-        chapter: 'Chương I: Tập hợp các số tự nhiên',
-        topic: 'Bài 1: Tập hợp và phần tử của tập hợp',
-      };
-    }
-    if (lower.includes('số nguyên')) {
-      return {
-        chapter: 'Chương III: Số nguyên',
-        topic: 'Bài 14: Tập hợp các số nguyên',
-      };
-    }
-    if (lower.includes('phân số')) {
-      return {
-        chapter: 'Chương V: Phân số',
-        topic: 'Bài 23: Mở rộng phân số. Phân số bằng nhau',
-      };
-    }
-    if (lower.includes('số thập phân')) {
-      return {
-        chapter: 'Chương VI: Số thập phân',
-        topic: 'Bài 28: Số thập phân',
-      };
-    }
-    if (lower.includes('hình học trực quan') || lower.includes('tam giác đều') || lower.includes('hình vuông')) {
-      return {
-        chapter: 'Chương IV: Một số hình phẳng trong thực tiễn',
-        topic: 'Bài 20: Tam giác đều. Hình vuông. Lục giác đều',
-      };
-    }
-  }
-
   return null;
 }
 
@@ -706,95 +843,8 @@ export function getOfficialSgkTopicAndChapter(
  */
 export function getDefaultSgkChapter(grade: string = '9', topicText: string = '', week: number = 1): string {
   const normGrade = String(grade || '9').replace(/\D/g, '') || '9';
-  const lower = (topicText || '').toLowerCase();
-
-  if (normGrade === '9') {
-    if (lower.includes('lượng giác') || lower.includes('tam giác vuông') || lower.includes('hệ thức') || lower.includes('sin') || lower.includes('cos')) {
-      return 'Chương IV: Hệ thức lượng trong tam giác vuông';
-    }
-    if (lower.includes('đường tròn') || lower.includes('tiếp tuyến') || lower.includes('dây cung') || lower.includes('tứ giác nội tiếp')) {
-      return 'Chương V: Đường tròn';
-    }
-    if (lower.includes('bất đẳng thức') || lower.includes('bất phương trình')) {
-      return 'Chương II: Phương trình và bất phương trình bậc nhất một ẩn';
-    }
-    if (lower.includes('căn bậc hai') || lower.includes('căn bậc ba') || lower.includes('căn thức')) {
-      return 'Chương III: Căn bậc hai và căn bậc ba';
-    }
-    if (lower.includes('hàm số') || lower.includes('parabol') || lower.includes('phương trình bậc hai') || lower.includes('vi-ét')) {
-      return 'Chương VI: Hàm số y = ax² (a ≠ 0). Phương trình bậc hai một ẩn';
-    }
-    if (lower.includes('thống kê') || lower.includes('tần số') || lower.includes('bảng tần số')) {
-      return 'Chương VII: Một số yếu tố thống kê';
-    }
-    if (lower.includes('xác suất') || lower.includes('biến cố') || lower.includes('không gian mẫu')) {
-      return 'Chương VIII: Một số yếu tố xác suất';
-    }
-    if (lower.includes('hình trụ') || lower.includes('hình nón') || lower.includes('hình cầu')) {
-      return 'Chương IX: Một số hình khối trong thực tiễn';
-    }
-    // Mặc định HK1 (tuần <= 18)
-    if (week <= 9) {
-      return 'Chương I: Phương trình và hệ hai phương trình bậc nhất hai ẩn';
-    }
-    if (week <= 18) {
-      return 'Chương IV: Hệ thức lượng trong tam giác vuông';
-    }
-    return 'Chương VI: Hàm số y = ax² (a ≠ 0). Phương trình bậc hai một ẩn';
-  }
-
-  if (normGrade === '8') {
-    if (lower.includes('hằng đẳng thức') || lower.includes('đa thức') || lower.includes('đơn thức')) {
-      return 'Chương I: Đa thức';
-    }
-    if (lower.includes('phân thức')) {
-      return 'Chương II: Phân thức đại số';
-    }
-    if (lower.includes('hàm số') || lower.includes('đồ thị')) {
-      return 'Chương V: Hàm số bậc nhất';
-    }
-    if (lower.includes('tứ giác') || lower.includes('hình thang') || lower.includes('hình bình hành') || lower.includes('hình chữ nhật')) {
-      return 'Chương III: Tứ giác';
-    }
-    if (lower.includes('tam giác đồng dạng') || lower.includes('định lí thales')) {
-      return 'Chương IX: Tam giác đồng dạng';
-    }
-    return week <= 9 ? 'Chương I: Đa thức' : 'Chương III: Tứ giác';
-  }
-
-  if (normGrade === '7') {
-    if (lower.includes('số hữu tỉ') || lower.includes('hữu tỉ')) {
-      return 'Chương I: Số hữu tỉ';
-    }
-    if (lower.includes('số thực') || lower.includes('căn bậc hai')) {
-      return 'Chương II: Số thực';
-    }
-    if (lower.includes('góc') || lower.includes('đường thẳng song song')) {
-      return 'Chương III: Góc và hai đường thẳng song song';
-    }
-    if (lower.includes('tam giác bằng nhau')) {
-      return 'Chương IV: Tam giác bằng nhau';
-    }
-    if (lower.includes('tỉ lệ thức')) {
-      return 'Chương VI: Tỉ lệ thức và đại lượng tỉ lệ';
-    }
-    return week <= 9 ? 'Chương I: Số hữu tỉ' : 'Chương III: Góc và hai đường thẳng song song';
-  }
-
-  // Khối 6
-  if (lower.includes('tập hợp') || lower.includes('số tự nhiên') || lower.includes('ước') || lower.includes('bội')) {
-    return 'Chương I: Tập hợp các số tự nhiên';
-  }
-  if (lower.includes('số nguyên') || lower.includes('nguyên âm') || lower.includes('nguyên dương')) {
-    return 'Chương III: Số nguyên';
-  }
-  if (lower.includes('hình phẳng') || lower.includes('tam giác đều') || lower.includes('hình vuông')) {
-    return 'Chương IV: Một số hình phẳng trong thực tiễn';
-  }
-  if (lower.includes('phân số')) {
-    return 'Chương V: Phân số';
-  }
-  return week <= 9 ? 'Chương I: Tập hợp các số tự nhiên' : 'Chương IV: Một số hình phẳng trong thực tiễn';
+  const res = identifySgkChapterAndLesson(topicText, '', normGrade);
+  return res.chapter;
 }
 
 /**
@@ -870,22 +920,7 @@ export function standardizeRowsToCurrentSgk(
  * Gom các tiết phụ của cùng một bài học (ví dụ tiết 1-2 pp thế, tiết 3-4 pp cộng đại số) về cùng tên bài học chuẩn
  */
 export function cleanLessonTopic(rawTopic: string): string {
-  const withoutNls = cleanContentWithoutNls(rawTopic || '');
-  let cleaned = withoutNls
-    .replace(/\(t\d+.*?\)/gi, '')
-    .replace(/\(tiết\s*\d+.*?\)/gi, '')
-    .replace(/\s*&?\s*kiểm tra thường xuyên\s*\d*.*$/i, '')
-    .replace(/\s*&?\s*kttx\s*\d*.*$/i, '')
-    .replace(/\s*&?\s*kt\s*15\s*phút.*$/i, '')
-    .trim();
-
-  // Nếu là bài học có số thứ tự "Bài X...", chuẩn hóa lấy phần tên bài chính (bỏ phần phân nhánh sau dấu gạch ngang)
-  const matchLesson = cleaned.match(/^(\s*bài\s+\d+[\.\:\s]+[^(–\-\n]+)/i);
-  if (matchLesson) {
-    return matchLesson[1].trim();
-  }
-
-  return cleaned;
+  return extractCanonicalLessonTitle(rawTopic);
 }
 
 /**
@@ -998,6 +1033,7 @@ export function generateMatrixFromPpct(
     limitWeekTo?: number;
     limitPeriodTo?: number;
     selectedLessonKeys?: string[];
+    sgkBooks?: SgkBook[];
     cutOffExamWeek?: boolean;
     incompleteLessonPolicy?: 'exclude' | 'partial_only' | 'include_all';
     excludeNonTestable?: boolean;
@@ -1023,6 +1059,7 @@ export function generateMatrixFromPpct(
     limitWeekTo: options,
     limitPeriodTo: undefined as number | undefined,
     selectedLessonKeys: undefined as string[] | undefined,
+    sgkBooks: undefined as SgkBook[] | undefined,
     cutOffExamWeek: true,
     incompleteLessonPolicy: 'exclude' as const,
     excludeNonTestable: true,
@@ -1042,6 +1079,7 @@ export function generateMatrixFromPpct(
     limitWeekTo: Math.max(options.limitWeekFrom ?? 1, options.limitWeekTo ?? options.targetWeek ?? 9),
     limitPeriodTo: options.limitPeriodTo,
     selectedLessonKeys: options.selectedLessonKeys,
+    sgkBooks: options.sgkBooks,
     cutOffExamWeek: options.cutOffExamWeek !== false,
     incompleteLessonPolicy: options.incompleteLessonPolicy ?? 'exclude',
     excludeNonTestable: options.excludeNonTestable !== false,
@@ -1100,11 +1138,13 @@ export function generateMatrixFromPpct(
 
   // If specific lesson keys are provided, filter by those
   if (config.selectedLessonKeys && config.selectedLessonKeys.length > 0) {
+    const selectedSet = new Set(config.selectedLessonKeys);
     lessons = lessons.filter((l) => {
       const cleaned = cleanLessonTopic(l.baiHoc);
-      const key = `${l.chuong}:::${cleaned}`;
-      const rawKey = `${l.chuong}:::${l.baiHoc.replace(/\(t\d+\)/g, '').trim()}`;
-      return config.selectedLessonKeys!.includes(key) || config.selectedLessonKeys!.includes(rawKey);
+      const resolvedChapter = identifySgkChapterAndLesson(cleaned, l.chuong, ppct.grade || '9', config.sgkBooks).chapter;
+      const key = `${resolvedChapter}:::${cleaned}`;
+      const rawKey = `${l.chuong}:::${cleaned}`;
+      return selectedSet.has(key) || selectedSet.has(rawKey);
     });
   }
 
@@ -1113,8 +1153,9 @@ export function generateMatrixFromPpct(
   // 4. Nhóm theo chương & bài học chuẩn SGK, áp dụng chính sách bài dở dang vắt qua tuần 8 & 9
   interface ChapterAccumulator {
     chapter: string;
+    chapterNumber: number;
     totalPeriods: number;
-    lessonMap: Map<string, { name: string; periods: number; minWeek: number }>;
+    lessonMap: Map<string, { name: string; periods: number; minWeek: number; maxWeek: number }>;
     minWeek: number;
     maxWeek: number;
   }
@@ -1146,28 +1187,13 @@ export function generateMatrixFromPpct(
       }
     }
 
-    let cleanedTopic = check.cleanedTopic || l.baiHoc.replace(/\(t\d+\)/g, '').trim();
-    let cleanedChapter = l.chuong || '';
+    let rawCleanedTopic = check.cleanedTopic || l.baiHoc.replace(/\(t\d+\)/g, '').trim();
+    let rawCleanedChapter = l.chuong || '';
 
     // Chuẩn hóa tên chương và bài học theo SGK hiện hành (GDPT 2018)
-    const match = getOfficialSgkTopicAndChapter(`${cleanedChapter} ${cleanedTopic}`, ppct.grade || '9');
-    if (match) {
-      cleanedChapter = match.chapter;
-      if (!cleanedTopic || isTechCompetenceText(cleanedTopic)) {
-        cleanedTopic = match.topic;
-      }
-    } else {
-      cleanedChapter = cleanContentWithoutNls(cleanedChapter);
-      cleanedTopic = cleanContentWithoutNls(cleanedTopic);
-    }
-
-    // Tên chủ đề / chương thực hiện theo SGK, tuyệt đối không để trống
-    if (!cleanedChapter || cleanedChapter.trim() === '' || cleanedChapter === 'Chủ đề chung' || cleanedChapter.toLowerCase() === 'chủ đề khác') {
-      cleanedChapter = getDefaultSgkChapter(ppct.grade || '9', cleanedTopic, l.tuan);
-    }
-    if (!cleanedTopic || cleanedTopic.trim() === '') {
-      cleanedTopic = match?.topic || 'Nội dung kiến thức theo SGK';
-    }
+    const sgkRes = identifySgkChapterAndLesson(rawCleanedTopic, rawCleanedChapter, ppct.grade || '9', config.sgkBooks);
+    const cleanedChapter = sgkRes.chapter;
+    const cleanedTopic = sgkRes.canonicalLessonTitle;
 
     // "nếu lấy nội dung có liên quan trong tuần 8 thì chỉ lấy đúng nội dung được học"
     let lessonPeriods = l.soTiet || 1;
@@ -1181,6 +1207,7 @@ export function generateMatrixFromPpct(
     if (!chAcc) {
       chAcc = {
         chapter: cleanedChapter,
+        chapterNumber: sgkRes.chapterNumber || extractChapterOrder(cleanedChapter),
         totalPeriods: 0,
         lessonMap: new Map(),
         minWeek: l.tuan,
@@ -1197,11 +1224,13 @@ export function generateMatrixFromPpct(
     if (existingL) {
       existingL.periods += lessonPeriods;
       existingL.minWeek = Math.min(existingL.minWeek, l.tuan);
+      existingL.maxWeek = Math.max(existingL.maxWeek, l.tuan);
     } else {
       chAcc.lessonMap.set(lKey, {
         name: cleanedTopic,
         periods: lessonPeriods,
         minWeek: l.tuan,
+        maxWeek: l.tuan,
       });
     }
 
@@ -1222,21 +1251,36 @@ export function generateMatrixFromPpct(
   let units: { chapter: string; topic: string; periods: number }[] = [];
 
   if (config.matrixGroupBy === 'lesson') {
-    units = Array.from(lessonUnitMap.values());
+    units = Array.from(lessonUnitMap.values()).sort((a, b) => {
+      const numA = extractChapterOrder(a.chapter);
+      const numB = extractChapterOrder(b.chapter);
+      if (numA !== numB) return numA - numB;
+      return a.topic.localeCompare(b.topic, 'vi');
+    });
   } else {
     // Group by Chapter / Chủ đề lớn (Chuẩn Phụ lục 1 khung ma trận Bộ GD&ĐT)
-    // Tự động phân rõ số lượng bài học và tổng số tiết chính xác bám sát PPCT
-    units = Array.from(chapterMap.values()).map((ch) => {
+    // Sắp xếp các chương TUẦN TỰ theo thứ tự SGK: Chương 1, Chương 2, Chương 3, Chương 4...
+    const sortedChapters = Array.from(chapterMap.values()).sort((a, b) => {
+      const numA = (a as any).chapterNumber ?? extractChapterOrder(a.chapter);
+      const numB = (b as any).chapterNumber ?? extractChapterOrder(b.chapter);
+      if (numA !== numB) return numA - numB;
+      return a.minWeek - b.minWeek;
+    });
+
+    units = sortedChapters.map((ch) => {
       const distinctLessons = Array.from(ch.lessonMap.values()).sort((a, b) => a.minWeek - b.minWeek);
       // Đếm các bài học chính (bắt đầu bằng Bài X hoặc có cấu trúc bài)
       const mainLessons = distinctLessons.filter((ls) => /\bbài\s+\d+/i.test(ls.name));
+      const extraLessons = distinctLessons.filter((ls) => !/\bbài\s+\d+/i.test(ls.name));
       const lessonCount = mainLessons.length > 0 ? mainLessons.length : distinctLessons.length;
       
-      const lessonSummary = distinctLessons
-        .map((ls) => `${ls.name} (${ls.periods} tiết)`)
-        .join('; ');
+      const mainSummary = mainLessons.map((ls) => `${ls.name} (${ls.periods} tiết)`).join('; ');
+      const extraSummary = extraLessons.map((ls) => `${ls.name} (${ls.periods} tiết)`).join(', ');
 
-      const formattedTopic = `Gồm ${lessonCount} bài học: ${lessonSummary}`;
+      let formattedTopic = `Gồm ${lessonCount} bài học: ${mainSummary}`;
+      if (extraSummary) {
+        formattedTopic += ` (kèm ${extraSummary})`;
+      }
 
       return {
         chapter: ch.chapter,
@@ -1685,6 +1729,7 @@ export function getPpctReferenceBreakdown(
     incompleteLessonPolicy?: 'exclude' | 'partial_only' | 'include_all';
     excludeNonTestable?: boolean;
     selectedLessonKeys?: string[];
+    sgkBooks?: SgkBook[];
   }
 ): PpctReferenceItem[] {
   const weekFrom = Math.max(1, options.limitWeekFrom ?? 1);
@@ -1698,13 +1743,16 @@ export function getPpctReferenceBreakdown(
     const selectedSet = new Set(options.selectedLessonKeys);
     lessons = lessons.filter((l) => {
       const cleaned = cleanLessonTopic(l.baiHoc);
-      const key = `${l.chuong}:::${cleaned}`;
-      return selectedSet.has(key);
+      const resolvedChapter = identifySgkChapterAndLesson(cleaned, l.chuong, ppct.grade || '9', options.sgkBooks).chapter;
+      const key = `${resolvedChapter}:::${cleaned}`;
+      const rawKey = `${l.chuong}:::${cleaned}`;
+      return selectedSet.has(key) || selectedSet.has(rawKey);
     });
   }
 
   // Tích lũy theo chương
   const chMap = new Map<string, {
+    chapterNumber: number;
     totalPeriods: number;
     lessonMap: Map<string, { name: string; periods: number; week: number }>;
     minWeek: number;
@@ -1717,27 +1765,18 @@ export function getPpctReferenceBreakdown(
       if (check.isNonTestable) return;
     }
 
-    let cleanedTopic = l.baiHoc.replace(/\(t\d+\)/g, '').trim();
-    let cleanedChapter = l.chuong || '';
-    const match = getOfficialSgkTopicAndChapter(`${cleanedChapter} ${cleanedTopic}`, ppct.grade || '9');
-    if (match) {
-      cleanedChapter = match.chapter;
-      if (!cleanedTopic || isTechCompetenceText(cleanedTopic)) {
-        cleanedTopic = match.topic;
-      }
-    } else {
-      cleanedChapter = cleanContentWithoutNls(cleanedChapter);
-      cleanedTopic = cleanContentWithoutNls(cleanedTopic);
-    }
-    if (!cleanedChapter || cleanedChapter.trim() === '' || cleanedChapter === 'Chủ đề chung') {
-      cleanedChapter = getDefaultSgkChapter(ppct.grade || '9', cleanedTopic, l.tuan);
-    }
+    const rawCleanedTopic = l.baiHoc.replace(/\(t\d+\)/g, '').trim();
+    const rawCleanedChapter = l.chuong || '';
+    const sgkRes = identifySgkChapterAndLesson(rawCleanedTopic, rawCleanedChapter, ppct.grade || '9', options.sgkBooks);
+    const cleanedChapter = sgkRes.chapter;
+    const cleanedTopic = sgkRes.canonicalLessonTitle;
 
     let p = l.soTiet || 1;
 
     let chEntry = chMap.get(cleanedChapter);
     if (!chEntry) {
       chEntry = {
+        chapterNumber: sgkRes.chapterNumber || extractChapterOrder(cleanedChapter),
         totalPeriods: 0,
         lessonMap: new Map(),
         minWeek: l.tuan,
@@ -1764,11 +1803,17 @@ export function getPpctReferenceBreakdown(
   });
 
   const grandTotalPeriods = Array.from(chMap.values()).reduce((s, c) => s + c.totalPeriods, 0) || 1;
-  const entries = Array.from(chMap.entries());
+  // Sắp xếp các chương theo đúng thứ tự chuẩn SGK: Chương 1, Chương 2, Chương 3...
+  const sortedEntries = Array.from(chMap.entries()).sort((a, b) => {
+    const numA = a[1].chapterNumber ?? extractChapterOrder(a[0]);
+    const numB = b[1].chapterNumber ?? extractChapterOrder(b[0]);
+    if (numA !== numB) return numA - numB;
+    return a[1].minWeek - b[1].minWeek;
+  });
 
   let accumulatedScore = 0;
-  return entries.map(([chapterName, data], idx) => {
-    const isLast = idx === entries.length - 1;
+  return sortedEntries.map(([chapterName, data], idx) => {
+    const isLast = idx === sortedEntries.length - 1;
     const rawScore = (data.totalPeriods * 10) / grandTotalPeriods;
     let roundedScore = Math.round(rawScore * 2) / 2;
     if (isLast) {

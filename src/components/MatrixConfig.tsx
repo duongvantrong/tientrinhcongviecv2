@@ -25,7 +25,12 @@ import {
   Trash2,
 } from 'lucide-react';
 import { MatrixConfig, ExamEvent, PpctDataset, PpctLesson, SgkBook } from '../types';
-import { checkNonTestableContent, cleanLessonTopic } from '../utils/dateCalculations';
+import {
+  checkNonTestableContent,
+  cleanLessonTopic,
+  identifySgkChapterAndLesson,
+  extractChapterOrder,
+} from '../utils/dateCalculations';
 
 interface MatrixConfigProps {
   config: MatrixConfig;
@@ -100,8 +105,8 @@ export const MatrixConfigSection: React.FC<MatrixConfigProps> = ({
   const lessonKeysInRange: string[] = Array.from(
     new Set(
       lessonsInWeekRange.map((l) => {
-        const cleaned = cleanLessonTopic(l.baiHoc);
-        return `${l.chuong}:::${cleaned}`;
+        const sgkRes = identifySgkChapterAndLesson(l.baiHoc, l.chuong, activePpct.grade || '9', sgkBooks);
+        return `${sgkRes.chapter}:::${sgkRes.canonicalLessonTitle}`;
       })
     )
   );
@@ -119,7 +124,8 @@ export const MatrixConfigSection: React.FC<MatrixConfigProps> = ({
 
   // Calculate non-testable lesson periods count and reasons
   const nonTestableLessons = lessonsInWeekRange.filter((l) => {
-    const check = checkNonTestableContent(l.baiHoc, l.chuong);
+    const sgkRes = identifySgkChapterAndLesson(l.baiHoc, l.chuong, activePpct.grade || '9', sgkBooks);
+    const check = checkNonTestableContent(l.baiHoc, sgkRes.chapter);
     return check.isNonTestable;
   });
   const excludedPeriodsCount = nonTestableLessons.reduce((sum, l) => sum + (l.soTiet || 1), 0);
@@ -129,9 +135,9 @@ export const MatrixConfigSection: React.FC<MatrixConfigProps> = ({
   const activeSelectedKeys = config.selectedLessonKeys ?? defaultKeys;
   
   const effectiveLessons = lessonsInWeekRange.filter((l) => {
-    const cleaned = cleanLessonTopic(l.baiHoc);
-    const key = `${l.chuong}:::${cleaned}`;
-    const rawKey = `${l.chuong}:::${l.baiHoc.replace(/\(t\d+\)/g, '').trim()}`;
+    const sgkRes = identifySgkChapterAndLesson(l.baiHoc, l.chuong, activePpct.grade || '9', sgkBooks);
+    const key = `${sgkRes.chapter}:::${sgkRes.canonicalLessonTitle}`;
+    const rawKey = `${l.chuong}:::${cleanLessonTopic(l.baiHoc)}`;
     return activeSelectedKeys.includes(key) || activeSelectedKeys.includes(rawKey);
   });
 
@@ -150,10 +156,11 @@ export const MatrixConfigSection: React.FC<MatrixConfigProps> = ({
   const chapterGroups = new Map<string, TopicGroupItem[]>();
   
   lessonsInWeekRange.forEach((l) => {
-    const cleanedTopic = cleanLessonTopic(l.baiHoc);
-    const key = `${l.chuong}:::${cleanedTopic}`;
-    const chapterName = l.chuong;
-    const check = checkNonTestableContent(l.baiHoc, l.chuong);
+    const sgkRes = identifySgkChapterAndLesson(l.baiHoc, l.chuong, activePpct.grade || '9', sgkBooks);
+    const chapterName = sgkRes.chapter;
+    const cleanedTopic = sgkRes.canonicalLessonTitle;
+    const key = `${chapterName}:::${cleanedTopic}`;
+    const check = checkNonTestableContent(l.baiHoc, chapterName);
 
     const list = chapterGroups.get(chapterName) || [];
     const existing = list.find((item) => item.key === key);
@@ -1108,7 +1115,9 @@ export const MatrixConfigSection: React.FC<MatrixConfigProps> = ({
             </div>
           ) : (
             <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
-              {Array.from(chapterGroups.entries()).map(([chapterName, topics]) => {
+              {Array.from(chapterGroups.entries())
+                .sort((a, b) => extractChapterOrder(a[0]) - extractChapterOrder(b[0]))
+                .map(([chapterName, topics]) => {
                 const filteredTopics = topics.filter((t) => {
                   if (lessonFilterTab === 'testable') return !t.check.isNonTestable;
                   if (lessonFilterTab === 'excluded') return t.check.isNonTestable;

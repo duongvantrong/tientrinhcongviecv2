@@ -77,6 +77,17 @@ export function findMatchingSgkLesson(
         }
         score += (commonWords / Math.max(topicWords.length, 1)) * 30;
 
+        // Lesson number matching (e.g., Bài 4 should strongly match Bài 4 and reject Bài 11)
+        const mTopicNum = topicName.match(/\bbài\s+(\d+)\b/i);
+        const mLessonNum = lesson.title.match(/\bbài\s+(\d+)\b/i);
+        if (mTopicNum && mLessonNum) {
+          if (mTopicNum[1] === mLessonNum[1] || (lesson.lessonNumber && String(lesson.lessonNumber) === mTopicNum[1])) {
+            score += 50;
+          } else {
+            score -= 50;
+          }
+        }
+
         if (chapterMatch) {
           score += 15;
         }

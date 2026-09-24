@@ -675,6 +675,7 @@ export default function App() {
       limitWeekFrom: weekFrom,
       limitWeekTo: weekTo,
       targetWeek: weekTo,
+      sgkBooks,
       ratioTn: matrixConfig.ratioTn || 70,
       ratioTl: matrixConfig.ratioTl || 30,
       structureType: matrixConfig.structureType || 'moet_2025_new',
